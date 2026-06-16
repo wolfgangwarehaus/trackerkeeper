@@ -13,9 +13,17 @@ import sys
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication, QIcon
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
-from dough import __version__
+from dough import __version__, ui_helpers
+from dough.bus import AppBus
 
 # Fork: rename to your app. Keep org == app so the QSettings handle matches
 # design_tokens._load_font_scale (QSettings("dough", "dough")).
@@ -102,13 +110,6 @@ def main() -> None:
     AppBus.get().show_settings.connect(_open_settings)
     win.show()
     sys.exit(app.exec())
-
-
-# Imported lazily-but-at-module-scope so _placeholder() can reference them; the
-# heavy Qt/theme work still happens inside main()/the helpers.
-from dough import ui_helpers  # noqa: E402
-from dough.bus import AppBus  # noqa: E402
-from PySide6.QtWidgets import QHBoxLayout  # noqa: E402
 
 
 if __name__ == "__main__":
