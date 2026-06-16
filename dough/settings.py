@@ -1,0 +1,128 @@
+"""Slim persistent settings (QSettings-backed).
+
+dough keeps a tiny, generic settings surface: theme, accent, font scale,
+window-chrome toggles, and a couple of platform-integration switches. Apps add
+their own keys by subclassing ``Settings`` or calling ``get_settings()._s``
+(the raw ``QSettings``) directly.
+
+The handle is ``QSettings("dough", "dough")`` — the SAME org/app pair
+``design_tokens`` uses at import time, so font scaling resolves identically
+whether or not a QApplication exists yet. Fork note: rename ``_ORG``/``_APP``
+(and the matching pair in ``design_tokens._load_font_scale``) to your app.
+"""
+
+from __future__ import annotations
+
+from PySide6.QtCore import QByteArray, QSettings
+
+_ORG = "dough"  # fork: rename to your app
+_APP = "dough"
+
+
+def _as_bool(val, default: bool) -> bool:
+    # QSettings round-trips bools as "true"/"false" strings on some backends.
+    if isinstance(val, str):
+        return val.strip().lower() in ("1", "true", "yes", "on")
+    if val is None:
+        return default
+    return bool(val)
+
+
+class Settings:
+    """Typed accessors over a single ``QSettings`` handle. Every property has a
+    getter (with a sensible default) and a setter that writes + syncs."""
+
+    def __init__(self) -> None:
+        self._s = QSettings(_ORG, _APP)
+
+    def _set(self, key: str, value) -> None:
+        self._s.setValue(key, value)
+        self._s.sync()
+
+    # ── Appearance ────────────────────────────────────────────────────
+    @property
+    def theme_mode(self) -> str:  # auto | frosted_dark | frosted_light | dark | light
+        return str(self._s.value("ui/theme_mode", "auto"))
+
+    @theme_mode.setter
+    def theme_mode(self, v: str) -> None:
+        self._set("ui/theme_mode", v)
+
+    @property
+    def accent_color(self) -> str:
+        return str(self._s.value("ui/accent_color", "#7C66D0"))
+
+    @accent_color.setter
+    def accent_color(self, v: str) -> None:
+        self._set("ui/accent_color", v)
+
+    @property
+    def font_scale(self) -> str:  # small | default | large | largest
+        return str(self._s.value("ui/font_scale", "default"))
+
+    @font_scale.setter
+    def font_scale(self, v: str) -> None:
+        self._set("ui/font_scale", v)
+
+    # ── Window chrome ─────────────────────────────────────────────────
+    @property
+    def native_window_border(self) -> bool:
+        return _as_bool(self._s.value("ui/native_window_border"), False)
+
+    @native_window_border.setter
+    def native_window_border(self, v: bool) -> None:
+        self._set("ui/native_window_border", bool(v))
+
+    @property
+    def show_tooltips(self) -> bool:
+        return _as_bool(self._s.value("ui/show_tooltips"), True)
+
+    @show_tooltips.setter
+    def show_tooltips(self, v: bool) -> None:
+        self._set("ui/show_tooltips", bool(v))
+
+    # ── Platform integration toggles ──────────────────────────────────
+    @property
+    def autostart(self) -> bool:
+        return _as_bool(self._s.value("app/autostart"), False)
+
+    @autostart.setter
+    def autostart(self, v: bool) -> None:
+        self._set("app/autostart", bool(v))
+
+    @property
+    def notify_on_track_change(self) -> bool:
+        # Generic "show notifications" toggle (name kept for the lifted
+        # notifications backend); rename freely in a fork.
+        return _as_bool(self._s.value("app/notify_on_track_change"), True)
+
+    @notify_on_track_change.setter
+    def notify_on_track_change(self, v: bool) -> None:
+        self._set("app/notify_on_track_change", bool(v))
+
+    # ── Window geometry ───────────────────────────────────────────────
+    def save_geometry(self, win) -> None:
+        self._s.setValue("win/geometry", win.saveGeometry())
+        self._s.sync()
+
+    def restore_geometry(self, win) -> bool:
+        g = self._s.value("win/geometry")
+        if isinstance(g, QByteArray) and not g.isEmpty():
+            win.restoreGeometry(g)
+            return True
+        return False
+
+    def flush(self) -> None:
+        """Force-write to disk. Call after a settings change on a shutdown
+        path that may skip the QSettings destructor flush (e.g. a tray Quit)."""
+        self._s.sync()
+
+
+_inst: "Settings | None" = None
+
+
+def get_settings() -> Settings:
+    global _inst
+    if _inst is None:
+        _inst = Settings()
+    return _inst
