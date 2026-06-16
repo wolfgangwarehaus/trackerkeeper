@@ -1,0 +1,67 @@
+# dough — the Wolfgang Warehaus app base. Fork this project, rename the
+# `dough` package + the identity fields below to your app, and build.
+#
+# Flat layout (the single `dough/` package at the repo root, entry in
+# `dough/app.py`) so `python -m dough` runs straight from a checkout with no
+# install. Core stays PySide6-only — heavy/native deps (a PDF engine, mpv, a
+# cast stack) belong in [project.optional-dependencies], never the base.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dough"
+version = "0.1.0"
+description = "A frosted, cross-platform PySide6 app base — the Wolfgang Warehaus starter kit."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "GPL-2.0-or-later" }
+authors = [{ name = "august", email = "augustvontrips@gmail.com" }]
+keywords = ["pyside6", "qt", "desktop", "starter", "template", "frosted-glass", "cross-platform", "kde", "windows"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+    # Core is PySide6 only — that's the whole point. Cap below Qt 7 (a hard
+    # compat break); floor at the earliest API the chrome relies on.
+    "PySide6>=6.6.0,<7.0",
+]
+
+[project.optional-dependencies]
+dev = ["ruff", "pytest", "pytest-xdist"]
+
+[project.gui-scripts]
+dough = "dough.app:main"
+
+[project.urls]
+Homepage = "https://github.com/wolfgangwarehaus/dough"
+Repository = "https://github.com/wolfgangwarehaus/dough"
+
+[tool.setuptools.packages.find]
+include = ["dough*"]
+exclude = ["tests*", "docs*", "packaging*"]
+
+[tool.setuptools.package-data]
+# The brand SVG (dough/assets/dough.svg) ships in the wheel so make_app_icon
+# resolves it via importlib.resources.
+"dough.assets" = ["*.svg"]
+
+[tool.ruff]
+# Wrap by editorial judgment, not a hard column (E501 off below). 100 is just
+# the formatter's reflow target if anyone runs `ruff format` (we don't by default).
+line-length = 100
+
+[tool.ruff.lint]
+# E, F, I, B — the jellytoast house set. E501 (line length) and E402
+# (module-level lazy import, used to break import cycles / guard optional deps)
+# are intentionally off.
+select = ["E", "F", "I", "B"]
+ignore = ["E501", "E402"]

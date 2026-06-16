@@ -6,8 +6,7 @@ import contextlib
 import shutil
 import subprocess
 import threading
-from collections import OrderedDict
-from typing import Callable, Optional
+from typing import Optional
 
 from PySide6.QtCore import (
     Property,
@@ -17,20 +16,17 @@ from PySide6.QtCore import (
     QRectF,
     Qt,
     QTimer,
-    QUrl,
     Signal,
 )
 from PySide6.QtGui import (
     QColor,
     QFont,
     QGuiApplication,
-    QImage,
     QPainter,
     QPainterPath,
     QPalette,
     QPixmap,
 )
-from PySide6.QtNetwork import QNetworkReply, QNetworkRequest
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -46,7 +42,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from dough.async_io import get_qnam
 from dough.icon_button import IconButton
 
 # ── Theme ────────────────────────────────────────────────────────────────────
