@@ -7,7 +7,7 @@ shared thing in jellytoast — a blur-fallback tweak, a resize fix, a new widget
 it does **not** reach dough on its own.
 
 This is the door that pipes those refinements **up** into the base, so every
-Warehaus app that forks dough inherits them.
+warehaus app that forks dough inherits them.
 
 > **Direction is jellytoast → dough only.** Refinements bubble *up* to the base.
 > The long-term plan (B) is to invert this so jellytoast (and future apps) just

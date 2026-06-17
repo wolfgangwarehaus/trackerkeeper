@@ -1,6 +1,6 @@
 # dough — philosophy
 
-**dough** is the shared base every Wolfgang Warehaus app is baked from. It's
+**dough** is the shared base every wolfgang warehaus app is baked from. It's
 the cross-platform window chrome, the design system, and the platform
 scaffolding — solved once, so a new app is mostly *its own idea* plus a thin
 layer on top. toast (jellytoast) was the first loaf; dough is the starter

@@ -2,7 +2,7 @@
 
 <p align="center">
   A frosted, cross-platform <a href="https://doc.qt.io/qtforpython/">PySide6</a>
-  app base — the shared starter every Wolfgang Warehaus app is baked from.
+  app base — the shared starter every wolfgang warehaus app is baked from.
 </p>
 
 dough is a **fork-and-own starter**, not a dependency. Clone it, rename it,
@@ -73,5 +73,5 @@ docs/PHILOSOPHY.md
 
 ## License
 
-GPL-2.0-or-later (matching the Warehaus family). It's a starter you own — feel
+GPL-2.0-or-later (matching the warehaus family). It's a starter you own — feel
 free to relicense your fork.

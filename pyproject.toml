@@ -1,4 +1,4 @@
-# dough — the Wolfgang Warehaus app base. Fork this project, rename the
+# dough — the wolfgang warehaus app base. Fork this project, rename the
 # `dough` package + the identity fields below to your app, and build.
 #
 # Flat layout (the single `dough/` package at the repo root, entry in
@@ -13,7 +13,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dough"
 version = "0.1.0"
-description = "A frosted, cross-platform PySide6 app base — the Wolfgang Warehaus starter kit."
+description = "A frosted, cross-platform PySide6 app base — the wolfgang warehaus starter kit."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-2.0-or-later" }

@@ -1,6 +1,6 @@
 """dough app entry point.
 
-``main()`` does the cross-platform Qt setup every Warehaus app needs — HiDPI
+``main()`` does the cross-platform Qt setup every warehaus app needs — HiDPI
 rounding, app identity, the theme-matched palette, the app icon — then shows an
 ``AppWindow`` with a placeholder. Fork it: set your identity, swap the
 placeholder for your content, wire your own controllers onto ``AppBus``.
