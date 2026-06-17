@@ -6,7 +6,7 @@
 
 # The jellytoast commit dough was last reconciled against.
 # `python dev/sync.py --jellytoast PATH --record` stamps this to jellytoast HEAD.
-synced_from = "f1714a2"
+synced_from = "ceb7ee9"
 
 # dough modules authored fresh (no jellytoast upstream) — sync skips them.
 authored = [
