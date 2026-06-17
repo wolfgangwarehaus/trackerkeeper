@@ -1,0 +1,41 @@
+# The sync door — manifest for piping jellytoast refinements UP into dough.
+#
+# dough was built by copying + genericizing jellytoast's shared modules, so the
+# two hold diverged copies. dev/sync.py reads this file to surface (and, for
+# clean lifts, apply) upstream changes. See docs/SYNC.md.
+
+# The jellytoast commit dough was last reconciled against.
+# `python dev/sync.py --jellytoast PATH --record` stamps this to jellytoast HEAD.
+synced_from = "f1714a2"
+
+# dough modules authored fresh (no jellytoast upstream) — sync skips them.
+authored = [
+    "bus.py",
+    "settings.py",
+    "top_bar.py",
+    "settings_dialog.py",
+    "app.py",
+    "__init__.py",
+    "__main__.py",
+]
+
+# Modules genericized BEYOND a pure rename — a blind overwrite would re-add the
+# music bits we stripped, so sync shows the upstream diff to port by hand.
+manual = [
+    "ui_helpers.py",  # the music image-loader was carved out
+    "window.py",      # AppWindow chrome extracted from jellytoast/app.py
+]
+
+# Modules extracted from a differently-named jellytoast file.
+[source_override]
+"window.py" = "app.py"
+
+# String substitutions (applied in order) that reproduce a dough AUTO module
+# from its jellytoast source. These mirror exactly how the base was lifted.
+[[transform]]
+find = "jellytoast"
+replace = "dough"
+
+[[transform]]
+find = "from dough.player_state import PlayerBus"
+replace = "from dough.bus import AppBus as PlayerBus"
