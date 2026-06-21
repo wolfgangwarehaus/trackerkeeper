@@ -1,7 +1,11 @@
 # dough roadmap — toward stand-alone, then re-injection
 
 Captured from the `dough-agnostic-audit` (2026-06-16, 5-dimension audit +
-adversarial critique). **P0 is prepped but deferred — execute next week.**
+adversarial critique). **P0 EXECUTED & COMPLETE (2026-06-21)** on branch
+`p0-stand-alone-safe` — 44 passed / 0 xfailed, ruff clean. A re-verification
+against current code preceded execution and corrected three audit errors (noted
+inline below). See `docs/BAKING.md` §4 for how P0's identity seam feeds the
+baking phase.
 
 ## Keystone decision: hybrid, leaning library
 
@@ -21,9 +25,10 @@ and `PlayerBus` have never consumed dough's bases — they're reverse-engineered
 ideals. Forcing them into a turnkey library is the deepest, riskiest surgery
 and buys nothing. The leaf tier is proven; ship that, keep the spine thin.
 
-## dough is NOT stand-alone-safe today (verified against code)
+## ~~dough is NOT stand-alone-safe today~~ — all FIXED in P0 ✅
 
-These would crash / mislead a fresh importer — they are the reason P0 exists:
+These would crash / mislead a fresh importer — they were the reason P0 existed.
+All five are now resolved (re-verification corrections to the audit noted):
 
 1. **`ui_helpers.py` crashes on call** — `start_seed_radio` (~1754-1804) and
    `open_create_smart_playlist` (~1809-1893) import four modules dough doesn't
@@ -33,20 +38,26 @@ These would crash / mislead a fresh importer — they are the reason P0 exists:
 2. **`power/` crashes immediately** — `SleepInhibitor.start()`
    (`power/__init__.py:64-75`) connects to `bus.playback_started/resumed/
    paused/stopped/ended`; `AppBus` (`bus.py:23-33`) defines none of them.
-3. **Live re-theming silently broken** — `CoverOverlayButton`
-   (`ui_helpers.py:1129`) + `EmptyState` (1278) subscribe to the phantom
-   `dough.player_state.PlayerBus` (caught by a try/except, so it just dies
-   quiet).
-4. **App identity hardcoded in ~14 files**, not the 3 the README claims
-   (settings, design_tokens, app, all notification + autostart backends,
-   `windows_shortcut` AUMID, `single_instance` prefix, `blur` Wayland app_id).
-5. **Zero unit tests** on ~8100 LOC. (Note: `ci.yml` DOES exist — lint +
-   offscreen boot smoke; the task is *adding a pytest job*, not creating CI.)
+3. **Phantom-bus subscriptions** — `CoverOverlayButton` (`ui_helpers.py:1129`,
+   wrapped in try/except → live re-theming silently no-op'd) + `EmptyState`
+   (1278). *Audit correction: EmptyState's import was UNWRAPPED — constructing
+   it was a HARD `ModuleNotFoundError`, not a silent failure — and there was a
+   3rd site at 1793.* ✅ Both rewired onto `dough.bus.AppBus`.
+4. **App identity hardcoded across ~12 files** (not the README's 3; *audit
+   correction: ~12 not 14, and `blur`'s Wayland app_id is NOT a separate site —
+   it derives from `setDesktopFileName`*). ✅ The boot-path sites now route
+   through `dough/identity.py` (`configure()` + the `windows_aumid` projection);
+   the shipped-but-dead notification/autostart backend literals are deferred to
+   P1/P3.
+5. **Zero unit tests** on ~8100 LOC. ✅ `tests/` now exists (qapp fixture,
+   import-smoke + a static phantom-import guard, the power runtime guard, widget
+   + bus + boot tests) with a pytest CI job; 44 passed / 0 xfailed.
 
-## P0 — the gate (execute next week; nothing public until green)
+## P0 — the gate ✅ COMPLETE (2026-06-21; all green)
 
-Order matters: **stand up the test harness FIRST** so the deletions/rewiring
-land guarded.
+Order mattered: **the test harness went up FIRST** (the three bugs as strict
+xfail tripwires) so the deletions/rewiring landed guarded — each fix flipped a
+tripwire green. The record of what was done:
 
 1. **Test foundation.** Create `tests/` + `conftest.py` (a `qapp` fixture);
    add a `pytest` job to the existing `.github/workflows/ci.yml`. Tests:
