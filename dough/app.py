@@ -22,12 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from dough import __version__, ui_helpers
+from dough import __version__, identity, ui_helpers
 from dough.bus import AppBus
-
-# Fork: rename to your app. Keep org == app so the QSettings handle matches
-# design_tokens._load_font_scale (QSettings("dough", "dough")).
-APP_NAME = "dough"
 
 
 def _setup_hidpi() -> None:
@@ -86,11 +82,11 @@ def main() -> None:
         pass
 
     app = QApplication(sys.argv)
-    app.setApplicationName(APP_NAME)
-    app.setApplicationDisplayName(APP_NAME)
-    app.setOrganizationName(APP_NAME)
+    app.setApplicationName(identity.app())
+    app.setApplicationDisplayName(identity.display_name())
+    app.setOrganizationName(identity.org())
     app.setApplicationVersion(__version__)
-    app.setDesktopFileName(APP_NAME)
+    app.setDesktopFileName(identity.app())
 
     from dough.ui_helpers import apply_app_palette, make_app_icon
 
@@ -99,7 +95,7 @@ def main() -> None:
 
     from dough.window import AppWindow
 
-    win = AppWindow(title=APP_NAME)
+    win = AppWindow(title=identity.display_name())
     win.set_content(_placeholder())
 
     def _open_settings():

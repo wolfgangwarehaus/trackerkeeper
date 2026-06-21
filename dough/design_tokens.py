@@ -24,6 +24,8 @@ from dataclasses import dataclass
 
 from PySide6.QtGui import QFont
 
+from dough import identity
+
 # ── Global font-scale multiplier ───────────────────────────────────────────
 # Settings → Display → Font size writes "small" / "default" / "large" /
 # "largest" into `ui/font_scale`. We read it once at module import and
@@ -43,14 +45,15 @@ _FONT_SCALE_MAP = {
 
 def _load_font_scale() -> float:
     """Read ``ui/font_scale`` from QSettings without requiring a
-    QApplication. `QSettings("dough", "dough")` works
-    standalone as long as the org/app names are supplied explicitly,
-    which is the same handle `dough.settings` uses. Falls back to
-    1.0 on any error so this never breaks the import."""
+    QApplication. ``QSettings(identity.org(), identity.app())`` works
+    standalone as long as the org/app names are supplied explicitly — the
+    same handle ``dough.settings`` uses, and the reason the identity seam
+    must be set before this module is imported. Falls back to 1.0 on any
+    error so this never breaks the import."""
     try:
         from PySide6.QtCore import QSettings
 
-        s = QSettings("dough", "dough")
+        s = QSettings(identity.org(), identity.app())
         key = s.value("ui/font_scale", "default", type=str)
         return _FONT_SCALE_MAP.get(key, 1.0)
     except Exception:

@@ -34,6 +34,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from dough import identity
 from dough.platform_compat import IS_WINDOWS
 
 logger = logging.getLogger(__name__)
@@ -44,8 +45,10 @@ _ICON_PX = 256
 # the shell derives one from the process exe — the distlib launcher stub
 # (or python.exe on a source run) — so the taskbar button groups under
 # Python's identity and shows the generic Python-document icon instead
-# of the brand mark, even though Qt's window icon is correct.
-APP_USER_MODEL_ID = "wolfgangwarehaus.dough"
+# of the brand mark, even though Qt's window icon is correct. Derived from
+# the identity seam ({org}.{app}) so a fork's AUMID follows its rename.
+def _aumid() -> str:
+    return identity.windows_aumid()
 
 
 def set_process_app_user_model_id() -> None:
@@ -64,7 +67,7 @@ def set_process_app_user_model_id() -> None:
         import ctypes
 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-            APP_USER_MODEL_ID
+            _aumid()
         )
     except Exception as e:
         logger.debug("SetCurrentProcessExplicitAppUserModelID failed: %s", e)
@@ -239,10 +242,10 @@ def _shortcut_script(lnk: Path, exe: Path, ico: Path) -> str:
         f"$s.TargetPath = {_ps_quote(exe)};\n"
         f"$s.WorkingDirectory = {_ps_quote(exe.parent)};\n"
         f"$s.IconLocation = {_ps_quote(ico)} + ',0';\n"
-        "$s.Description = 'dough — audio-first Jellyfin / Subsonic music client';\n"
+        f"$s.Description = {_ps_quote(identity.display_name())};\n"
         "$s.Save();\n"
         f"Add-Type -TypeDefinition @'\n{_APPID_CSHARP}\n'@;\n"
-        f"[JT.Lnk]::SetAppId({_ps_quote(lnk)}, '{APP_USER_MODEL_ID}');\n"
+        f"[JT.Lnk]::SetAppId({_ps_quote(lnk)}, '{_aumid()}');\n"
         f"Write-Output '{_STAMP_SENTINEL}'"
     )
 
@@ -300,7 +303,7 @@ def _write_shortcut(lnk: Path, exe: Path, ico: Path) -> bool:
 def _marker_value(exe: Path) -> str:
     # AUMID included so installs whose shortcut predates the property
     # stamp resync once and pick it up.
-    return f"{exe}|{APP_USER_MODEL_ID}"
+    return f"{exe}|{_aumid()}"
 
 
 def _is_current(exe: Path) -> bool:

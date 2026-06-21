@@ -44,10 +44,12 @@ required (`python -m dough`).
 
 ## Make it yours
 
-1. **Rename the package + identity.** Rename the `dough/` package to your app,
-   then update the identity in three places (all currently `"dough"`):
-   `dough/app.py` `APP_NAME`, `dough/settings.py` `_ORG`/`_APP`, and the
-   `QSettings("dough", "dough")` pair in `dough/design_tokens.py::_load_font_scale`.
+1. **Rename the package + set your identity.** Rename the `dough/` package to your
+   app, then set your identity in **one** place — `dough/identity.py` (`org`, `app`,
+   `display_name`). It's the single source the QSettings handle, the Qt app/org
+   names, the window title, and the Windows AUMID all read. (Or, for programmatic
+   control, call `dough.configure(org=…, app=…, display_name=…)` once, before
+   importing the app — the font-scale loader reads identity at import time.)
 2. **Swap the placeholder.** Replace `dough/app.py::_placeholder()` and call
    `window.set_content(your_widget)`.
 3. **Extend the bus.** Add your app's signals by subclassing `AppBus`

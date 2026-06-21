@@ -5,18 +5,17 @@ window-chrome toggles, and a couple of platform-integration switches. Apps add
 their own keys by subclassing ``Settings`` or calling ``get_settings()._s``
 (the raw ``QSettings``) directly.
 
-The handle is ``QSettings("dough", "dough")`` — the SAME org/app pair
+The handle is ``QSettings(identity.org(), identity.app())`` — the SAME pair
 ``design_tokens`` uses at import time, so font scaling resolves identically
-whether or not a QApplication exists yet. Fork note: rename ``_ORG``/``_APP``
-(and the matching pair in ``design_tokens._load_font_scale``) to your app.
+whether or not a QApplication exists yet. Fork note: set your identity once in
+``dough.identity`` (or via ``dough.configure(...)``); this reads from there.
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import QByteArray, QSettings
 
-_ORG = "dough"  # fork: rename to your app
-_APP = "dough"
+from dough import identity
 
 
 def _as_bool(val, default: bool) -> bool:
@@ -33,7 +32,7 @@ class Settings:
     getter (with a sensible default) and a setter that writes + syncs."""
 
     def __init__(self) -> None:
-        self._s = QSettings(_ORG, _APP)
+        self._s = QSettings(identity.org(), identity.app())
 
     def _set(self, key: str, value) -> None:
         self._s.setValue(key, value)

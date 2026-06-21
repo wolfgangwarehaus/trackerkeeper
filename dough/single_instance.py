@@ -103,7 +103,9 @@ class SingleInstance(QObject):
         # is system-global on Linux).
         import getpass
 
-        self._socket_name = f"dough-{getpass.getuser()}-{key}"
+        from dough import identity
+
+        self._socket_name = f"{identity.app()}-{getpass.getuser()}-{key}"
         # The shared-memory segment key must be per-user TOO. On Linux a
         # QSharedMemory key maps to a system-global ftok id, so a bare
         # key collides across user accounts: user B would attach() to
