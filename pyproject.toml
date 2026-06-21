@@ -54,6 +54,15 @@ exclude = ["tests*", "docs*", "packaging*"]
 # resolves it via importlib.resources.
 "dough.assets" = ["*.svg"]
 
+[tool.pytest.ini_options]
+# GUI tests run headless — conftest.py forces QT_QPA_PLATFORM=offscreen before
+# any PySide6 import. xfail_strict makes the P0 contract self-enforcing: the
+# known stand-alone-safety failures are written as xfails now and flip to HARD
+# failures (forcing the marker's removal) the moment each fix lands.
+testpaths = ["tests"]
+xfail_strict = true
+addopts = "-ra"
+
 [tool.ruff]
 # Wrap by editorial judgment, not a hard column (E501 off below). 100 is just
 # the formatter's reflow target if anyone runs `ruff format` (we don't by default).
