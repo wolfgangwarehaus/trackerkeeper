@@ -200,9 +200,7 @@ class AppWindow(QMainWindow):
         self._root.setContentsMargins(0, 0, 0, 0)
         self._root.setSpacing(0)
 
-        from dough.top_bar import TopBar
-
-        self.top_bar = TopBar(self, titlebar_mode=self._borderless, title=title)
+        self.top_bar = self._make_top_bar(title)
         self._root.addWidget(self.top_bar)
 
         self._content_host = QWidget()
@@ -211,6 +209,7 @@ class AppWindow(QMainWindow):
         self._content_layout.setContentsMargins(0, 0, 0, 0)
         self._content_layout.setSpacing(0)
         self._root.addWidget(self._content_host, 1)
+        self._footer: "QWidget | None" = None
         self.setCentralWidget(central)
 
         # Live theme/accent: re-stamp body + blur (+ rebuild GLOBAL_STYLE).
@@ -228,6 +227,26 @@ class AppWindow(QMainWindow):
                 old.setParent(None)
                 old.deleteLater()
         self._content_layout.addWidget(widget, 1)
+
+    def set_footer(self, widget) -> None:
+        """Pin ``widget`` as a bottom row below the content area (e.g. a media
+        transport bar). Replaces any previous footer; pass ``None`` to clear. The
+        footer takes its natural height — only the content area stretches."""
+        if self._footer is not None:
+            self._footer.setParent(None)
+            self._footer.deleteLater()
+            self._footer = None
+        if widget is not None:
+            self._root.addWidget(widget)  # after _content_host → pinned bottom
+            self._footer = widget
+
+    def _make_top_bar(self, title: str):
+        """Build the top bar (which doubles as the titlebar). Override to supply a
+        custom bar — it only needs to expose ``restyle()`` (called on every theme
+        change). Default: the generic :class:`~dough.top_bar.TopBar`."""
+        from dough.top_bar import TopBar
+
+        return TopBar(self, titlebar_mode=self._borderless, title=title)
 
     def closeEvent(self, event) -> None:
         """Persist window geometry on close so the next launch restores it
@@ -349,10 +368,18 @@ class AppWindow(QMainWindow):
                 p.setPen(Qt.PenStyle.NoPen)
                 p.setBrush(self._body_qcolor)
                 p.drawRoundedRect(self.rect(), radius, radius)
+                self._paint_body_backdrop(p, self.rect(), radius)
             else:
                 p.fillRect(self.rect(), self._body_qcolor)
+                self._paint_body_backdrop(p, self.rect(), 0)
         finally:
             p.end()
+
+    def _paint_body_backdrop(self, painter, rect, radius) -> None:
+        """No-op hook, called right after the body fill in :meth:`paintEvent`.
+        Override to paint a backdrop (e.g. an album-art frost behind the content)
+        without re-implementing the rounded-rect / edge-flush body logic."""
+        return
 
     def changeEvent(self, e):
         if e.type() == QEvent.Type.DevicePixelRatioChange:
