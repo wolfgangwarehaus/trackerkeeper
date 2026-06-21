@@ -1,10 +1,13 @@
-"""Cross-platform "keep the machine awake while music plays" inhibitor.
+"""Cross-platform "keep the machine awake" inhibitor.
 
-A :class:`SleepInhibitor` watches :class:`PlayerBus` and asks the OS to
-hold off *system* sleep while audio is actively playing, releasing the
-hold on pause / stop / end. The screen is intentionally NOT kept awake —
-audio playback doesn't need the display, and most users expect the
-monitor to dim normally.
+A :class:`SleepInhibitor` asks the OS to hold off *system* sleep on demand:
+the host app calls :meth:`SleepInhibitor.inhibit` when it needs the machine
+to stay awake (a video playing, a slideshow presenting, a long export running)
+and :meth:`SleepInhibitor.release` when it's done. dough owns the cross-platform
+*how*, never the app-specific *when* — the base bus has no playback signals to
+watch, so an app drives the inhibitor from its own events. The screen is
+intentionally NOT kept awake — most workloads don't need the display, and users
+expect the monitor to dim normally.
 
 Backend (selected once per process, mirroring ``dough.autostart`` /
 ``dough.notifications``):
@@ -48,33 +51,20 @@ def is_supported() -> bool:
 
 
 class SleepInhibitor(QObject):
-    """Holds off system sleep while audio plays.
+    """Holds off system sleep on demand.
 
-    ``start()`` wires it to ``PlayerBus``; ``stop()`` releases any active
-    hold. Idempotent — only true play↔not-play transitions reach the OS
-    backend, and a backend failure never propagates (best-effort, like
-    the media-controls / notifications facades).
+    Driven by explicit :meth:`inhibit` / :meth:`release` — the host app decides
+    WHEN (wire them to whatever events make sense; both accept extra args so they
+    double as Qt signal slots), dough provides the cross-platform HOW. Idempotent:
+    only true not-held↔held transitions reach the OS backend, and a backend
+    failure never propagates (best-effort, like the notifications facade).
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._inhibited = False
-        self._started = False
 
-    def start(self):
-        if self._started:
-            return
-        self._started = True
-        from dough.bus import AppBus as PlayerBus
-
-        bus = PlayerBus.get()
-        bus.playback_started.connect(self._inhibit)
-        bus.playback_resumed.connect(self._inhibit)
-        bus.playback_paused.connect(self._release)
-        bus.playback_stopped.connect(self._release)
-        bus.playback_ended.connect(self._release)
-
-    def _inhibit(self, *_):
+    def inhibit(self, *_):
         if self._inhibited:
             return
         try:
@@ -83,7 +73,7 @@ class SleepInhibitor(QObject):
         except Exception as e:  # pragma: no cover — defensive
             logger.debug("sleep inhibit failed: %s", e)
 
-    def _release(self, *_):
+    def release(self, *_):
         if not self._inhibited:
             return
         try:
@@ -92,6 +82,3 @@ class SleepInhibitor(QObject):
             logger.debug("sleep release failed: %s", e)
         finally:
             self._inhibited = False
-
-    def stop(self):
-        self._release()
