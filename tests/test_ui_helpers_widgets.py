@@ -24,11 +24,6 @@ def test_cover_overlay_button_constructs() -> None:
     assert btn is not None
 
 
-@pytest.mark.xfail(
-    reason="P0: EmptyState.__init__ imports phantom dough.player_state UNWRAPPED, so "
-    "constructing the widget raises ModuleNotFoundError. Rewire onto dough.bus.AppBus, "
-    "then remove this xfail.",
-)
 @pytest.mark.usefixtures("qapp")
 def test_empty_state_constructs() -> None:
     """Building an EmptyState must not raise — it's reusable chrome, not music."""

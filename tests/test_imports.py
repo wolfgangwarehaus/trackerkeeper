@@ -76,11 +76,6 @@ def _is_phantom(target: str) -> bool:
         return True  # a submodule whose parent package itself doesn't exist
 
 
-@pytest.mark.xfail(
-    reason="P0 self-consistency: ui_helpers references phantom dough.{player_state,"
-    "providers,smart_playlists,smart_playlist_editor}. Delete the two dead music "
-    "functions + rewire CoverOverlayButton/EmptyState onto dough.bus, then drop this xfail.",
-)
 def test_no_phantom_dough_imports() -> None:
     """No statement imports a ``dough.<x>`` module that doesn't ship."""
     phantoms = sorted(

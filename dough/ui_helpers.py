@@ -1123,14 +1123,10 @@ class CoverOverlayButton(IconButton):
         self.setFixedSize(size, size)
         self._apply_circle_style()
         # Re-tone the disc on a live theme switch (light disc on a
-        # light theme, dark on a dark one). Lazy import dodges the
-        # ui_helpers ↔ player_state import cycle.
-        try:
-            from dough.player_state import PlayerBus
+        # light theme, dark on a dark one).
+        from dough.bus import AppBus as PlayerBus
 
-            PlayerBus.get().theme_changed.connect(self._apply_circle_style)
-        except Exception:
-            pass
+        PlayerBus.get().theme_changed.connect(self._apply_circle_style)
         self.hide()
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
@@ -1275,7 +1271,7 @@ class EmptyState(QWidget):
         # Per-surface re-stamp contract; see architecture_live_accent.md.
         # PySide6 auto-disconnects this bound-method slot when the widget is
         # destroyed, so call sites that recreate the overlay don't leak.
-        from dough.player_state import PlayerBus
+        from dough.bus import AppBus as PlayerBus
 
         PlayerBus.get().theme_changed.connect(self._apply_styling)
 
@@ -1737,158 +1733,6 @@ def _harden_popup_opacity(popup: "QWidget") -> None:
     pal.setColor(pal.ColorRole.Window, fill)
     pal.setColor(pal.ColorRole.Base, fill)
     popup.setPalette(pal)
-
-
-# ── Seeded-radio entry point (album / artist / genre) ────────────────────
-#
-# The track-radio flow seeds an INSTANT_MIX queue with the track itself
-# and lets ``queue_manager.RadioFeeder`` fetch similar tracks once
-# playback nears the tail (see ``SongsView._on_context_menu``). Album /
-# artist / genre have no single seed *item* to drop into the queue, so
-# ``start_seed_radio`` must fetch the initial batch itself (off the GUI
-# thread via ``async_io.run_async``) before emitting ``queue_play_now``.
-# The RadioFeeder then auto-extends from the stamped ``seed_kind``
-# exactly as it does for the track flow.
-
-
-def start_seed_radio(seed_kind: str, source_id: str, source_label: str) -> None:
-    """Fetch the initial radio batch for ``seed_kind`` and install it as
-    the live INSTANT_MIX queue.
-
-    ``seed_kind`` is one of ``"album"`` / ``"artist"`` / ``"genre"``:
-
-      * ``album``  → ``get_instant_mix(source_id)``
-      * ``artist`` → ``get_similar_songs(source_id)``
-      * ``genre``  → ``get_genre_radio(source_label)``
-
-    The provider call is a network round-trip, so it runs on the shared
-    pool. On an empty result (or any failure) nothing is emitted — the
-    user just sees no change, matching the "show nothing fancy on
-    failure" contract. Called from the view-internal right-click menus
-    (``LibraryGrid.contextMenuEvent``, ``_GenresListView``) that each
-    own their ``QMenu``.
-    """
-    if seed_kind == "genre":
-        if not source_label:
-            return
-    elif not source_id:
-        return
-
-    from dough import async_io
-    from dough.providers import get_provider
-
-    def _fetch():
-        api = get_provider()
-        if seed_kind == "album":
-            return api.get_instant_mix(source_id)
-        if seed_kind == "artist":
-            return api.get_similar_songs(source_id)
-        if seed_kind == "genre":
-            return api.get_genre_radio(source_label)
-        return []
-
-    def _on_result(tracks):
-        if not tracks:
-            return
-        from dough.player_state import PlayerBus, QueueContext, QueueKind
-
-        ctx = QueueContext(
-            kind=QueueKind.INSTANT_MIX,
-            source_id=source_id,
-            source_label=source_label,
-            seed_kind=seed_kind,
-        )
-        PlayerBus.get().queue_play_now.emit(list(tracks), 0, ctx)
-
-    async_io.run_async(_fetch, on_result=_on_result)
-
-
-# ── "Create smart playlist from this X" entry point ──────────────────────
-
-
-def open_create_smart_playlist(
-    parent: QWidget,
-    kind: str,
-    name: str,
-    item: "Optional[dict]" = None,
-) -> None:
-    """Right-click *Create smart playlist from this <kind>* flow.
-
-    ``kind`` is one of ``"artist"`` / ``"album"`` / ``"genre"`` /
-    ``"track"``. Builds a schema-valid rules dict via the matching
-    ``dough.smart_playlists.presets`` ``from_*`` factory, opens the
-    smart-playlist editor pre-populated (rules + a suggested name),
-    and on save appends the new entry to ``settings.smart_playlists``
-    so it shows up on the Smart Playlists tab.
-
-    ``item`` (optional) is the full item dict for the seeded entity —
-    the album/track factories use it to extract Genres + ProductionYear
-    for the era-vibe recipes. Passing only ``name`` still works (the
-    factories degrade gracefully); pass ``item`` whenever the caller
-    already has it for richer rule seeding.
-
-    Naming follows the Spotify/Plexamp short-suffix idiom — "More like
-    X", "Deep Cuts: X", "X Discoveries" — to read well in the
-    Playlists list typography.
-
-    Non-blocking — opens the editor with a save callback rather than
-    waiting on the dialog.
-    """
-    if not name:
-        return
-    from dough.smart_playlist_editor import open_smart_playlist_editor
-    from dough.smart_playlists import presets as _presets
-
-    hint: "Optional[str]" = None
-    if kind == "artist":
-        rules = _presets.from_artist(name)
-        suggested = f"Deep Cuts: {name}"
-    elif kind == "album":
-        rules = _presets.from_album(item if item is not None else name)
-        suggested = f"More like {name}"
-        # Surface the missing-metadata case so the user knows WHY the
-        # recipe only has a year rule. The album / track recipes both
-        # rely on Genres for the "more like" feel — a library without
-        # genre tags makes the recipe degrade to era-only.
-        if isinstance(item, dict) and not (item.get("Genres") or []):
-            hint = f"{name} has no genre tags, add some to help suggestions."
-    elif kind == "genre":
-        rules = _presets.from_genre(name)
-        suggested = f"{name} Discoveries"
-    elif kind == "track":
-        rules = _presets.from_track(item if item is not None else name)
-        suggested = f"More like {name}"
-        if isinstance(item, dict) and not (item.get("Genres") or []):
-            hint = f"{name} has no genre tags, add some to help suggestions."
-    else:
-        return
-
-    def _persist(entry):
-        from dough.settings import get_settings
-
-        entries = list(get_settings().smart_playlists)
-        entries.append(entry)
-        get_settings().smart_playlists = entries
-
-    def _on_save_and_play(entry, dismiss):
-        """Save & Play: persist, then resolve+play. The editor stays
-        open in a Loading state until ``dismiss`` is called — pass
-        it through to ``play_entry`` as the ``on_complete`` hook so
-        the dialog closes the moment playback actually starts (or
-        empty / error feedback lands)."""
-        from dough.smart_playlists.play import play_entry
-
-        _persist(entry)
-        play_entry(entry, parent, on_complete=dismiss)
-
-    open_smart_playlist_editor(
-        parent,
-        preset_rules=rules,
-        suggested_name=suggested,
-        hint=hint,
-        on_save=_persist,
-        on_save_and_play=_on_save_and_play,
-    )
 
 
 # ── Auto-fade scroll bar ─────────────────────────────────────────────────
