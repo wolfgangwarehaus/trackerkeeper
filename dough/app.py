@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from dough import __version__, identity, ui_helpers
+from dough import __version__, ui_helpers
 from dough.bus import AppBus
 
 
@@ -72,7 +72,31 @@ def _placeholder() -> QWidget:
     return w
 
 
-def main() -> None:
+def run_app(content_factory, *, identity=None, single_instance=True) -> int:
+    """Boot a dough app and run it to exit. Does the cross-platform Qt setup
+    every warehaus app needs — HiDPI rounding, app identity, persisted theme
+    overrides, the theme-matched palette + icon — then shows an ``AppWindow``
+    whose content is ``content_factory(window)``. Returns the process exit code.
+
+    Wires the chrome an app shouldn't re-solve, all unconditionally:
+      * **single instance** — a second launch raises the running window instead
+        of opening a duplicate (pass ``single_instance=False`` to opt out);
+      * **persisted theme** — accent / colour overrides load BEFORE the first
+        widget so every surface stamps from the saved palette;
+      * **the settings dialog** — wired to ``AppBus.show_settings``;
+      * **window geometry** — restored on launch, saved on quit.
+
+    ``identity`` (optional) is a mapping forwarded to :func:`dough.configure`
+    (``org`` / ``app`` / ``display_name``). NOTE: for the import-time font scale
+    to honour a custom identity, set it in ``dough.identity`` or call
+    ``configure()`` BEFORE importing the app; Qt names, the AUMID, and QSettings
+    all honour it here regardless.
+    """
+    from dough import identity as ident
+
+    if identity:
+        ident.configure(**identity)
+
     _setup_hidpi()
     try:
         from dough.windows_shortcut import set_process_app_user_model_id
@@ -81,22 +105,41 @@ def main() -> None:
     except Exception:
         pass
 
-    app = QApplication(sys.argv)
-    app.setApplicationName(identity.app())
-    app.setApplicationDisplayName(identity.display_name())
-    app.setOrganizationName(identity.org())
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setApplicationName(ident.app())
+    app.setApplicationDisplayName(ident.display_name())
+    app.setOrganizationName(ident.org())
     app.setApplicationVersion(__version__)
-    app.setDesktopFileName(identity.app())
+    app.setDesktopFileName(ident.app())
+
+    # Single instance: hand off to the already-running copy rather than opening
+    # a second window. Keep the lock object alive for the process lifetime.
+    si = None
+    if single_instance:
+        from dough.single_instance import SingleInstance
+
+        si = SingleInstance(ident.app())
+        if not si.acquire():
+            return 0  # another instance was found and signalled to come forward
+        app._dough_single_instance = si
+
+    # Persisted accent / colour overrides must load BEFORE the first widget, so
+    # every surface stamps from the saved palette rather than the defaults.
+    from dough.color_tokens import load_persisted_overrides
+
+    load_persisted_overrides()
 
     from dough.ui_helpers import apply_app_palette, make_app_icon
 
     app.setWindowIcon(QIcon(make_app_icon(64)))
     apply_app_palette()
 
+    from dough.settings import get_settings
     from dough.window import AppWindow
 
-    win = AppWindow(title=identity.display_name())
-    win.set_content(_placeholder())
+    win = AppWindow(title=ident.display_name())
+    get_settings().restore_geometry(win)  # no-op if nothing saved → keeps default
+    win.set_content(content_factory(win))
 
     def _open_settings():
         from dough.settings_dialog import SettingsDialog
@@ -104,8 +147,21 @@ def main() -> None:
         SettingsDialog(win).exec()
 
     AppBus.get().show_settings.connect(_open_settings)
+
+    from dough.single_instance import force_foreground
+
+    if si is not None:
+        si.raise_requested.connect(lambda: force_foreground(win))
+    AppBus.get().open_main_window.connect(lambda: force_foreground(win))
+
     win.show()
-    sys.exit(app.exec())
+    return app.exec()
+
+
+def main() -> None:
+    """The default entry: boot dough with the placeholder canvas. A fork either
+    swaps the placeholder or calls :func:`run_app` with its own content."""
+    sys.exit(run_app(lambda _window: _placeholder()))
 
 
 if __name__ == "__main__":

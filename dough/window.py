@@ -229,6 +229,13 @@ class AppWindow(QMainWindow):
                 old.deleteLater()
         self._content_layout.addWidget(widget, 1)
 
+    def closeEvent(self, event) -> None:
+        """Persist window geometry on close so the next launch restores it
+        (``run_app`` calls ``restore_geometry`` on boot). A fork that quits by a
+        path other than closing the window can save geometry on its own quit hook."""
+        get_settings().save_geometry(self)
+        super().closeEvent(event)
+
     # ── Theme / appearance ─────────────────────────────────────────────────
     def _on_theme_changed(self):
         from dough import ui_helpers

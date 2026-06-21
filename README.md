@@ -50,8 +50,10 @@ required (`python -m dough`).
    names, the window title, and the Windows AUMID all read. (Or, for programmatic
    control, call `dough.configure(org=…, app=…, display_name=…)` once, before
    importing the app — the font-scale loader reads identity at import time.)
-2. **Swap the placeholder.** Replace `dough/app.py::_placeholder()` and call
-   `window.set_content(your_widget)`.
+2. **Boot your content.** Call `dough.run_app(lambda window: YourWidget(window))`
+   — it does the full cross-platform boot (identity, blur, HiDPI, single-instance,
+   persisted theme, window geometry, the settings dialog) and shows your content.
+   (Or, for the quickest start, just edit `dough/app.py::_placeholder`.)
 3. **Extend the bus.** Add your app's signals by subclassing `AppBus`
    (`dough/bus.py`); the base stays minimal.
 4. **Keep it light.** Heavy/native deps (a PDF engine, mpv, …) go in

@@ -33,14 +33,32 @@ class AppBus(QObject):
     dpr_changed = Signal()            # device-pixel-ratio changed → re-rasterize cached art
 
     _instance: "AppBus | None" = None
+    _factory = None  # optional callable -> AppBus (subclass); see set_factory()
+
+    @classmethod
+    def set_factory(cls, factory) -> None:
+        """Register the factory that builds the process-wide bus the first time
+        :meth:`get` is called. An app with a richer bus — a subclass carrying its
+        own signals (jellytoast's ``PlayerBus``, ~60 of them) — registers it here
+        so every leaf widget that calls ``AppBus.get()`` shares the ONE bus. Must
+        run BEFORE the first ``get()`` (raises otherwise): the singleton is built
+        once and cached, so a late factory would silently split the bus."""
+        if AppBus._instance is not None:
+            raise RuntimeError(
+                "AppBus singleton already exists — set_factory() must run before "
+                "the first AppBus.get()"
+            )
+        AppBus._factory = factory
 
     @classmethod
     def get(cls) -> "AppBus":
-        """The process-wide bus. Created lazily so importing this module
-        never requires a running QApplication."""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+        """The process-wide bus. Created lazily (via the registered factory, if
+        any) so importing this module never requires a running QApplication. The
+        singleton lives on ``AppBus`` itself, so a subclass's ``get()`` returns
+        the same instance."""
+        if AppBus._instance is None:
+            AppBus._instance = AppBus._factory() if AppBus._factory else cls()
+        return AppBus._instance
 
 
 def get_bus() -> AppBus:
