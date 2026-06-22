@@ -1,11 +1,11 @@
 # dough — TODO / handoff
 
-Status as of **2026-06-22**. The **baking-phase channel matrix is complete** (PyPI ·
-`.deb` · AppImage · AUR · Windows Inno+winget · MSIX · macOS — all wired; dormant ones
-light up per account/secret), and this session **set dough's product direction**.
-Paused mid-Ingredients on the first app. The full thesis/vocabulary/phases live in the
-AI memory (`dough-thesis-vocabulary`); this is the human pick-up list. See also
-`docs/BAKING.md` (the release machinery) and `docs/ROADMAP.md`.
+Status as of **2026-06-22**. The **baking-phase channel matrix is complete**, the product
+direction is settled (below), **`dough new` is built**, and the first app **butterPDF** is
+**scaffolded, has a working PDF viewer (MVP #1), and drove a deep first-looks polish that's
+now BACKPORTED into dough** (see `docs/DESIGN.md` + `docs/BACKPORT.md`). The full
+thesis/vocabulary/status live in the AI memory (`dough-thesis-vocabulary`); this is the
+human pick-up list. See also `docs/BAKING.md`, `docs/DESIGN.md`, `docs/WIND-DOWN.md`.
 
 ## The product direction (settled this session)
 
@@ -26,49 +26,49 @@ AI memory (`dough-thesis-vocabulary`); this is the human pick-up list. See also
     "live" (artifact + account + secret + submission). The machinery exists; the
     guided activation doesn't.
 
-## ▶ Pick up here next trip: dogfood butterPDF through the workflow
+## ▶ Pick up here next trip: finish butterPDF + the chrome-machinery backport
 
-Design the "building with dough" experience **by doing it** — run the first app,
-**butterPDF**, through Ingredients → Baking → Delivery, and let the real friction write
-the tooling + docs. Resume sequence:
+Continue the "building with dough" arc by **finishing butterPDF's MVP**, and in the same
+pass complete the **dough chrome-machinery backport**. Resume sequence:
 
-1. **Finish butterPDF's Ingredients brief.** butterPDF is an **empty greenfield folder**
-   at `/home/august/Projects/butterPDF` (a PDF tool, frosted aesthetic, wolfgang
-   warehaus brand: dough→butter→jelly). Needs the user's seed for **what it is /
-   features** (a reader? merge/organize? annotator?), then draft the full brief:
-   identity (`butterpdf`), features, aesthetic/UI, custom icon (butter motif),
-   reuse-vs-net-new (a PDF engine — Qt's `QtPdf`, currently EXCLUDED in the spec, gets
-   re-enabled), delivery targets. **Structuring this brief = designing dough's reusable
-   Ingredients template.**
-2. **Build `dough new <slug>` — the entry verb (full rename / own-it).** Scope approved;
-   rename survey done (below). A `dough.scaffold:main` console script (`dough-new`):
-   git-mv the package → slug, global identity replace (`dough`→slug,
-   `wolfgangwarehaus`→org), rename the tooling table key + the scripts, set identity +
-   display, **mint a fresh `inno_appid_guid`**, rename the brand SVG, update the test
-   literals, strip the dev scaffolding, replace AGENTS.md, re-bake. **Validate** on a
-   throwaway copy of dough → `pytest` + `<slug> bake --check` green (fully testable,
-   unlike the channels). Then use it to scaffold butterPDF.
-3. **Write `AGENTS.md`** (root, auto-discovered) — the AI front door; headline at top;
-   two modes, leading with "you're building WITH dough."
-4. **Build the Delivery per-target helpers** — stateful interactive walkthroughs
-   (e.g. a Windows helper: GitHub `.exe` → winget account/fork/token + submit →
-   Partner Center register + Store apply + MSIX submit). Turn RELEASING.md /
-   STORE-SUBMISSION.md from docs into guided activation. Design against butterPDF's
-   real channels.
-5. **Realign the docs vocabulary** — `dough bake` = RENDER (Baking); the release
-   pipeline = **Delivery**. "The baking phase" in BAKING.md is mostly Delivery.
+1. **Finish butterPDF's MVP** (remaining features, per `butterPDF/BRIEF.md`): AcroForm
+   **form-fill that saves into the doc** → **correct save/flatten** (regenerate appearance
+   streams; test the Adobe + print round-trip — the make-or-break) → **Quick-sign** (draw/
+   type/import a reusable signature) → **light converters** (PDF↔PNG/JPEG). Pulls in the
+   deps: `pypdf` (fill), `pikepdf` (structure), `img2pdf`/Pillow (convert). butterPDF is at
+   `/home/august/Projects/butterPDF` (its own git repo, branch `master`, **no remote yet**).
+2. **The dough "chrome-machinery" backport** (deferred this session — `docs/BACKPORT.md`
+   ranks 9–10): port **`drag_repaint`** (the NVIDIA drag-trails KWin effect, proven in
+   butterPDF) + a **generic wmclass `keep_above`** noborder package into dough; wire in
+   `run_app` (drag_repaint AFTER `show`, keep_above BEFORE `show`); pair with §2 below
+   (`setDesktopFileName → desktop_id()`). **`dough new` must re-namespace both KWin assets
+   on fork** (the effect id `dough_dragrepaint` + the keep_above wmclass — the whole-word
+   `\bdough\b` replace does NOT catch `dough_dragrepaint`). Smoke on real KDE Wayland.
+3. **Write `AGENTS.md`** (root, auto-discovered) — the AI front door; headline at top; lead
+   with "you're building WITH dough"; record the `opaque_menu`-not-raw-`QMenu` convention.
+4. **Build the Delivery per-target helpers** — stateful walkthroughs (artifact → account →
+   secret → submit), designed against butterPDF's real channels.
+5. **Realign the docs vocabulary** — `dough bake` = RENDER (Baking); the release pipeline =
+   **Delivery**. "The baking phase" in BAKING.md is mostly Delivery.
 
-### `dough new` rename surface (survey done)
-~330 `dough` refs / ~67 `wolfgangwarehaus`, but identity is centralized (the seam +
-the sidecar), so it's a global identity-replace + package rename + GUID mint + re-bake.
-Strip: `dev/` (run.sh, shared.toml, sync.py), `docs/SYNC.md`. Touch: entry points
-(`[project.gui-scripts] dough`, `[project.scripts] dough-bake`), `version_file =
-"dough/_version.py"`, package-data `"dough.assets"`, brand `dough/assets/dough.svg`,
-the `[tool.dough.metadata]` table key (+ `bake.py`'s lookup). Decisions locked: full
-rename incl. the table key; keep BAKING/PHILOSOPHY as renamed reference, strip the
-process docs.
+## Shipped this session (the butterPDF run, 2026-06-22)
 
-## Done this round
+- **`dough new <slug>`** (commit `8d9610e`) — the entry verb: strip dev scaffolding →
+  git-mv the package + brand SVG → whole-word identity replace → fix display/GUID/summary →
+  clear + re-bake packaging → validate green. Tested on git + non-git paths, org-swap incl.
+- **butterPDF born + baked** (its own repo, `da6e306..666e3c6`): scaffolded via `dough new`;
+  **MVP #1 = the PDF viewer** (QtPdf/PDFium — open/render/zoom/page-nav); a long first-looks
+  polish loop (frameless single chrome, frosted gutters, even pill-bezels, slim live-accent
+  auto-hiding scrollbars, frosted fit-to-content dialogs, `opaque_menu` dropdown, one-Fit
+  footer); and the **NVIDIA drag-trails bug fixed** by porting jellytoast's `drag_repaint`
+  KWin effect (a real dough gap — never lifted).
+- **dough first-looks backport** (commits `2719dd8` + `a892cb5`) — folded the design defaults
+  into dough: resize-filter slider-yield, the AutoFadeScrollBar slim-accent pill, `CenteredBar`,
+  `frost_scroll_surface`, `settings.auto_hide_scrollbars`, FrostedDialog frameless-gate +
+  fit-to-content, `TopBar(CenteredBar)`; plus **`docs/DESIGN.md`** (the 7 first-looks
+  principles) + **`docs/BACKPORT.md`** (the full analysis + what's deferred).
+
+## Done earlier (the baking phase + P0/P1)
 
 - **P0 — stand-alone-safe gate** (merged to `main`): test foundation + pytest CI
   job; deleted the dead music functions; rewired `CoverOverlayButton`/`EmptyState`
