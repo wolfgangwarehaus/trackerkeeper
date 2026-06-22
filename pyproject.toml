@@ -61,6 +61,8 @@ dough = "dough.app:main"
 [project.scripts]
 # The oven: render packaging/ from [tool.dough.metadata] (docs/BAKING.md §2).
 dough-bake = "dough.bake:main"
+# The entry verb for building WITH dough: scaffold a fresh OWNED app from a clone.
+dough-new = "dough.scaffold:main"
 
 [project.urls]
 Homepage = "https://github.com/wolfgangwarehaus/dough"
