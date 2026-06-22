@@ -1754,9 +1754,12 @@ class AutoFadeScrollBar(QScrollBar):
 
     IDLE_MS = 900  # how long the pill stays visible after the last interaction
     FADE_MS = 220  # cross-fade duration
-    PILL_ALPHA = 110  # peak alpha of the handle (0-255); ~0.43
+    PILL_ALPHA = 190  # peak alpha of the handle (0-255) — bright enough to read
     PILL_RADIUS = 3
-    PILL_INSET = 2  # px shrink applied to the handle rect for breathing room
+    PILL_INSET = 2  # px shrink on the LONG axis for breathing room at the ends
+    PILL_THICKNESS = 6  # cross-axis width — a slim pill centered in the lane
+    PILL_MIN_LENGTH = 44  # min long-axis length so the pill stays long + grabbable
+    PILL_LANE = 12  # the bar's cross-axis lane width (a comfortable grab target)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1770,7 +1773,10 @@ class AutoFadeScrollBar(QScrollBar):
         self.setAutoFillBackground(False)
         # Strip any application-level QSS that would otherwise reach
         # this widget. We paint everything manually.
-        self.setStyleSheet("QScrollBar { background: transparent; border: none; }")
+        self.setStyleSheet(
+            f"QScrollBar:vertical {{ width: {self.PILL_LANE}px; background: transparent; border: none; }}"
+            f"QScrollBar:horizontal {{ height: {self.PILL_LANE}px; background: transparent; border: none; }}"
+        )
 
         self._anim = QPropertyAnimation(self, b"handleAlpha", self)
         self._anim.setDuration(self.FADE_MS)
@@ -1809,23 +1815,38 @@ class AutoFadeScrollBar(QScrollBar):
             QStyle.SubControl.SC_ScrollBarSlider,
             self,
         )
-        # Inset on the long axis so the pill has a tiny breath of
-        # space at each end of its slot — reads as a floating element
-        # rather than something flush to invisible bounds.
+        # Slim the pill to a fixed thickness centered on the lane's TRUE center, and
+        # keep it at least PILL_MIN_LENGTH long — clamped so it never clips the ends.
         if self.orientation() == Qt.Orientation.Vertical:
             handle.adjust(0, self.PILL_INSET, 0, -self.PILL_INSET)
+            if handle.height() < self.PILL_MIN_LENGTH:
+                top = handle.center().y() - self.PILL_MIN_LENGTH // 2
+                hi = self.height() - self.PILL_INSET - self.PILL_MIN_LENGTH
+                handle.setTop(max(self.PILL_INSET, min(top, hi)))
+                handle.setHeight(self.PILL_MIN_LENGTH)
+            cx = self.width() // 2
+            handle.setLeft(cx - self.PILL_THICKNESS // 2)
+            handle.setWidth(self.PILL_THICKNESS)
         else:
             handle.adjust(self.PILL_INSET, 0, -self.PILL_INSET, 0)
+            if handle.width() < self.PILL_MIN_LENGTH:
+                left = handle.center().x() - self.PILL_MIN_LENGTH // 2
+                hi = self.width() - self.PILL_INSET - self.PILL_MIN_LENGTH
+                handle.setLeft(max(self.PILL_INSET, min(left, hi)))
+                handle.setWidth(self.PILL_MIN_LENGTH)
+            cy = self.height() // 2
+            handle.setTop(cy - self.PILL_THICKNESS // 2)
+            handle.setHeight(self.PILL_THICKNESS)
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
         # Brighter on hover so the pill answers cursor presence.
-        peak = 180 if self._hovered else self.PILL_ALPHA
+        peak = 255 if self._hovered else self.PILL_ALPHA
         # Scale alpha down by the current handleAlpha fraction.
         alpha = int(peak * (self._handle_alpha / 255))
-        # Theme ink so the handle reads on a light theme too.
-        _hr, _hg, _hb = _hex_to_rgb_safe(TEXT)
+        # The live app ACCENT so the scrollbar carries the accent colour.
+        _hr, _hg, _hb = _hex_to_rgb_safe(ACCENT)
         painter.setBrush(QColor(_hr, _hg, _hb, alpha))
         painter.drawRoundedRect(handle, self.PILL_RADIUS, self.PILL_RADIUS)
 
@@ -1880,4 +1901,69 @@ def install_autofade_scrollbars(scroll_area: QScrollArea):
             (existing + "\n" if existing else "")
             + "QScrollArea { background: transparent; border: none; }"
         )
+    # Live accent: repaint both pills on a theme/accent change even while idle/faded
+    # (the pill paints in ACCENT), so a live switch shows without waiting for a scroll.
+    from dough.bus import AppBus
+
+    bus = AppBus.get()
+    bus.theme_changed.connect(v.update)
+    bus.theme_changed.connect(h.update)
     return v, h
+
+
+def frost_scroll_surface(area) -> None:
+    """Make a scroll area + its viewport paint NOTHING so the window's frost shows
+    through the gutters/margins instead of an opaque grey — frosted uniformity is a
+    dough hallmark. Generic over any ``QAbstractScrollArea`` (QScrollArea, QListView,
+    a Qt PDF view, …)."""
+    area.setStyleSheet(
+        (area.styleSheet() + "\n" if area.styleSheet() else "")
+        + f"{type(area).__name__} {{ background: transparent; border: none; }}"
+    )
+    viewport = area.viewport()
+    if viewport is not None:
+        viewport.setAutoFillBackground(False)
+    clear = QColor(0, 0, 0, 0)
+    palette = area.palette()
+    for role in (
+        QPalette.ColorRole.Base,
+        QPalette.ColorRole.Dark,
+        QPalette.ColorRole.Mid,
+        QPalette.ColorRole.Window,
+        QPalette.ColorRole.Button,
+    ):
+        palette.setColor(role, clear)
+    area.setPalette(palette)
+    if viewport is not None:
+        viewport.setPalette(palette)
+
+
+class CenteredBar(QWidget):
+    """A horizontal bar that keeps ONE child truly centered over the FULL bar width —
+    not merely between its side groups — and re-centers it on every resize. Side
+    content lives in the normal layout; the centered child floats on top: the polished
+    "balanced regardless of what's on the sides" behaviour a titlebar / footer wants.
+
+    The centered child should set ``WA_TransparentForMouseEvents`` if the bar is a drag
+    titlebar (so the drag passes through it), and :meth:`recenter` must be called when
+    the centered content changes width."""
+
+    def __init__(self, parent: "QWidget | None" = None) -> None:
+        super().__init__(parent)
+        self._centered = None
+
+    def set_centered(self, widget) -> None:
+        self._centered = widget
+        self.recenter()
+
+    def recenter(self) -> None:
+        c = self._centered
+        if c is None:
+            return
+        c.adjustSize()
+        c.move(max(0, (self.width() - c.width()) // 2), max(0, (self.height() - c.height()) // 2))
+        c.raise_()
+
+    def resizeEvent(self, event):  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        self.recenter()

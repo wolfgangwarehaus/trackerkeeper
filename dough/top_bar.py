@@ -9,7 +9,7 @@ maximize. An app subclasses or replaces this freely — it's deliberately thin.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel
 
 from dough import ui_helpers
 from dough.bus import AppBus
@@ -18,7 +18,7 @@ from dough.icon_button import IconButton
 from dough.icons import icon
 
 
-class TopBar(QWidget):
+class TopBar(ui_helpers.CenteredBar):
     HEIGHT = 48
 
     def __init__(self, window, *, titlebar_mode: bool, title: str = "dough"):

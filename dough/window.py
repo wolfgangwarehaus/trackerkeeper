@@ -27,6 +27,7 @@ from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QAbstractSlider,
     QApplication,
     QMainWindow,
     QStyle,
@@ -82,9 +83,11 @@ class _ResizeEdgeFilter(QObject):
         if edges == Qt.Edge(0):
             self._clear_cursor()
             return False
-        # A press/hover on an interactive control near the edge (a titlebar
-        # window-control button) is a click, not a resize — let it through.
-        if isinstance(win.childAt(local), QAbstractButton):
+        # A press/hover on an interactive control near the edge is a click/drag, not a
+        # resize — let it through. Buttons (titlebar window controls) AND sliders (an
+        # auto-fade scrollbar pill lives ON the right edge) both yield, so the resize
+        # band doesn't steal the scrollbar's grab.
+        if isinstance(win.childAt(local), (QAbstractButton, QAbstractSlider)):
             self._clear_cursor()
             return False
         if et == QEvent.Type.MouseMove:
