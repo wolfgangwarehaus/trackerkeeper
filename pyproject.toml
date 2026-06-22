@@ -135,7 +135,9 @@ screenshots = []
 # mints a fresh uuid4 for inno_appid_guid; the MSIX values are Partner-Center-
 # issued and left blank until the forker registers.
 [tool.dough.metadata.store_secrets_of_record]
-inno_appid_guid = ""
+# dough's IMMUTABLE Inno installer identity — minted once (uuid4), never changed
+# (changing it orphans installed users from upgrades). A fork mints its own.
+inno_appid_guid = "953E2575-85CD-42D0-85E9-35921C67D377"
 msix_publisher_cn = ""
 msix_pfn = ""
 msix_store_id = ""

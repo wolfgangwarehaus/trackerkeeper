@@ -167,6 +167,102 @@ jobs:
         with:
           subject-path: dist/*.AppImage
 
+  build-windows:
+    runs-on: windows-latest
+    # Azure Trusted Signing activates only once the secrets exist; until then
+    # SIGN='false' and both signing steps skip, so releases keep building unsigned.
+    env:
+      SIGN: ${{ secrets.AZURE_CLIENT_ID != '' }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (render + freeze deps)
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[bake]" pyinstaller
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = python -c "import dough; print(dough.__version__.split('+')[0])"
+          "version=$v" >> $env:GITHUB_OUTPUT
+      - name: Generate the .ico from the brand SVG (best-effort)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          magick -background none -density 384 "${{ github.workspace }}\dough\assets\dough.svg" `
+            -define icon:auto-resize=256,128,64,48,32,16 `
+            "${{ github.workspace }}\packaging\windows\dough.ico"
+      - name: Render manifests (version_info + .iss) + freeze
+        shell: pwsh
+        run: |
+          # format-local resolves in the runner's TZ (UTC on GitHub runners), matching
+          # the Linux jobs' UTC commit day — not the committer's local %cd.
+          $d = git log -1 --format=%cd --date=format-local:%F
+          python -m dough.bake --packaging packaging --release-version ${{ steps.ver.outputs.version }} --release-date $d
+          pyinstaller packaging/pyinstaller/dough.spec --noconfirm
+      # Sign the frozen bundle (exe + DLLs) BEFORE the installer wraps it, so every
+      # shipped binary is signed. Skipped until the Azure secrets are configured.
+      - name: Code-sign frozen bundle (Azure Trusted Signing)
+        if: env.SIGN == 'true'
+        uses: azure/trusted-signing-action@v0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\dist\dough
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+      - name: Build the Inno Setup installer
+        run: iscc /DAppVersion=${{ steps.ver.outputs.version }} packaging\windows\dough.iss
+      - name: Code-sign the installer (Azure Trusted Signing)
+        if: env.SIGN == 'true'
+        uses: azure/trusted-signing-action@v0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\dist
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+      - name: Build the portable zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\dough\* `
+            -DestinationPath "dist\dough-${{ steps.ver.outputs.version }}-windows-x64-portable.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/*-setup.exe
+            dist/*-portable.zip
+      - name: Attest Windows artifact provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/*-setup.exe
+            dist/*-portable.zip
+
   build-python:
     runs-on: ubuntu-latest
     permissions:
@@ -195,7 +291,7 @@ jobs:
 
   draft-release:
     if: github.event_name == 'push'
-    needs: [build-linux-deb, build-linux-appimage, build-python]
+    needs: [build-linux-deb, build-linux-appimage, build-windows, build-python]
     runs-on: ubuntu-latest
     permissions:
       contents: write # only this job mints the release
@@ -207,9 +303,10 @@ jobs:
           merge-multiple: true
       - name: Generate SHA256SUMS
         run: |
-          SLUG="$(python3 -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['tool']['dough']['metadata']['app_slug'])")"
           cd artifacts
-          sha256sum "$SLUG"* > SHA256SUMS
+          # Every release asset, slug-agnostic (a hyphenated fork slug can differ
+          # from the PyPI-normalized sdist/wheel name). SHA256SUMS excludes itself.
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\n' | sort | xargs -r sha256sum > SHA256SUMS
           cat SHA256SUMS
       - name: Extract release notes from CHANGELOG
         id: notes

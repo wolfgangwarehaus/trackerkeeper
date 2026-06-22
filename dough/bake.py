@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import re
 import stat
 import sys
 from pathlib import Path
@@ -181,6 +182,11 @@ def main(argv: list[str] | None = None) -> int:
         ctx["release_date"] = (
             args.release_date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
         )
+        # The Windows VSVersionInfo filevers must be 4 INTEGERS. Take each dotted
+        # segment's leading digit run so a PEP 440 pre-release (0.1.0rc1) yields
+        # (0, 1, 0, 0) — not a bare 0rc1 that breaks the eval'd version file.
+        _segs = (args.release_version.split("+")[0].split(".") + ["0", "0", "0", "0"])[:4]
+        ctx["filevers"] = tuple(int(re.match(r"\d*", s).group() or "0") for s in _segs)
 
     try:
         if args.check:

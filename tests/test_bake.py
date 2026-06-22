@@ -90,7 +90,15 @@ def test_no_unrendered_markers(packaging_dir: Path) -> None:
     offenders: list[str] = []
     for path in _committed_files(packaging_dir):
         text = path.read_text(encoding="utf-8")
-        if "{{" in text or "{%" in text or "{#" in text:
+        if path.suffix == ".iss":
+            # Inno uses {{ (the AppId escape), {#define} and {const} — all close
+            # with a SINGLE }. Jinja syntax always closes with }} / %} / #}, which
+            # Inno never emits — so flag those (still catches an unrendered
+            # {{ var }} or {# comment #} that somehow reached the file).
+            bad = "}}" in text or "%}" in text or "#}" in text
+        else:
+            bad = "{{" in text or "{%" in text or "{#" in text
+        if bad:
             offenders.append(str(path.relative_to(packaging_dir)))
     assert not offenders, "unrendered template markers in: " + ", ".join(offenders)
 
@@ -218,6 +226,27 @@ def test_templates_use_projections_not_literal_ids(packaging_dir: Path) -> None:
     assert not offenders, "templates with hardcoded composite ids (use a projection):\n  " + "\n  ".join(
         offenders
     )
+
+
+def test_version_info_filevers_are_ints(tmp_path: Path, packaging_dir: Path) -> None:
+    """The Windows VSVersionInfo filevers must be 4 integers for ANY tag — incl. a
+    PEP 440 pre-release (0.1.0rc1) — else the eval'd version file is a SyntaxError
+    that crashes the freeze. Rendered into a copy so the committed tree is intact."""
+    import re
+
+    shutil.copytree(packaging_dir / "templates", tmp_path / "templates")
+    cases = {
+        "0.1.0": "(0, 1, 0, 0)",
+        "1.2.10": "(1, 2, 10, 0)",
+        "0.1.0rc1": "(0, 1, 0, 0)",  # PEP 440 pre-release: leading-digit run per segment
+        "2.0.0.dev5": "(2, 0, 0, 0)",
+    }
+    for version, expected in cases.items():
+        assert bake.main(["--packaging", str(tmp_path), "--release-version", version]) == 0
+        vinfo = (tmp_path / "windows" / "version_info.txt").read_text(encoding="utf-8")
+        compile(vinfo, "version_info.txt", "exec")  # valid Python (no bare 0rc1)
+        match = re.search(r"filevers=(\([^)]*\))", vinfo)
+        assert match and match.group(1) == expected, f"{version}: filevers {match and match.group(1)}"
 
 
 def test_check_catches_every_drift_class(tmp_path: Path, packaging_dir: Path) -> None:
