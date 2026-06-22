@@ -69,15 +69,23 @@ jobs:
             --release-date "$(date -u -d "@$(git log -1 --format=%ct)" +%F)"
           pyinstaller packaging/pyinstaller/dough.spec --noconfirm
       - name: Frozen-bundle smoke test (Qt offscreen boot probe)
-        # In-runner boot on the BUILD host — proves the bundle starts, not that the
-        # .deb/AppImage are self-contained on a clean distro. A cross-distro
-        # container smoke (jellytoast's smoke_test_*.sh) is deferred (docs/TODO.md);
-        # the Depends/vendor closures are lifted from that proven set.
+        # A fast in-runner boot on the BUILD host — proves the bundle starts. The
+        # dedicated "Smoke-test the .deb in clean containers" step below is the one
+        # that proves self-containment on a distro lacking the build-time libs.
         run: |
           test -x dist/dough/dough
           QT_QPA_PLATFORM=offscreen timeout 10 dist/dough/dough || [ $? -eq 124 ]
       - name: Build .deb
         run: bash packaging/deb/build_deb.sh "${{ steps.ver.outputs.version }}"
+      - name: Smoke-test the .deb in clean containers (self-containment)
+        # Install + boot the .deb on NEWER distros that lack the build-time libs —
+        # proves the Qt-xcb Depends closure is complete (what the in-runner boot can't).
+        run: |
+          for img in ubuntu:24.04 debian:stable; do
+            echo "::group::deb smoke $img"
+            docker run --rm -v "$PWD:/src:ro" "$img" bash /src/packaging/deb/smoke_test_deb.sh
+            echo "::endgroup::"
+          done
       - name: Lint the .deb (lintian, advisory)
         continue-on-error: true
         run: |
@@ -138,6 +146,15 @@ jobs:
           pyinstaller packaging/pyinstaller/dough.spec --noconfirm
       - name: Build the AppImage
         run: bash packaging/appimage/build_appimage.sh "${{ steps.ver.outputs.version }}"
+      - name: Smoke-test the AppImage in clean containers (self-containment)
+        # Boot the AppImage on distros that have NEITHER the xcb closure — proves
+        # the vendored libs make it self-contained (the trap that ships a broken bundle).
+        run: |
+          for img in ubuntu:24.04 debian:stable; do
+            echo "::group::appimage smoke $img"
+            docker run --rm -v "$PWD:/src:ro" "$img" bash /src/packaging/appimage/smoke_test_appimage.sh
+            echo "::endgroup::"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: appimage

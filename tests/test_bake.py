@@ -163,15 +163,16 @@ def test_rendered_desktop_has_required_keys(packaging_dir: Path) -> None:
 
 
 def test_rendered_shell_scripts_pass_bash_n(packaging_dir: Path) -> None:
-    """The build scripts are syntactically valid shell (validity, not just match)."""
+    """Every rendered shell artifact (build + smoke scripts + the PKGBUILD) is
+    syntactically valid shell — validity, not just template-match."""
     bash = shutil.which("bash")
     if not bash:
         pytest.skip("bash not available")
-    for rel in ("deb/build_deb.sh", "appimage/build_appimage.sh"):
-        result = subprocess.run(
-            [bash, "-n", str(packaging_dir / rel)], capture_output=True, text=True
-        )
-        assert result.returncode == 0, f"{rel} failed bash -n:\n{result.stderr}"
+    scripts = [p for p in _committed_files(packaging_dir) if p.suffix == ".sh" or p.name == "PKGBUILD"]
+    assert scripts, "no shell scripts found to check"
+    for path in sorted(scripts):
+        result = subprocess.run([bash, "-n", str(path)], capture_output=True, text=True)
+        assert result.returncode == 0, f"{path} failed bash -n:\n{result.stderr}"
 
 
 def test_rendered_python_compiles(packaging_dir: Path) -> None:
