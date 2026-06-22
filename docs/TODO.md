@@ -1,10 +1,10 @@
 # dough — TODO / handoff
 
 Status as of **2026-06-22**. dough is stand-alone-safe, tested, and library-shaped;
-the jellytoast inversion is validated as feasible; the **baking phase has started**
-(the metadata core landed). This is the pick-up list for next time. See
-`docs/ROADMAP.md` (the P0→P3 plan) and `docs/BAKING.md` (the release-phase spec)
-for the why.
+the jellytoast inversion is validated as feasible; the **baking phase is underway**
+(the metadata core + the `dough bake` renderer + the first Linux channels landed).
+This is the pick-up list for next time. See `docs/ROADMAP.md` (the P0→P3 plan) and
+`docs/BAKING.md` (the release-phase spec) for the why.
 
 ## Done this round
 
@@ -33,31 +33,48 @@ for the why.
   `notifications/_windows.py` AUMID literal (now `identity.windows_aumid()`).
   Validated by a 4-dimension adversarial review (21 findings, all confirmed ones
   fixed). Wheel build proven end-to-end.
+- **Baking phase — Beat 2 (the `dough bake` renderer + first Linux channels)**:
+  `dough/bake.py` — renders `packaging/templates/**/*.j2` (filenames + bodies)
+  from `metadata.context()`, `--check` is the generate-then-verify gate (catches
+  content drift, missing, **orphan**, and lost-exec-bit). Templates: freedesktop
+  (`.desktop` + AppStream metainfo — both pass `appstreamcli`/`desktop-file-validate`),
+  loose `.deb` (`build_deb.sh`, PySide6-core Qt-xcb Depends closure, DEP-5
+  copyright conditional on the SPDX), AppImage (`build_appimage.sh`, vendors the Qt
+  xcb closure, rasterizes a PNG `.DirIcon`), PyInstaller onedir spec + launcher.
+  **PyPI**: `pypi-publish.yml` (OIDC Trusted Publishing) + a CI `build` gate
+  (`python -m build` + `twine check`). `bake`/`jinja2` is a build-time-only extra.
+  Validated by a 4-dimension adversarial review (26 confirmed; all in-scope fixed:
+  orphan detection, posix/LF cross-platform writes, exec-bit checks, vendor-prefix
+  `<developer id>`, validity assertions in the gate). 86 passed, ruff clean.
 
-Suite: **72 passed** (green across shuffle seeds + xdist), ruff clean. The
-pre-baking work is **pushed**; Beat 1 is committed locally (**unpushed**).
+Suite: **86 passed** (green across shuffle seeds + xdist), ruff clean. Beat 1 is
+**pushed**; Beat 2 is committed locally (**unpushed**).
 
 ## TODO — in rough priority order
 
-### 1. Push Beat 1 to `origin`  ·  ready, quick
-The metadata-core commits are local-only (the pre-baking 10 are already pushed).
-Cheapest win; nothing's blocked on it.
+### 1. Push Beat 2 to `origin`  ·  ready, quick
+The renderer + templates + PyPI workflow commits are local-only. Cheapest win.
 
-### 2. Baking phase — Beat 2 (the renderer + first channels)  ·  ready (unblocked)
-Beat 1 (the metadata core) is done. Next, from `docs/BAKING.md`:
-- The `dough bake` **renderer** — walk `packaging/templates/**/*.j2`, substitute
-  from `metadata.context()` (sidecar + projections + tag-version), write the tree.
-  A CI gate re-renders and diffs against the committed files (generate-then-verify).
-- First channels: **PyPI**, **AppImage**, **loose `.deb`** — lift + templatize from
-  jellytoast (mapped: `release.yml` (366L), `packaging/deb/build_deb.sh`,
-  `packaging/appimage/build_appimage.sh`, the `io.github.…desktop`/`.metainfo.xml`).
-- The freedesktop pieces (`.desktop`/metainfo/icon) feed deb+AppImage; wire
-  `setDesktopFileName` → `identity.desktop_id()` (= `app_id_base`) here and smoke
-  the Wayland icon association (deferred from Beat 1 — needs a real desktop).
-- Defer macOS (present-but-dormant; the `macos_team_id` placeholder is now in the
-  sidecar), hosted apt/PPA, Flathub (policy-blocked — skip flathub.org).
-- When templates land, extend the `test_metadata.py` composite-id gate to scan the
-  `*.j2` + checked-in manifest fixtures (it's `dough/**/*.py`-scoped today).
+### 2. Baking phase — Beat 3 (release.yml + the remaining channels)  ·  ready
+The first channels' build scripts exist but **have no CI caller yet** (an honest
+gap — they can't run on a tag until `release.yml` lands). From `docs/BAKING.md`
+§6 (the two-phase pipeline) + §8:
+- **`release.yml`** — the orchestration spine (lift jellytoast's 366-line one):
+  on a `v*` tag, `dough bake` (inject `release_version`/`release_date`) → PyInstaller
+  → build the `.deb` + AppImage (pin `ubuntu-22.04` for the glibc floor) →
+  SHA256SUMS → **draft** GitHub release → human publishes → `release:[published]`
+  fans out to PyPI (already wired) and `release:[released]` to the download-based
+  channels. The first `git tag v0.1.0` makes `__version__` concrete.
+- **`setDesktopFileName` → `identity.desktop_id()`** + the `.desktop`'s
+  `StartupWMClass` → `app_id_base` (review-confirmed HIGH: the installed `.desktop`
+  is named by the reverse-DNS id, so the Wayland taskbar icon won't associate until
+  this lands). **Needs KDE Wayland + X11 smoke-testing** — a guided session.
+- Remaining channels: **winget**, **AUR**, **MSIX/Store**, **Windows Inno** — lift
+  + templatize from jellytoast (`.github/workflows/{winget,aur}.yml`,
+  `packaging/{windows,msix}/`). Defer macOS (`macos_team_id` placeholder ready),
+  hosted apt/PPA, Flathub (policy-blocked — skip flathub.org).
+- When the channel manifests/`*.j2` land, extend the `test_metadata.py` composite-id
+  gate to scan them too (it's `dough/**/*.py`-scoped today).
 
 ### 3. Wire the shipped-but-dead subsystems into `run_app`  ·  ready (P1 leftover)
 `notifications/` and `autostart/` ship but nothing calls them. `notifications/` is

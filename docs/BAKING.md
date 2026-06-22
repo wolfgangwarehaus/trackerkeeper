@@ -341,6 +341,15 @@ placeholders + skip-if-unset guards:
 the seam projections + the tag-resolved version, and writes a fully-wired tree —
 one command from fork to installable.
 
+> **As built (Beat 2):** the template tree mirrors the OUTPUT 1:1 — a `*.j2`
+> renders (filename + body) to the same relative path under `packaging/`, minus
+> `.j2`. So the freedesktop pair lives at `packaging/templates/{{app_id_base}}.*.j2`
+> (→ `packaging/` root, where the build scripts read them), not under a
+> `freedesktop/` group. The sketch below keeps the cosmetic grouping for reading;
+> the renderer's rule is "templates/ mirrors packaging/", which makes the
+> generate-then-verify diff trivial. PyPI is sdist/wheel from the dynamic version,
+> so it has no template — only the publish workflow.
+
 ```
 pyproject.toml                      # [tool.dough.metadata] — the one source
 packaging/
