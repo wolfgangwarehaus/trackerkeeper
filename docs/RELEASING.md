@@ -48,6 +48,17 @@ uploads workflow artifacts but creates no release.
 - **winget** *(dormant)* — `winget.yml` submits to microsoft/winget-pkgs on
   `release: released`; needs a CLASSIC PAT (`public_repo`) as `WINGET_TOKEN` and a
   fork of microsoft/winget-pkgs under `wolfgangwarehaus`.
+- **macOS** *(dormant)* — `macos.yml` builds, signs, notarizes the `.dmg` and bumps
+  the Homebrew cask on `release: released`; the whole job skips until you add a
+  $99/yr Apple Developer membership + the secrets `MACOS_CERTIFICATE` (base64
+  `.p12`), `MACOS_CERTIFICATE_PWD`, `MACOS_KEYCHAIN_PWD`, `APPLE_ID`,
+  `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`, and `HOMEBREW_TAP_TOKEN` (a PAT
+  for a separate `homebrew-tap` repo). Keys off `APPLE_TEAM_ID`.
+- **MSIX / Microsoft Store** *(manual-first)* — the toolkit ships
+  (`packaging/msix/`: `AppxManifest.xml`, `make-assets.sh`) but the first
+  submission is **manual** via Partner Center — follow
+  `packaging/msix/STORE-SUBMISSION.md` (fill `msix_publisher_cn` after registering,
+  re-bake, validate locally with WACK, then upload).
 - Otherwise nothing: the `.deb` / AppImage / `.exe` / attestations / checklist use
   the built-in `GITHUB_TOKEN` + OIDC.
 
@@ -60,6 +71,6 @@ sha256sum -c SHA256SUMS
 
 ## Not yet wired (see docs/TODO.md)
 
-MSIX/Store (manual-first via Partner Center), macOS (`.dmg` + cask), a hosted apt
-repo, and the landing page. The metadata core already carries their fields; they
-light up channel-by-channel as each is templatized.
+A hosted apt/PPA repo, the landing page, and Flathub (policy-blocked — skipped).
+Everything else — PyPI, `.deb`, AppImage, AUR, Windows (Inno + winget), macOS, and
+MSIX — is wired (dormant channels light up when their account/secret is provisioned).
