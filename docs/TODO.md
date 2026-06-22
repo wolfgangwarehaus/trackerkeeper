@@ -1,9 +1,10 @@
 # dough — TODO / handoff
 
-Status as of **2026-06-21**. dough is stand-alone-safe, tested, and library-shaped;
-the jellytoast inversion is validated as feasible. This is the pick-up list for
-next time. See `docs/ROADMAP.md` (the P0→P3 plan) and `docs/BAKING.md` (the
-release-phase spec) for the why.
+Status as of **2026-06-22**. dough is stand-alone-safe, tested, and library-shaped;
+the jellytoast inversion is validated as feasible; the **baking phase has started**
+(the metadata core landed). This is the pick-up list for next time. See
+`docs/ROADMAP.md` (the P0→P3 plan) and `docs/BAKING.md` (the release-phase spec)
+for the why.
 
 ## Done this round
 
@@ -19,25 +20,54 @@ release-phase spec) for the why.
   `_paint_body_backdrop`) + per-test Qt-window isolation (killed a teardown segfault).
 - **Inversion go/no-go** — validated GO: bus half proven live (a now-removed
   jellytoast worktree spike), window half proven by `test_jellytoast_shaped_window`.
+- **Baking phase — Beat 1 (the metadata core)**: the `[tool.dough.metadata]`
+  sidecar (one source: ~9 inputs + the descriptive/store union, schema-versioned);
+  the projection engine on `dough/identity.py` (pure `aumid_for`/`app_id_base_for`/
+  `cf_bundle_id_for` helpers + runtime `app_id_base`/`cf_bundle_id`/`desktop_id`/
+  `owner`); `dough/metadata.py` (build-time sidecar reader — `load`/`projections`/
+  `context`); **dynamic versioning** via `setuptools-scm` (the tag is the version;
+  generated `dough/_version.py` + a source-checkout fallback in `__init__`); and
+  the **verify gate** (`tests/test_metadata.py`: projections == seam, `[project]`↔
+  sidecar no-drift incl. the Trove license classifier, and a case-insensitive
+  fragment scan forbidding re-literalised composite ids). Killed the
+  `notifications/_windows.py` AUMID literal (now `identity.windows_aumid()`).
+  Validated by a 4-dimension adversarial review (21 findings, all confirmed ones
+  fixed). Wheel build proven end-to-end.
 
-Suite: **54 passed**, ruff clean. `main` is **9 commits ahead of `origin` (unpushed)**.
+Suite: **72 passed** (green across shuffle seeds + xdist), ruff clean. The
+pre-baking work is **pushed**; Beat 1 is committed locally (**unpushed**).
 
 ## TODO — in rough priority order
 
-### 1. Push `main` to `origin`  ·  ready, quick
-9 commits are local-only. Nothing else is blocked on it, but it's the cheapest win.
+### 1. Push Beat 1 to `origin`  ·  ready, quick
+The metadata-core commits are local-only (the pre-baking 10 are already pushed).
+Cheapest win; nothing's blocked on it.
 
-### 2. Baking phase — kickoff  ·  ready (unblocked by the identity seam)
-Start the proven, low-effort tier from `docs/BAKING.md`:
-- `[tool.dough.metadata]` sidecar in `pyproject.toml` (the ~9 inputs → ~26-field union).
-- Dynamic versioning (`setuptools-scm`, tag-is-the-version) + the generate-then-verify renderer.
-- First channels: **PyPI**, **AppImage**, **loose `.deb`** (lift + templatize from jellytoast).
-- Defer macOS (present-but-dormant), hosted apt/PPA, Flathub (policy-blocked — skip flathub.org).
+### 2. Baking phase — Beat 2 (the renderer + first channels)  ·  ready (unblocked)
+Beat 1 (the metadata core) is done. Next, from `docs/BAKING.md`:
+- The `dough bake` **renderer** — walk `packaging/templates/**/*.j2`, substitute
+  from `metadata.context()` (sidecar + projections + tag-version), write the tree.
+  A CI gate re-renders and diffs against the committed files (generate-then-verify).
+- First channels: **PyPI**, **AppImage**, **loose `.deb`** — lift + templatize from
+  jellytoast (mapped: `release.yml` (366L), `packaging/deb/build_deb.sh`,
+  `packaging/appimage/build_appimage.sh`, the `io.github.…desktop`/`.metainfo.xml`).
+- The freedesktop pieces (`.desktop`/metainfo/icon) feed deb+AppImage; wire
+  `setDesktopFileName` → `identity.desktop_id()` (= `app_id_base`) here and smoke
+  the Wayland icon association (deferred from Beat 1 — needs a real desktop).
+- Defer macOS (present-but-dormant; the `macos_team_id` placeholder is now in the
+  sidecar), hosted apt/PPA, Flathub (policy-blocked — skip flathub.org).
+- When templates land, extend the `test_metadata.py` composite-id gate to scan the
+  `*.j2` + checked-in manifest fixtures (it's `dough/**/*.py`-scoped today).
 
 ### 3. Wire the shipped-but-dead subsystems into `run_app`  ·  ready (P1 leftover)
-`notifications/` and `autostart/` ship but nothing calls them, and they still hold
-hardcoded `"dough"` identity literals. Route them through `dough.identity` and wire
-them (opt-in) in `run_app`.
+`notifications/` and `autostart/` ship but nothing calls them. `notifications/` is
+now routed through `dough.identity`; **`autostart/` still holds bare-slug `"dough"`
+literals** the review confirmed are fork-blind (`_linux.py` `.desktop` basename /
+`Name=`/`Icon=`/`Exec -m dough` — and the source-copy path looks for `dough.desktop`
+while an installer ships `io.github.…dough.desktop`, so the copy branch never
+matches; `_windows.py` `_VALUE_NAME`/`-m dough`; `_flatpak.py` `commandline
+["dough"]`). Route them through `dough.identity` (use `desktop_id()` for the
+`.desktop`/icon names, `display_name()` for `Name=`) and wire them opt-in in `run_app`.
 
 ### 4. JellytoastWindow full inversion  ·  needs the real desktop + a server
 The real jellytoast PR. Validated feasible; mechanical but **needs a KDE Wayland
@@ -58,7 +88,12 @@ guided session on the machine. Steps (also in the AI memory handoff):
   maximized, music top bar, page switching, pinned np_bar, theme re-stamp.
 
 ### 5. P3 polish sweep  ·  low priority, cosmetic
-- Route the remaining `notifications/` + `autostart/` identity literals through `dough.identity`.
+- Route the remaining bare-slug identity literals through `dough.identity` (review-confirmed):
+  - `dough/windows_shortcut.py` — `dough.exe` / `%LOCALAPPDATA%/dough/dough.ico` /
+    `dough.lnk` (the AUMID + Description are already routed; these paths aren't).
+  - `dough/power/_linux.py:56` — `Inhibit("dough", "Playing music")`: a music-domain
+    leftover in a generic base. Use `identity.app()` + a neutral reason.
+  - (`autostart/` is tracked above in §3.)
 - Rename the `[JT.Lnk]` C# namespace in `windows_shortcut.py`.
 - `JT_*` env vars + `jt*` objectName renames (currently self-consistent, harmless).
 - Docstring sweep: `PlayerBus`→`AppBus`, music examples → neutral.
