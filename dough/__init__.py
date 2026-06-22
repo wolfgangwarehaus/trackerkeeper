@@ -2,7 +2,31 @@
 
 from dough.identity import configure
 
-__version__ = "0.1.0"
+
+def _resolve_version() -> str:
+    """The single version source (docs/BAKING.md §2 principle 4). In a built
+    install, setuptools-scm has written ``dough/_version.py`` from the git tag.
+    In a raw source checkout it hasn't, so fall back to the installed-package
+    metadata, then to a sentinel — never hardcode a number that could drift."""
+    try:
+        from dough._version import version  # generated at build by setuptools-scm
+
+        return version
+    except ImportError:
+        pass
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            return version("dough")
+        except PackageNotFoundError:
+            pass
+    except ImportError:
+        pass
+    return "0.0.0+unknown"
+
+
+__version__ = _resolve_version()
 
 # Curated public API. configure() is eager — it must be callable before anything
 # heavy imports (see dough.identity: the font-scale loader reads QSettings at

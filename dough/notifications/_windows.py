@@ -15,11 +15,9 @@ from __future__ import annotations
 
 import logging
 
-logger = logging.getLogger(__name__)
+from dough import identity
 
-# Reuse the taskbar/start-menu identity so toasts show "dough".
-_AUMID = "wolfgangwarehaus.dough"
-_GROUP = "dough"
+logger = logging.getLogger(__name__)
 
 _toaster = None
 _toaster_failed = False
@@ -35,8 +33,11 @@ def _get_toaster():
 
         # The constructor arg IS the notifier AUMID in every supported
         # windows_toasts version, so the toast inherits our stamped name +
-        # icon. Any failure (missing package / WinRT) trips the outer guard.
-        _toaster = WindowsToaster(_AUMID)
+        # icon. Reuse the taskbar/Start-menu identity (identity.windows_aumid,
+        # {org}.{app}) so the toast carries the same name — never a literal, so
+        # a fork's configure() reaches it. Any failure (missing package / WinRT)
+        # trips the outer guard.
+        _toaster = WindowsToaster(identity.windows_aumid())
     except Exception as e:  # pragma: no cover — Windows-only
         logger.info("windows_toasts unavailable, toasts disabled: %s", e)
         _toaster_failed = True
@@ -52,7 +53,7 @@ def notify(
     title: str,
     body: str = "",
     icon: str | None = None,
-    app_name: str = "dough",
+    app_name: str | None = None,
     tag: str | None = None,
 ) -> None:
     toaster = _get_toaster()
@@ -67,7 +68,7 @@ def notify(
             # Same tag+group → the new toast supersedes the previous one
             # in Action Center instead of piling up (now-playing stream).
             toast.tag = tag
-            toast.group = _GROUP
+            toast.group = identity.app()
         if icon:
             try:
                 from windows_toasts import ToastDisplayImage

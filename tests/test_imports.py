@@ -69,7 +69,20 @@ def _dough_import_targets() -> list[tuple[str, Path, int]]:
     return targets
 
 
-def _is_phantom(target: str) -> bool:
+# Modules that ship in a BUILT wheel but are legitimately absent from a raw
+# source checkout — setuptools-scm writes dough/_version.py at build time (the
+# tag is the version; docs/BAKING.md §2). __init__ imports it behind a try/except
+# fallback, so a missing _version.py is correct here, not a phantom.
+_GENERATED = {"dough._version"}
+
+
+def _is_phantom(target: str, *, origin: Path) -> bool:
+    # _version.py is build-generated; exempt it ONLY at its one try/except-guarded
+    # fallback site (dough/__init__.py). An unguarded import of it anywhere else
+    # is a real phantom — it crashes in a source checkout — which is exactly what
+    # this guard exists to catch, so the exemption must not be a blanket one.
+    if target in _GENERATED and origin == Path(dough.__file__):
+        return False
     try:
         return importlib.util.find_spec(target) is None
     except ModuleNotFoundError:
@@ -77,8 +90,14 @@ def _is_phantom(target: str) -> bool:
 
 
 def test_no_phantom_dough_imports() -> None:
-    """No statement imports a ``dough.<x>`` module that doesn't ship."""
+    """No statement imports a ``dough.<x>`` module that doesn't ship (the
+    build-generated _version.py is exempt only at its guarded site — see
+    _GENERATED / _is_phantom)."""
     phantoms = sorted(
-        {f"{t}  ({py.name}:{ln})" for (t, py, ln) in _dough_import_targets() if _is_phantom(t)}
+        {
+            f"{t}  ({py.name}:{ln})"
+            for (t, py, ln) in _dough_import_targets()
+            if _is_phantom(t, origin=py)
+        }
     )
     assert not phantoms, "phantom dough.* imports:\n  " + "\n  ".join(phantoms)

@@ -31,6 +31,21 @@ def qapp():
 
 
 @pytest.fixture(autouse=True)
+def _isolate_identity():
+    """Snapshot and restore the process-global identity (dough.identity is module
+    state mutated by configure()). Defense-in-depth for the whole identity /
+    metadata suite: a test that reidentifies the app and fails — or a future one
+    that forgets to restore — would otherwise leak into every later assertion.
+    Restores the raw ``_owner`` sentinel too, which configure() cannot reset to
+    None. Snapshot via the private globals so the reset is exact."""
+    from dough import identity
+
+    saved = (identity._org, identity._app, identity._display_name, identity._owner)
+    yield
+    identity._org, identity._app, identity._display_name, identity._owner = saved
+
+
+@pytest.fixture(autouse=True)
 def _isolate_qt_windows(qapp):
     """Tear down any top-level windows a test creates, right after it runs, so Qt
     state never accumulates across tests. Without this, lingering windows — each

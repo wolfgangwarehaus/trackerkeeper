@@ -7,18 +7,27 @@
 # cast stack) belong in [project.optional-dependencies], never the base.
 
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=68", "wheel", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "dough"
-version = "0.1.0"
-description = "A frosted, cross-platform PySide6 app base — the wolfgang warehaus starter kit."
+# version is DYNAMIC — the tag is the version (docs/BAKING.md §2 principle 4).
+# setuptools-scm derives it from the latest `git tag vX.Y.Z`; there is nothing
+# to stamp in N files and therefore no version-drift class to gate against.
+dynamic = ["version"]
+description = "A frosted, cross-platform PySide6 app base"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-2.0-or-later" }
 authors = [{ name = "august", email = "augustvontrips@gmail.com" }]
 keywords = ["pyside6", "qt", "desktop", "starter", "template", "frosted-glass", "cross-platform", "kde", "windows"]
+# PyPI Trove classifiers are a hand-maintained SECOND site, not yet rendered
+# from [tool.dough.metadata]. The License line is guarded against license_spdx by
+# tests/test_metadata.py; the OS/Environment lines are a free-text platform fact
+# a fork must edit by hand until the renderer derives them (license from
+# license_spdx, OS/Env from a platform flag). They are distinct from the
+# sidecar's freedesktop categories[] (a different taxonomy).
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: X11 Applications :: Qt",
@@ -29,6 +38,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
 ]
+# runtime_deps (docs/BAKING.md §3.3 — "the one genuinely app-specific block")
+# lives HERE, in [project].dependencies, as its single source; it is NOT
+# duplicated into the sidecar. The Beat-2 renderer projects it onward (AUR
+# depends, deb shlib closure, AppImage bundling) from this list.
 dependencies = [
     # Core is PySide6 only — that's the whole point. Cap below Qt 7 (a hard
     # compat break); floor at the earliest API the chrome relies on.
@@ -36,7 +49,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff", "pytest", "pytest-xdist"]
+dev = ["ruff", "pytest", "pytest-xdist", "setuptools-scm>=8"]
 
 [project.gui-scripts]
 dough = "dough.app:main"
@@ -44,6 +57,90 @@ dough = "dough.app:main"
 [project.urls]
 Homepage = "https://github.com/wolfgangwarehaus/dough"
 Repository = "https://github.com/wolfgangwarehaus/dough"
+
+# ── the baking-phase metadata sidecar (docs/BAKING.md §3) ────────────────────
+# ONE source for app identity + descriptive/store metadata. The oven (a future
+# `dough bake`) renders every manifest — .desktop, metainfo, deb control, winget
+# YAML, PKGBUILD, the landing page — from this table; none is hand-authored. The
+# id projections (app_id_base / windows_aumid / cf_bundle_id) are COMPUTED from
+# the slugs below via dough.identity's pure helpers, never re-literalised. Where
+# a field overlaps `[project]` (description↔summary, keywords, license,
+# requires-python, the maintainer), the two are kept identical and
+# tests/test_metadata.py asserts they never drift — the exact failure mode this
+# table exists to kill (jellytoast carried six summary wordings and three
+# publisher strings; see docs/BAKING.md §1).
+[tool.dough.metadata]
+# Schema-versioned like color_tokens' PALETTE_VERSION: bump when the field set
+# changes so the renderer and the verify gate move together.
+metadata_version = 1
+
+# the inputs everything else derives from
+app_slug = "dough"
+org_slug = "wolfgangwarehaus"
+github_owner = "wolfgangwarehaus"
+repo_name = "dough"
+display_name = "dough"
+generic_name = "App Base"
+summary = "A frosted, cross-platform PySide6 app base"
+license_spdx = "GPL-2.0-or-later"
+
+# descriptive / store metadata — the renderer's inputs; these never touch the
+# running QApplication (that's dough.identity's job — docs/BAKING.md §4).
+long_description = """\
+dough is a fork-and-own application base for PySide6 desktop apps: a frosted, \
+KDE-native window chrome, a token-driven design system with live re-theming, \
+and the cross-platform scaffolding (single-instance, notifications, autostart, \
+power inhibition) every app otherwise re-implements. Fork it, set your identity \
+once, and build your app on a finished base."""
+maintainer_name = "august"
+maintainer_email = "augustvontrips@gmail.com"
+# Publisher display name — the spaced brand is a DISPLAY variant of org_slug,
+# not a third source (resolves jellytoast's august/wolfgangwarehaus/wolfgang
+# warehaus drift; docs/BAKING.md §9).
+publisher_display_name = "wolfgang warehaus"
+categories = ["Utility", "Development"]
+keywords = ["pyside6", "qt", "desktop", "starter", "template", "frosted-glass", "cross-platform", "kde", "windows"]
+requires_python = ">=3.11"
+entry_point = "dough.app:main"
+icon_svg_source = "dough/assets/dough.svg"
+# Ko-fi / donation handle — set to light up the landing-page tip box and the
+# metainfo <url type="donation">. Empty ⇒ the donation links are omitted.
+kofi_handle = ""
+
+# the 2×2 landing grid, also projected to the AppStream metainfo <ul>
+feature_cards = [
+  { title = "Frosted chrome", body = "A frameless, blurred, KDE-native window — rounded corners, a custom title bar, edge-resize and drag." },
+  { title = "Token-driven design", body = "One palette source with live re-theming, exported to JSON the app and the landing page share." },
+  { title = "Batteries, wired", body = "Single-instance, notifications, autostart and power inhibition — cross-platform and already plumbed." },
+  { title = "Fork and own", body = "Set your identity once. No upstream dependency, no framework lock-in — the code is yours." },
+]
+
+# Screenshots for the AppStream metainfo (≥1, first is type=default) + the
+# landing page + the store listings. Empty for now; the freedesktop renderer
+# (Beat 2) warns when a release ships none. Each: {path, caption, alt, width, height}.
+screenshots = []
+
+# Single-instance identity that must be TRACKED, never regenerated, and never
+# cross-contaminated between apps (docs/BAKING.md §9). `dough bake <newapp>`
+# mints a fresh uuid4 for inno_appid_guid; the MSIX values are Partner-Center-
+# issued and left blank until the forker registers.
+[tool.dough.metadata.store_secrets_of_record]
+inno_appid_guid = ""
+msix_publisher_cn = ""
+msix_pfn = ""
+msix_store_id = ""
+# Apple Developer Team ID; blank ⇒ the macOS cask/notary leg stays dormant
+# (docs/BAKING.md §9). Present so the metadata core already carries the mac
+# fields, per §5 — flipping macOS on needs no re-derivation.
+macos_team_id = ""
+
+[tool.setuptools_scm]
+# The tag is the version. setuptools-scm writes dough/_version.py at build time
+# (gitignored; dough.__init__ reads it with a graceful source-checkout
+# fallback). No tag yet ⇒ a dev version like 0.0.1.devN+gHASH; the first
+# `git tag v0.1.0` makes it concrete.
+version_file = "dough/_version.py"
+fallback_version = "0.0.0"
 
 [tool.setuptools.packages.find]
 include = ["dough*"]

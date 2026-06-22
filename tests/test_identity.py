@@ -23,6 +23,42 @@ def test_windows_aumid_projection() -> None:
     assert identity.windows_aumid() == "wolfgangwarehaus.dough"
 
 
+def test_reverse_dns_projections() -> None:
+    """The reverse-DNS / vendor ids every channel keys off (docs/BAKING.md §3.2).
+    owner() defaults to org(); desktop_id() is app_id_base()."""
+    assert identity.owner() == "wolfgangwarehaus"
+    assert identity.app_id_base() == "io.github.wolfgangwarehaus.dough"
+    assert identity.cf_bundle_id() == "com.wolfgangwarehaus.dough"
+    assert identity.desktop_id() == identity.app_id_base()
+
+
+def test_pure_projection_helpers() -> None:
+    """The pure helpers the build-time renderer (dough.metadata) shares with the
+    runtime seam — same formula, explicit inputs."""
+    assert identity.aumid_for("acme", "myapp") == "acme.myapp"
+    assert identity.app_id_base_for("acme", "myapp") == "io.github.acme.myapp"
+    assert identity.cf_bundle_id_for("acme", "myapp") == "com.acme.myapp"
+
+
+def test_owner_overrides_independently_of_org() -> None:
+    """owner can diverge from org (a fork published under a different GitHub
+    account than its vendor slug). Restores dough's identity after — including
+    the raw ``_owner`` sentinel (configure() can't reset it to None, so the
+    track-org default would be lost otherwise)."""
+    saved_org, saved_app = identity.org(), identity.app()
+    saved_owner_raw = identity._owner  # the None/track-org sentinel, white-box
+    try:
+        identity.configure(org="vendor", app="thing", owner="ghuser")
+        assert identity.app_id_base() == "io.github.ghuser.thing"
+        assert identity.cf_bundle_id() == "com.vendor.thing"
+        assert identity.windows_aumid() == "vendor.thing"
+    finally:
+        identity.configure(org=saved_org, app=saved_app)
+        identity._owner = saved_owner_raw
+    assert identity.owner() == "wolfgangwarehaus"  # tracks org again
+    assert identity.app_id_base() == "io.github.wolfgangwarehaus.dough"
+
+
 @pytest.mark.usefixtures("qapp")
 def test_settings_handle_keys_off_identity() -> None:
     """The QSettings handle (settings.py) keys off the SAME org/app pair the seam

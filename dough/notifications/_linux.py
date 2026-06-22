@@ -34,13 +34,17 @@ def notify(
     title: str,
     body: str = "",
     icon: str | None = None,
-    app_name: str = "dough",
+    app_name: str | None = None,
     tag: str | None = None,
 ) -> None:
     bin_ = _notify_send_bin()
     if not bin_:
         return
 
+    if app_name is None:
+        from dough import identity
+
+        app_name = identity.app()
     cmd = [bin_, "--app-name", app_name]
     if icon:
         cmd.extend(["--icon", icon])

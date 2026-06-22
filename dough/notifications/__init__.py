@@ -3,7 +3,8 @@ the actual implementation lives in a per-OS backend module.
 
 Public API:
     is_supported() -> bool   # backend can actually display notifications
-    notify(title, body="", icon=None, app_name="dough") -> None
+    notify(title, body="", icon=None, app_name=None, tag=None) -> None
+        # app_name=None resolves to dough.identity.app() (the live app slug)
 
 Linux: shells out to `notify-send` (libnotify), which routes through the
 freedesktop.org `org.freedesktop.Notifications` D-Bus service. Picked up
@@ -56,13 +57,14 @@ def notify(
     title: str,
     body: str = "",
     icon: str | None = None,
-    app_name: str = "dough",
+    app_name: str | None = None,
     tag: str | None = None,
 ) -> None:
     """Show a desktop notification. Silent no-op on unsupported
-    platforms; never raises. ``tag`` groups successive notifications so a
-    new one *replaces* the prior (used by the now-playing stream so
-    track-change toasts don't pile up)."""
+    platforms; never raises. ``app_name`` defaults to the live app identity
+    (``dough.identity.app()``) — pass it only to override. ``tag`` groups
+    successive notifications so a new one *replaces* the prior (used by the
+    now-playing stream so track-change toasts don't pile up)."""
     try:
         _select_backend().notify(title, body, icon, app_name, tag)
     except Exception:

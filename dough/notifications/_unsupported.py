@@ -18,7 +18,7 @@ def notify(
     title: str,
     body: str = "",
     icon: str | None = None,
-    app_name: str = "dough",
+    app_name: str | None = None,
     tag: str | None = None,
 ) -> None:
     return None
