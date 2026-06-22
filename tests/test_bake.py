@@ -123,15 +123,27 @@ def test_release_block_injected_only_with_a_version(packaging_dir: Path) -> None
     assert '<release version="9.9.9"' in injected and "2099-01-01" in injected
 
 
-def test_release_render_without_date_does_not_crash(packaging_dir: Path) -> None:
-    """A release render that supplies only release_version (no release_date) must
-    not blow up under StrictUndefined — release_date defaults to empty."""
-    import xml.dom.minidom
+def test_release_render_defaults_a_valid_date(tmp_path: Path, packaging_dir: Path) -> None:
+    """`dough bake --release-version` WITHOUT --release-date self-defaults a real
+    date — AppStream rejects a <release> with an empty date, so date="" would be
+    silently-invalid output. Rendered into a copy so the committed tree is intact."""
+    import re
 
-    ctx = {**metadata.context(), "release_version": "1.2.3"}  # deliberately no release_date
-    metainfo = bake.render(packaging_dir, ctx)[f"{identity.app_id_base()}.metainfo.xml"]
+    shutil.copytree(packaging_dir / "templates", tmp_path / "templates")
+    rc = bake.main(["--packaging", str(tmp_path), "--release-version", "1.2.3"])  # no date
+    assert rc == 0
+    metainfo = (tmp_path / f"{identity.app_id_base()}.metainfo.xml").read_text(encoding="utf-8")
     assert '<release version="1.2.3"' in metainfo
-    xml.dom.minidom.parseString(metainfo)  # still well-formed
+    assert 'date=""' not in metainfo
+    assert re.search(r'date="\d{4}-\d{2}-\d{2}"', metainfo), "release date must be a real ISO date"
+
+
+def test_check_ignores_release_version(packaging_dir: Path) -> None:
+    """`dough bake --check --release-version X` must NOT inject a <release> or
+    report drift — the gate stays version-free (main() calls check() with no ctx).
+    Load-bearing for the CI gate: a refactor threading ctx into check() would break it."""
+    rc = bake.main(["--packaging", str(packaging_dir), "--check", "--release-version", "9.9.9"])
+    assert rc == 0
 
 
 # ── the gate proves VALIDITY, not just template-match ────────────────────────
@@ -168,6 +180,43 @@ def test_rendered_python_compiles(packaging_dir: Path) -> None:
     for rel in (f"pyinstaller/{identity.app()}.spec", "pyinstaller/launch.py"):
         path = packaging_dir / rel
         compile(path.read_text(encoding="utf-8"), str(path), "exec")
+
+
+def test_bake_cli_injects_release(tmp_path: Path, packaging_dir: Path) -> None:
+    """`dough bake --release-version` writes the <release> block (the release-time
+    render); the plain CLI / --check stays version-free. Rendered into a copy so
+    the committed tree is untouched."""
+    shutil.copytree(packaging_dir / "templates", tmp_path / "templates")
+    rc = bake.main(
+        ["--packaging", str(tmp_path), "--release-version", "1.2.3", "--release-date", "2026-01-01"]
+    )
+    assert rc == 0
+    metainfo = (tmp_path / f"{identity.app_id_base()}.metainfo.xml").read_text(encoding="utf-8")
+    assert '<release version="1.2.3"' in metainfo and "2026-01-01" in metainfo
+
+
+def test_templates_use_projections_not_literal_ids(packaging_dir: Path) -> None:
+    """Templates must reference {{ app_id_base }} / {{ vendor_id }} etc., never a
+    hardcoded composite id — else a fork renaming itself silently ships dough's
+    ids into its manifests (the rendered output legitimately carries the literals;
+    only the .j2 sources are scanned)."""
+    import re
+
+    org, app = "wolfgangwarehaus", "dough"  # frozen canonical org/app
+    patterns = [
+        re.compile(re.escape(f"{org}.{app}"), re.I),
+        re.compile(r"io\.github\." + re.escape(org), re.I),
+        re.compile(r"com\." + re.escape(org) + r"\.", re.I),
+    ]
+    offenders: list[str] = []
+    for tpl in sorted((packaging_dir / "templates").rglob("*.j2")):
+        text = tpl.read_text(encoding="utf-8")
+        for pat in patterns:
+            if pat.search(text):
+                offenders.append(f"{tpl.relative_to(packaging_dir)}: matches {pat.pattern!r}")
+    assert not offenders, "templates with hardcoded composite ids (use a projection):\n  " + "\n  ".join(
+        offenders
+    )
 
 
 def test_check_catches_every_drift_class(tmp_path: Path, packaging_dir: Path) -> None:

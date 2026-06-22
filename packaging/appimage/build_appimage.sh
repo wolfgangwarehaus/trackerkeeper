@@ -22,7 +22,7 @@
 set -euo pipefail
 
 VERSION="${1:?usage: build_appimage.sh <version>}"
-ROOT="$(git rev-parse --show-toplevel)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"  # path-relative, like build_deb.sh (no git dep)
 APP_ID="io.github.wolfgangwarehaus.dough"
 BUNDLE="$ROOT/dist/dough"
 APPDIR="$ROOT/dist/dough.AppDir"

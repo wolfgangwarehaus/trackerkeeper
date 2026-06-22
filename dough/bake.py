@@ -19,6 +19,7 @@ context key a hard error, so a template/metadata mismatch fails loudly at render
 from __future__ import annotations
 
 import argparse
+import datetime
 import stat
 import sys
 from pathlib import Path
@@ -142,8 +143,44 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="packaging dir (default: <repo>/packaging)",
     )
+    parser.add_argument(
+        "--release-version",
+        default=None,
+        metavar="VER",
+        help="inject a <release> entry into version-bearing manifests — the "
+        "release-time render (docs/BAKING.md §6.2). Omit for the committed, "
+        "version-free tree.",
+    )
+    parser.add_argument(
+        "--release-date",
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="date for the injected <release> (defaults to empty)",
+    )
     args = parser.parse_args(argv)
+    if args.release_date and not args.release_version:
+        parser.error("--release-date has no effect without --release-version")
+    if args.release_version and args.packaging is None:
+        # A release render injects a <release> the COMMITTED tree must never carry
+        # (docs/BAKING.md §6.2) — writing it in-place would dirty packaging/ and
+        # break `dough bake --check`. Force an explicit target (CI renders into
+        # packaging/ in its ephemeral checkout via --packaging packaging).
+        parser.error(
+            "--release-version would overwrite the committed packaging tree; pass an "
+            "explicit --packaging <dir> (the committed tree must stay version-free)"
+        )
     packaging_dir = args.packaging or (_repo_root() / "packaging")
+
+    # Release-time render: fold the version into the context so the metainfo gets
+    # a <release>. --check stays version-free (it gates the committed tree). A date
+    # is ALWAYS set (AppStream rejects a <release> with an empty date).
+    ctx = None
+    if args.release_version:
+        ctx = metadata.context()
+        ctx["release_version"] = args.release_version
+        ctx["release_date"] = (
+            args.release_date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+        )
 
     try:
         if args.check:
@@ -154,7 +191,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             print("packaging is in sync with [tool.dough.metadata].")
             return 0
-        rendered = write(packaging_dir)
+        rendered = write(packaging_dir, ctx)
     except BakeError as exc:
         print(f"dough bake: {exc}", file=sys.stderr)
         return 1

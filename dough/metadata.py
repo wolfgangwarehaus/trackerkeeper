@@ -91,6 +91,9 @@ def projections() -> dict:
         "app_id_base": identity.app_id_base_for(owner, app),
         "cf_bundle_id": identity.cf_bundle_id_for(org, app),
         "desktop_id": identity.app_id_base_for(owner, app),
+        # the reverse-DNS VENDOR prefix (io.github.{owner}) — the AppStream
+        # <developer id>, distinct from the full per-app component id.
+        "vendor_id": f"io.github.{owner}",
         "homepage_url": homepage,
         "issues_url": f"{homepage}/issues",
         "releases_url": f"{homepage}/releases",

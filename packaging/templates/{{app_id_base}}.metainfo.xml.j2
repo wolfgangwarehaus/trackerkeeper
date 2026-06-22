@@ -27,8 +27,8 @@
   <url type="donation">https://ko-fi.com/{{ kofi_handle }}</url>
   {% endif %}
 
-  {# developer id is the reverse-DNS VENDOR prefix, not the full component id. #}
-  <developer id="io.github.{{ github_owner }}">
+  {# developer id is the reverse-DNS VENDOR prefix (vendor_id), not the component id. #}
+  <developer id="{{ vendor_id }}">
     <name>{{ maintainer_name | e }}</name>
   </developer>
 
