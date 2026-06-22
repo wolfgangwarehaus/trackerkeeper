@@ -349,6 +349,13 @@ one command from fork to installable.
 > the renderer's rule is "templates/ mirrors packaging/", which makes the
 > generate-then-verify diff trivial. PyPI is sdist/wheel from the dynamic version,
 > so it has no template — only the publish workflow.
+>
+> The `.github/workflows/*` are committed **static `.yml`** (GitHub runs them
+> directly — it can't run a `.j2`), NOT rendered by `dough bake`. They read the
+> sidecar at runtime where they can (`python -c …app_slug/display_name`); the few
+> remaining identity literals (the PyPI URL, the AUR `pkgname`, the commit author)
+> a fork edits by hand. Templatizing the workflows (`*.yml.j2` → `*.yml`) is a
+> future refinement.
 
 ```
 pyproject.toml                      # [tool.dough.metadata] — the one source

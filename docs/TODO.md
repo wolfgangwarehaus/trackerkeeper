@@ -60,37 +60,47 @@ release pipeline landed). This is the pick-up list for next time. See
   Validated by a 4-dimension adversarial review (22 confirmed; all in-scope fixed:
   version single-sourcing, date single-sourcing, the publish-the-same-bytes chain,
   the empty-date AppStream bug). 89 passed, ruff clean. **PyPI is now end-to-end.**
+- **Baking phase — Beat 4 (Linux hardening + the Arch channel)**: cross-distro
+  **container smoke** templates (`smoke_test_{deb,appimage}.sh`, mpv-stripped) wired
+  into `release.yml` as clean-container jobs — proves the deb/AppImage self-contain
+  the Qt-xcb closure (what the in-runner boot can't). **AUR** channel: `PKGBUILD.j2`
+  (pure-Python source build; `SETUPTOOLS_SCM_PRETEND_VERSION` since the tag tarball
+  has no `.git`) + `aur.yml` (dormant behind `AUR_SSH_PRIVATE_KEY`).
+  **`release-checklist.yml`** + template (propagation issue on tag). Validated by a
+  4-dimension adversarial review. 89 passed, ruff clean.
 
-Suite: **89 passed** (green across shuffle seeds + xdist), ruff clean. Beats 1 & 2
-are **pushed**; Beat 3 is committed locally (**unpushed**).
+Suite: **89 passed** (green across shuffle seeds + xdist), ruff clean. Beats 1–3
+are **pushed**; Beat 4 is committed locally (**unpushed**).
 
 ## TODO — in rough priority order
 
-### 1. Push Beat 3 to `origin`  ·  ready, quick
-The release-pipeline commits are local-only. Then **cut the first release**:
-`git tag v0.1.0 && git push origin v0.1.0` — `release.yml` drafts it, you review +
-publish, PyPI auto-uploads. (This also makes `__version__` concrete.)
+### 1. Push Beat 4 to `origin`  ·  ready, quick
+The hardening + AUR commits are local-only. Then **cut the first release**:
+`git tag v0.1.0 && git push origin v0.1.0` — `release.yml` drafts it (now with the
+container smoke), you review + publish, PyPI auto-uploads. (Makes `__version__`
+concrete.) First PyPI publish needs the one-time pending-publisher setup (RELEASING.md).
 
-### 2. Baking phase — Beat 4 (more channels + release hardening)  ·  ready
-The first three channels (PyPI / `.deb` / AppImage) ship on a tag now. Next, from
-`docs/BAKING.md` §5/§8:
-- **`setDesktopFileName` → `identity.desktop_id()`** + the `.desktop`'s
-  `StartupWMClass` → `app_id_base` (review-confirmed HIGH: the installed `.desktop`
-  is named by the reverse-DNS id, so the Wayland taskbar icon won't associate until
-  this lands). **Needs KDE Wayland + X11 smoke-testing** — a guided session.
-- **Cross-distro container smoke** (deferred from Beat 3): port jellytoast's
-  `smoke_test_{deb,appimage}.sh` (minus the libmpv guards) + wire clean-container
-  jobs into `release.yml` — proves self-containment (the in-runner boot only proves
-  it starts on the build host). The Depends/vendor closures are lifted from
-  jellytoast's proven set, so the risk is low until then.
-- **`release-checklist.yml`** (spec §6.1) — the propagation-checklist issue; lift
-  from jellytoast once there are manual channels (winget/AUR) to track.
-- Remaining channels: **winget**, **AUR**, **MSIX/Store**, **Windows Inno** — lift
-  + templatize from jellytoast (`.github/workflows/{winget,aur}.yml`,
-  `packaging/{windows,msix}/`). Defer macOS (`macos_team_id` placeholder ready),
-  hosted apt/PPA, Flathub (policy-blocked — skip flathub.org).
-- When the channel manifests/`*.j2` land, the `test_bake.py` template-id gate +
-  `dough bake --check` already cover them; extend coverage as needed.
+### 2. Baking phase — Beat 5 (the Windows channel)  ·  ready (CI-validated only)
+PyPI / `.deb` / AppImage / AUR are wired. Windows is the big missing desktop
+channel (dough already targets it: `win_frameless`, `windows_shortcut`, MSIX-ready
+`autostart`). From `docs/BAKING.md` §5:
+- A **Windows PyInstaller spec** (or make the existing one platform-aware) +
+  **`version_info.txt`** (the `VSVersionInfo` jellytoast omits — §5 "the single
+  biggest canonical Windows gap") + an **Inno `.iss`** (mint + commit a stable
+  `inno_appid_guid` uuid4 into the sidecar — it's `""` today; immutable once
+  shipped) → `build-windows` job in `release.yml` (`windows-latest`, signing
+  dormant behind Azure secrets) → `.exe` + portable `.zip`.
+- **winget** (3 YAMLs + `winget.yml`, Phase-2, downloads the published `.exe`) —
+  depends on the Inno installer, so do it together.
+- Then **MSIX/Store** (manual-first; needs Partner Center). Defer macOS
+  (`macos_team_id` placeholder ready), hosted apt/PPA, Flathub (skip flathub.org).
+- Cannot be built/tested here (no Windows) — author + heavy review, CI-validated.
+
+### 2b. `setDesktopFileName` → `identity.desktop_id()`  ·  needs a real desktop
+The `.desktop`'s `StartupWMClass` → `app_id_base` too (review-confirmed HIGH: the
+installed `.desktop` is named by the reverse-DNS id, so the Wayland taskbar icon
+won't associate until this lands). **Needs KDE Wayland + X11 smoke-testing** — a
+guided session, like the JellytoastWindow inversion.
 
 ### 3. Wire the shipped-but-dead subsystems into `run_app`  ·  ready (P1 leftover)
 `notifications/` and `autostart/` ship but nothing calls them. `notifications/` is

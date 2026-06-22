@@ -16,8 +16,10 @@ from `[tool.dough.metadata]` by `dough bake`, never hand-edited (docs/BAKING.md)
    ```
 3. **`release.yml` (Phase 1)** runs on the tag: renders the manifests with the
    release version injected, freezes the PyInstaller bundle, builds the `.deb` +
-   AppImage (+ `.zsync`) + sdist + wheel, attaches `SHA256SUMS` and Sigstore
+   AppImage (+ `.zsync`) + sdist + wheel, **smoke-tests the `.deb`/AppImage in
+   clean containers** (self-containment), attaches `SHA256SUMS` and Sigstore
    build-provenance attestations, and opens a **draft** GitHub release.
+   `release-checklist.yml` opens a propagation-checklist issue at the same time.
 4. **Review the draft** on GitHub. This is the one deliberate human gate.
 5. **Publish.** Clicking Publish fires `release: published` →
    **`pypi-publish.yml`** uploads the sdist + wheel to PyPI via OIDC Trusted
@@ -33,8 +35,12 @@ uploads workflow artifacts but creates no release.
   <https://pypi.org/manage/account/publishing/> matching `pypi-publish.yml`
   (project `dough`, owner `wolfgangwarehaus`, repo `dough`, workflow
   `pypi-publish.yml`, environment `pypi`). See the header of that workflow.
-- Nothing else: the `.deb` / AppImage / attestations use the built-in
-  `GITHUB_TOKEN` + OIDC.
+- **AUR** *(dormant)* — `aur.yml` publishes the PKGBUILD on `release: released`,
+  but skips until you add an `AUR_SSH_PRIVATE_KEY` secret (a dedicated AUR deploy
+  keypair; the public half on your AUR account) **and** the AUR reopens
+  new-package registration (frozen after the 2026 malware wave).
+- Otherwise nothing: the `.deb` / AppImage / attestations / checklist use the
+  built-in `GITHUB_TOKEN` + OIDC.
 
 ## Verify an artifact
 
@@ -45,6 +51,6 @@ sha256sum -c SHA256SUMS
 
 ## Not yet wired (see docs/TODO.md)
 
-Windows (Inno installer + winget + MSIX), AUR, macOS (`.dmg` + cask), a hosted
-apt repo, and the landing page. The metadata core already carries their fields;
-they light up channel-by-channel as each is templatized.
+Windows (Inno installer + winget + MSIX), macOS (`.dmg` + cask), a hosted apt
+repo, and the landing page. The metadata core already carries their fields; they
+light up channel-by-channel as each is templatized.
