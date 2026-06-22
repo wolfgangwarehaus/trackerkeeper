@@ -75,3 +75,24 @@ coll = COLLECT(
     upx=False,
     name="dough",
 )
+
+# macOS: wrap the onedir in a .app bundle (the .dmg + Homebrew cask ship this).
+# The .icns is generated from the brand SVG by macos.yml; absent it, PyInstaller
+# falls back to its default icon.
+if sys.platform == "darwin":
+    _icns = os.path.join(ROOT, "packaging", "macos", "dough.icns")
+    app = BUNDLE(
+        coll,
+        name="dough.app",  # match macos.yml + the cask; no spaces for the shell
+        icon=_icns if os.path.exists(_icns) else None,
+        bundle_identifier="com.wolfgangwarehaus.dough",
+        info_plist={
+            "CFBundleShortVersionString": "0.0.0",
+            "CFBundleVersion": "0.0.0",
+            "NSHighResolutionCapable": True,
+            "LSMinimumSystemVersion": "11.0",
+            # A fork maps its freedesktop categories to the right UTI here.
+            "LSApplicationCategoryType": "public.app-category.developer-tools",
+        },
+    )
+

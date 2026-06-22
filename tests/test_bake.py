@@ -191,6 +191,27 @@ def test_rendered_python_compiles(packaging_dir: Path) -> None:
         compile(path.read_text(encoding="utf-8"), str(path), "exec")
 
 
+def test_rendered_xml_and_plist_are_well_formed(packaging_dir: Path) -> None:
+    """Structural validity for the MSIX manifest + the macOS entitlements — XML /
+    plist no other gate parses (a malformed manifest would otherwise pass)."""
+    import plistlib
+    import xml.dom.minidom
+
+    xml.dom.minidom.parse(str(packaging_dir / "msix" / "AppxManifest.xml"))
+    with (packaging_dir / "macos" / "entitlements.plist").open("rb") as fh:
+        plistlib.load(fh)
+
+
+def test_rendered_cask_is_valid_ruby(packaging_dir: Path) -> None:
+    """The Homebrew cask is valid Ruby syntax (skipped where ruby is absent)."""
+    ruby = shutil.which("ruby")
+    if not ruby:
+        pytest.skip("ruby not available")
+    cask = packaging_dir / "macos" / f"{identity.app()}.rb"
+    result = subprocess.run([ruby, "-c", str(cask)], capture_output=True, text=True)
+    assert result.returncode == 0, f"cask failed ruby -c:\n{result.stderr}"
+
+
 def test_bake_cli_injects_release(tmp_path: Path, packaging_dir: Path) -> None:
     """`dough bake --release-version` writes the <release> block (the release-time
     render); the plain CLI / --check stays version-free. Rendered into a copy so

@@ -1,0 +1,137 @@
+name: macos
+
+# Build, sign, notarize, and ship the macOS .dmg + bump the Homebrew cask when a
+# release is PUBLISHED. DORMANT until the Apple secrets exist (the whole job
+# skips) — macOS is a present-but-dormant goal (docs/BAKING.md §5).
+#
+# Activate (one-time): a $99/yr Apple Developer membership, then add the secrets
+# MACOS_CERTIFICATE (base64 of a Developer ID Application .p12), MACOS_CERTIFICATE_PWD,
+# MACOS_KEYCHAIN_PWD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID, and
+# HOMEBREW_TAP_TOKEN (a PAT for the separate homebrew-<tap> repo). See docs/RELEASING.md.
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write # gh release upload
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    env:
+      HAVE_APPLE: ${{ secrets.APPLE_TEAM_ID != '' }}
+    steps:
+      - name: Dormant — Apple secrets not set
+        if: env.HAVE_APPLE != 'true'
+        run: |
+          echo "APPLE_TEAM_ID is not set → the macOS channel is DORMANT (no-op)."
+          echo "Activate with an Apple Developer account + the secrets. See docs/RELEASING.md."
+
+      - uses: actions/checkout@v4
+        if: env.HAVE_APPLE == 'true'
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        if: env.HAVE_APPLE == 'true'
+        with:
+          python-version: "3.12"
+      - name: Resolve version
+        id: ver
+        if: env.HAVE_APPLE == 'true'
+        run: |
+          V="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "version=${V#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build the .app (render manifests + freeze)
+        if: env.HAVE_APPLE == 'true'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[bake]" pyinstaller
+          brew install librsvg create-dmg
+          python -m dough.bake --packaging packaging --release-version "$VERSION" --release-date "$(date -u +%F)"
+          # Render the .icns from the brand SVG (an .iconset of the required sizes).
+          ICONSET=packaging/macos/dough.iconset
+          mkdir -p "$ICONSET"
+          # Canonical iconutil sizes only (NOT 64 — iconutil rejects a non-standard
+          # icon_64x64). Each base size + its @2x.
+          for s in 16 32 128 256 512; do
+            rsvg-convert -w "$s"     -h "$s"     dough/assets/dough.svg -o "$ICONSET/icon_${s}x${s}.png"
+            rsvg-convert -w $((s*2)) -h $((s*2)) dough/assets/dough.svg -o "$ICONSET/icon_${s}x${s}@2x.png"
+          done
+          iconutil -c icns "$ICONSET" -o packaging/macos/dough.icns
+          pyinstaller packaging/pyinstaller/dough.spec --noconfirm
+
+      - name: Import the signing certificate
+        if: env.HAVE_APPLE == 'true'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          MACOS_KEYCHAIN_PWD: ${{ secrets.MACOS_KEYCHAIN_PWD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > cert.p12
+          security create-keychain -p "$MACOS_KEYCHAIN_PWD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PWD" build.keychain
+          security import cert.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PWD" build.keychain
+          # codesign searches the keychain SEARCH LIST, not just the default — add ours.
+          security list-keychains -d user -s build.keychain $(security list-keychains -d user | tr -d '"')
+          rm -f cert.p12
+
+      - name: Sign, package, notarize, staple
+        if: env.HAVE_APPLE == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          IDENTITY="Developer ID Application"
+          APP="dist/dough.app"
+          ENTITLEMENTS="packaging/macos/entitlements.plist"
+          # Sign EVERY nested Mach-O bottom-up — dylibs, .so, AND the Qt/Python
+          # .framework binaries (which are neither *.dylib nor *.so, so a name
+          # filter misses them and notarization rejects the unsigned code) — then
+          # the .app, all with the hardened runtime + entitlements (so PySide6's
+          # dylibs still load under disabled library-validation).
+          find "$APP" -type f -print0 | while IFS= read -r -d '' f; do
+            if file "$f" | grep -q "Mach-O"; then
+              codesign --force --timestamp --options runtime \
+                --entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$f"
+            fi
+          done
+          codesign --force --timestamp --options runtime \
+            --entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$APP"
+          codesign --verify --strict --verbose=2 "$APP"
+          DMG="dist/dough-${VERSION}-macos.dmg"
+          create-dmg --volname "dough ${VERSION}" --app-drop-link 480 120 \
+            --icon "dough.app" 160 120 --window-size 640 280 "$DMG" "$APP"
+          codesign --force --timestamp --sign "$IDENTITY" "$DMG"
+          xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$DMG"
+
+      - name: Upload the .dmg to the release
+        if: env.HAVE_APPLE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$TAG" --repo "${{ github.repository }}" --clobber dist/*-macos.dmg
+
+      - name: Bump the Homebrew cask
+        if: ${{ env.HAVE_APPLE == 'true' && secrets.HOMEBREW_TAP_TOKEN != '' }}
+        uses: macauley/action-homebrew-bump-cask@v1
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          tap: wolfgangwarehaus/homebrew-tap
+          cask: dough
+          tag: ${{ github.event.release.tag_name || inputs.tag }}
