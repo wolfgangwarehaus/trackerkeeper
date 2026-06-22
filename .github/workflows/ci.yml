@@ -44,6 +44,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The editable install runs setuptools-scm, which derives the version
+          # from the tag — it needs the full history + tags, not a shallow clone.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -56,3 +60,21 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: pytest
+
+  # Gate-test the PyPI build itself (the publish workflow runs the same steps on a
+  # tag): catch a broken sdist/wheel or bad metadata BEFORE a release, not during.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # setuptools-scm derives the version from the tag — needs full history.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build + check sdist & wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check dist/*

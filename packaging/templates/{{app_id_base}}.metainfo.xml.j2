@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>{{ app_id_base }}</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>{{ license_spdx }}</project_license>
+
+  <name>{{ display_name }}</name>
+  <summary>{{ summary | e }}</summary>
+
+  <description>
+    <p>{{ long_description | e }}</p>
+    {% if feature_cards is defined and feature_cards %}
+    <p>Features:</p>
+    <ul>
+    {% for card in feature_cards %}
+      <li>{{ card.title | e }} — {{ card.body | e }}</li>
+    {% endfor %}
+    </ul>
+    {% endif %}
+  </description>
+
+  <launchable type="desktop-id">{{ desktop_id }}.desktop</launchable>
+
+  <url type="homepage">{{ homepage_url }}</url>
+  <url type="bugtracker">{{ issues_url }}</url>
+  {% if kofi_handle is defined and kofi_handle %}
+  <url type="donation">https://ko-fi.com/{{ kofi_handle }}</url>
+  {% endif %}
+
+  {# developer id is the reverse-DNS VENDOR prefix, not the full component id. #}
+  <developer id="io.github.{{ github_owner }}">
+    <name>{{ maintainer_name | e }}</name>
+  </developer>
+
+  <categories>
+  {% for category in categories %}
+    <category>{{ category }}</category>
+  {% endfor %}
+  </categories>
+
+  <keywords>
+  {% for keyword in keywords %}
+    <keyword>{{ keyword }}</keyword>
+  {% endfor %}
+  </keywords>
+
+  <content_rating type="oars-1.1"/>
+  {% if screenshots is defined and screenshots %}
+
+  <screenshots>
+  {% for shot in screenshots %}
+    <screenshot{% if loop.first %} type="default"{% endif %}>
+      <image type="source" width="{{ shot.width }}" height="{{ shot.height }}">{{ shot.path | e }}</image>
+      <caption>{{ shot.caption | e }}</caption>
+    </screenshot>
+  {% endfor %}
+  </screenshots>
+  {% endif %}
+  {#- <releases> is INJECTED at release time (CI passes release_version +
+      release_date), never committed — the version is the tag (docs/BAKING.md §6.2). #}
+  {% if release_version is defined and release_version %}
+
+  <releases>
+    <release version="{{ release_version }}" type="stable" date="{{ release_date | default('') }}">
+      <description>
+        <p>See the release notes for {{ release_version }}.</p>
+      </description>
+    </release>
+  </releases>
+  {% endif %}
+
+  <provides>
+    <binary>{{ app_slug }}</binary>
+  </provides>
+
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+</component>

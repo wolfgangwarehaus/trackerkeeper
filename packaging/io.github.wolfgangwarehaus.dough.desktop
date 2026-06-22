@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=dough
+GenericName=App Base
+Comment=A frosted, cross-platform PySide6 app base
+Exec=dough
+Icon=io.github.wolfgangwarehaus.dough
+Terminal=false
+Categories=Development;
+Keywords=pyside6;qt;desktop;starter;template;frosted-glass;cross-platform;kde;windows;
+StartupNotify=true
+StartupWMClass=dough
+# No MimeType / %U: dough is a windowed app with no file/URL handler
+# (the single-instance relay only sends "raise"). A fork that opens files adds them.

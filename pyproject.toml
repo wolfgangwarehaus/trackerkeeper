@@ -49,10 +49,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff", "pytest", "pytest-xdist", "setuptools-scm>=8"]
+# `bake` is the release tooling (dough bake); jinja2 is build-time only — the
+# shipped app never imports it. dev includes it so the generate-then-verify gate
+# (tests/test_bake.py) runs in the default test pass.
+bake = ["jinja2>=3"]
+dev = ["ruff", "pytest", "pytest-xdist", "setuptools-scm>=8", "jinja2>=3"]
 
 [project.gui-scripts]
 dough = "dough.app:main"
+
+[project.scripts]
+# The oven: render packaging/ from [tool.dough.metadata] (docs/BAKING.md §2).
+dough-bake = "dough.bake:main"
 
 [project.urls]
 Homepage = "https://github.com/wolfgangwarehaus/dough"
@@ -98,7 +106,9 @@ maintainer_email = "augustvontrips@gmail.com"
 # not a third source (resolves jellytoast's august/wolfgangwarehaus/wolfgang
 # warehaus drift; docs/BAKING.md §9).
 publisher_display_name = "wolfgang warehaus"
-categories = ["Utility", "Development"]
+# A single freedesktop MAIN category (more than one risks a double menu entry —
+# desktop-file-validate hint). dough is developer tooling; a fork sets its own.
+categories = ["Development"]
 keywords = ["pyside6", "qt", "desktop", "starter", "template", "frosted-glass", "cross-platform", "kde", "windows"]
 requires_python = ">=3.11"
 entry_point = "dough.app:main"

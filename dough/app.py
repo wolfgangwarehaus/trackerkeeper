@@ -110,6 +110,11 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     app.setApplicationDisplayName(ident.display_name())
     app.setOrganizationName(ident.org())
     app.setApplicationVersion(__version__)
+    # NOTE: the installed .desktop is named by the reverse-DNS app-id
+    # (io.github.{owner}.{app}), so for the Wayland taskbar to associate the
+    # window with its icon this should be ident.desktop_id(), and the .desktop's
+    # StartupWMClass should match (X11). Left as the bare slug until both DEs can
+    # be smoke-tested on a real desktop — see docs/TODO.md (baking Beat 2 defer).
     app.setDesktopFileName(ident.app())
 
     # Single instance: hand off to the already-running copy rather than opening

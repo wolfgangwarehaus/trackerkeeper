@@ -1,0 +1,61 @@
+name: Publish to PyPI
+
+# Publishes the sdist + wheel to PyPI via **Trusted Publishing (OIDC)** — there is
+# NO API token to store or rotate; PyPI verifies this workflow's identity directly.
+#
+# Triggers:
+#   - release: published  → auto-publishes when a GitHub release goes public.
+#   - workflow_dispatch    → manual, for a given tag (backfill / re-run).
+#
+# One-time PyPI setup — create a pending publisher (the project doesn't exist on
+# PyPI yet, so use the "pending publisher" form):
+#   https://pypi.org/manage/account/publishing/  → Add a new pending publisher:
+#     PyPI Project Name: dough
+#     Owner:             wolfgangwarehaus
+#     Repository name:   dough
+#     Workflow name:     pypi-publish.yml
+#     Environment name:  pypi
+#   These must match the values below exactly or PyPI rejects the OIDC token.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build + publish (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/dough/
+    permissions:
+      contents: read
+      id-token: write # mint the short-lived OIDC token Trusted Publishing needs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # release event → the published tag; manual run → the tag input.
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          # setuptools-scm derives the version from the tag — it needs the FULL
+          # history + tags, not the default shallow clone (the tag is the version).
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build + check sdist & wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check dist/*
+      - name: Publish to PyPI (Trusted Publishing / OIDC)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Idempotent: a re-run won't fail on an already-uploaded version.
+          skip-existing: true

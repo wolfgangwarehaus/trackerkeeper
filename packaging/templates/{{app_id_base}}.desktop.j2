@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name={{ display_name }}
+GenericName={{ generic_name }}
+Comment={{ summary }}
+Exec={{ app_slug }}
+Icon={{ app_id_base }}
+Terminal=false
+Categories={{ categories | join(';') }};
+Keywords={{ keywords | join(';') }};
+StartupNotify=true
+StartupWMClass={{ app_slug }}
+# No MimeType / %U: {{ app_slug }} is a windowed app with no file/URL handler
+# (the single-instance relay only sends "raise"). A fork that opens files adds them.

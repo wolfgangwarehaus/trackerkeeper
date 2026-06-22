@@ -22,6 +22,7 @@ locates ``pyproject.toml`` by walking up from this file and raises
 
 from __future__ import annotations
 
+import copy
 import tomllib
 from functools import lru_cache
 from pathlib import Path
@@ -103,5 +104,7 @@ def context() -> dict:
     """The full render context — the sidecar fields plus the derived
     projections, merged. This is exactly what a ``*.j2`` channel template
     consumes (Beat 2). Projections win on a key clash so a stray sidecar literal
-    can never shadow a computed id."""
-    return {**load(), **projections()}
+    can never shadow a computed id. The sidecar half is deep-copied so a caller
+    mutating a list value (categories, keywords, …) can't corrupt the lru_cached
+    :func:`load` dict."""
+    return {**copy.deepcopy(load()), **projections()}
