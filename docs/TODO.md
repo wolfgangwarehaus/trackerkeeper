@@ -68,33 +68,42 @@ release pipeline landed). This is the pick-up list for next time. See
   has no `.git`) + `aur.yml` (dormant behind `AUR_SSH_PRIVATE_KEY`).
   **`release-checklist.yml`** + template (propagation issue on tag). Validated by a
   4-dimension adversarial review. 89 passed, ruff clean.
+- **Baking phase — Beat 5 (the Windows channel)**: the PyInstaller spec is now
+  platform-aware (one spec; lean Qt excludes + a Windows icon/`version_info`
+  branch); `windows/version_info.txt.j2` (the `VSVersionInfo` jellytoast omits —
+  §5's "biggest canonical Windows gap"); `windows/{{app_slug}}.iss.j2` (Inno, the
+  AppId brace-escaped, a conditional `SetupIconFile`); a **minted immutable**
+  `inno_appid_guid` in the sidecar. `build-windows` job in `release.yml`
+  (`windows-latest`: rasterize the `.ico`, render version_info + .iss, freeze,
+  iscc → `.exe` + portable `.zip`; Azure Trusted Signing dormant). **winget**:
+  `winget.yml` (dormant behind `WINGET_TOKEN`; `winget-releaser` generates the
+  manifests from the published `.exe`, so none are checked in). Validated by a
+  4-dimension adversarial review. 89 passed, ruff clean. **Authored + reviewed
+  but CI-validated only — no Windows to build/test here.**
 
-Suite: **89 passed** (green across shuffle seeds + xdist), ruff clean. Beats 1–3
-are **pushed**; Beat 4 is committed locally (**unpushed**).
+Suite: **89 passed** (green across shuffle seeds + xdist), ruff clean. Beats 1–4
+are **pushed**; Beat 5 is committed locally (**unpushed**).
 
 ## TODO — in rough priority order
 
-### 1. Push Beat 4 to `origin`  ·  ready, quick
-The hardening + AUR commits are local-only. Then **cut the first release**:
-`git tag v0.1.0 && git push origin v0.1.0` — `release.yml` drafts it (now with the
-container smoke), you review + publish, PyPI auto-uploads. (Makes `__version__`
-concrete.) First PyPI publish needs the one-time pending-publisher setup (RELEASING.md).
+### 1. Push Beat 5 to `origin`  ·  ready, quick
+The Windows-channel commits are local-only. Then **cut the first release**:
+`git tag v0.1.0 && git push origin v0.1.0` — `release.yml` drafts it (Linux + the
+Windows `.exe`/portable), you review + publish, PyPI auto-uploads. (Makes
+`__version__` concrete.) First PyPI publish needs the one-time pending-publisher
+setup (RELEASING.md). **Note:** the Windows jobs run for the FIRST time on that tag
+— watch `build-windows` (iscc / magick / pwsh are CI-validated only).
 
-### 2. Baking phase — Beat 5 (the Windows channel)  ·  ready (CI-validated only)
-PyPI / `.deb` / AppImage / AUR are wired. Windows is the big missing desktop
-channel (dough already targets it: `win_frameless`, `windows_shortcut`, MSIX-ready
-`autostart`). From `docs/BAKING.md` §5:
-- A **Windows PyInstaller spec** (or make the existing one platform-aware) +
-  **`version_info.txt`** (the `VSVersionInfo` jellytoast omits — §5 "the single
-  biggest canonical Windows gap") + an **Inno `.iss`** (mint + commit a stable
-  `inno_appid_guid` uuid4 into the sidecar — it's `""` today; immutable once
-  shipped) → `build-windows` job in `release.yml` (`windows-latest`, signing
-  dormant behind Azure secrets) → `.exe` + portable `.zip`.
-- **winget** (3 YAMLs + `winget.yml`, Phase-2, downloads the published `.exe`) —
-  depends on the Inno installer, so do it together.
-- Then **MSIX/Store** (manual-first; needs Partner Center). Defer macOS
-  (`macos_team_id` placeholder ready), hosted apt/PPA, Flathub (skip flathub.org).
-- Cannot be built/tested here (no Windows) — author + heavy review, CI-validated.
+### 2. Baking phase — Beat 6 (MSIX/Store + macOS)  ·  the last channels
+PyPI / `.deb` / AppImage / AUR / Windows (Inno + winget) are wired. Remaining, from
+`docs/BAKING.md` §5:
+- **MSIX / Microsoft Store** — manual-first (Partner Center cert review); the
+  `AppxManifest.xml` + the data-driven asset matrix + `makepri`. `is_msix_packaged()`
+  + the StartupTask autostart backend are generic enough to live in dough's
+  `platform_compat`/`autostart`.
+- **macOS** (`.dmg` + cask) — present-but-dormant goal; the `macos_team_id`
+  placeholder is ready. Needs an Apple Developer account + a macOS runner.
+- Defer the hosted apt/PPA + the landing page; skip Flathub (policy-blocked).
 
 ### 2b. `setDesktopFileName` → `identity.desktop_id()`  ·  needs a real desktop
 The `.desktop`'s `StartupWMClass` → `app_id_base` too (review-confirmed HIGH: the

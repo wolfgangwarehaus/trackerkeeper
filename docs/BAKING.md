@@ -356,6 +356,13 @@ one command from fork to installable.
 > remaining identity literals (the PyPI URL, the AUR `pkgname`, the commit author)
 > a fork edits by hand. Templatizing the workflows (`*.yml.j2` → `*.yml`) is a
 > future refinement.
+>
+> The PyInstaller spec is **one platform-aware file** (`pyinstaller/{{app_slug}}.spec.j2`,
+> `sys.platform`-branched for the Windows icon + `version_info`), not the separate
+> `windows/{{app_slug}}.spec.j2` the sketch shows — Linux and Windows share the
+> same Analysis/excludes, so one spec is DRY. winget needs no template: its
+> manifests are disposable output `winget-releaser` regenerates from the published
+> `.exe` (§5), so only `winget.yml` is committed.
 
 ```
 pyproject.toml                      # [tool.dough.metadata] — the one source
