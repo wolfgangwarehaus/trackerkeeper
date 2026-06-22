@@ -2,9 +2,9 @@
 
 Status as of **2026-06-22**. dough is stand-alone-safe, tested, and library-shaped;
 the jellytoast inversion is validated as feasible; the **baking phase is underway**
-(the metadata core + the `dough bake` renderer + the first Linux channels landed).
-This is the pick-up list for next time. See `docs/ROADMAP.md` (the P0→P3 plan) and
-`docs/BAKING.md` (the release-phase spec) for the why.
+(the metadata core + the `dough bake` renderer + the first Linux channels + the
+release pipeline landed). This is the pick-up list for next time. See
+`docs/ROADMAP.md` (the P0→P3 plan) and `docs/BAKING.md` (the release-phase spec).
 
 ## Done this round
 
@@ -46,35 +46,51 @@ This is the pick-up list for next time. See `docs/ROADMAP.md` (the P0→P3 plan)
   Validated by a 4-dimension adversarial review (26 confirmed; all in-scope fixed:
   orphan detection, posix/LF cross-platform writes, exec-bit checks, vendor-prefix
   `<developer id>`, validity assertions in the gate). 86 passed, ruff clean.
+- **Baking phase — Beat 3 (the release pipeline)**: `release.yml` — the two-phase
+  spine (docs/BAKING.md §6): on a `v*` tag, install → resolve the version from
+  setuptools-scm (one source for the wheel + deb + AppImage + metainfo) →
+  `dough bake --release-version` (inject the `<release>`, dated to the tagged
+  commit) → PyInstaller → build the `.deb` + AppImage + sdist/wheel → SHA256SUMS +
+  Sigstore attestations → **draft** GitHub release (curated CHANGELOG notes,
+  idempotent create-or-update) → human publishes → `release:[published]` →
+  `pypi-publish.yml` DOWNLOADS the release's sdist/wheel (same bytes) and uploads
+  via OIDC. `dough bake` gained `--release-version`/`--release-date` (fail-loud
+  guards so it can't dirty the committed tree); `vendor_id` projection;
+  `docs/CHANGELOG.md` + `docs/RELEASING.md`; a `dough bake --check` CI gate.
+  Validated by a 4-dimension adversarial review (22 confirmed; all in-scope fixed:
+  version single-sourcing, date single-sourcing, the publish-the-same-bytes chain,
+  the empty-date AppStream bug). 89 passed, ruff clean. **PyPI is now end-to-end.**
 
-Suite: **86 passed** (green across shuffle seeds + xdist), ruff clean. Beat 1 is
-**pushed**; Beat 2 is committed locally (**unpushed**).
+Suite: **89 passed** (green across shuffle seeds + xdist), ruff clean. Beats 1 & 2
+are **pushed**; Beat 3 is committed locally (**unpushed**).
 
 ## TODO — in rough priority order
 
-### 1. Push Beat 2 to `origin`  ·  ready, quick
-The renderer + templates + PyPI workflow commits are local-only. Cheapest win.
+### 1. Push Beat 3 to `origin`  ·  ready, quick
+The release-pipeline commits are local-only. Then **cut the first release**:
+`git tag v0.1.0 && git push origin v0.1.0` — `release.yml` drafts it, you review +
+publish, PyPI auto-uploads. (This also makes `__version__` concrete.)
 
-### 2. Baking phase — Beat 3 (release.yml + the remaining channels)  ·  ready
-The first channels' build scripts exist but **have no CI caller yet** (an honest
-gap — they can't run on a tag until `release.yml` lands). From `docs/BAKING.md`
-§6 (the two-phase pipeline) + §8:
-- **`release.yml`** — the orchestration spine (lift jellytoast's 366-line one):
-  on a `v*` tag, `dough bake` (inject `release_version`/`release_date`) → PyInstaller
-  → build the `.deb` + AppImage (pin `ubuntu-22.04` for the glibc floor) →
-  SHA256SUMS → **draft** GitHub release → human publishes → `release:[published]`
-  fans out to PyPI (already wired) and `release:[released]` to the download-based
-  channels. The first `git tag v0.1.0` makes `__version__` concrete.
+### 2. Baking phase — Beat 4 (more channels + release hardening)  ·  ready
+The first three channels (PyPI / `.deb` / AppImage) ship on a tag now. Next, from
+`docs/BAKING.md` §5/§8:
 - **`setDesktopFileName` → `identity.desktop_id()`** + the `.desktop`'s
   `StartupWMClass` → `app_id_base` (review-confirmed HIGH: the installed `.desktop`
   is named by the reverse-DNS id, so the Wayland taskbar icon won't associate until
   this lands). **Needs KDE Wayland + X11 smoke-testing** — a guided session.
+- **Cross-distro container smoke** (deferred from Beat 3): port jellytoast's
+  `smoke_test_{deb,appimage}.sh` (minus the libmpv guards) + wire clean-container
+  jobs into `release.yml` — proves self-containment (the in-runner boot only proves
+  it starts on the build host). The Depends/vendor closures are lifted from
+  jellytoast's proven set, so the risk is low until then.
+- **`release-checklist.yml`** (spec §6.1) — the propagation-checklist issue; lift
+  from jellytoast once there are manual channels (winget/AUR) to track.
 - Remaining channels: **winget**, **AUR**, **MSIX/Store**, **Windows Inno** — lift
   + templatize from jellytoast (`.github/workflows/{winget,aur}.yml`,
   `packaging/{windows,msix}/`). Defer macOS (`macos_team_id` placeholder ready),
   hosted apt/PPA, Flathub (policy-blocked — skip flathub.org).
-- When the channel manifests/`*.j2` land, extend the `test_metadata.py` composite-id
-  gate to scan them too (it's `dough/**/*.py`-scoped today).
+- When the channel manifests/`*.j2` land, the `test_bake.py` template-id gate +
+  `dough bake --check` already cover them; extend coverage as needed.
 
 ### 3. Wire the shipped-but-dead subsystems into `run_app`  ·  ready (P1 leftover)
 `notifications/` and `autostart/` ship but nothing calls them. `notifications/` is
