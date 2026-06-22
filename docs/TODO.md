@@ -1,11 +1,72 @@
 # dough — TODO / handoff
 
-Status as of **2026-06-22**. dough is stand-alone-safe, tested, and library-shaped;
-the jellytoast inversion is validated as feasible; the **baking phase's channel
-matrix is essentially complete** (PyPI · `.deb` · AppImage · AUR · Windows
-Inno+winget · MSIX · macOS — all wired, dormant ones light up per account/secret).
-This is the pick-up list for next time. See `docs/ROADMAP.md` (the P0→P3 plan) and
-`docs/BAKING.md` (the release-phase spec).
+Status as of **2026-06-22**. The **baking-phase channel matrix is complete** (PyPI ·
+`.deb` · AppImage · AUR · Windows Inno+winget · MSIX · macOS — all wired; dormant ones
+light up per account/secret), and this session **set dough's product direction**.
+Paused mid-Ingredients on the first app. The full thesis/vocabulary/phases live in the
+AI memory (`dough-thesis-vocabulary`); this is the human pick-up list. See also
+`docs/BAKING.md` (the release machinery) and `docs/ROADMAP.md`.
+
+## The product direction (settled this session)
+
+- **Headline: "build anywhere, deliver everywhere"** = build on any **host**
+  (Linux/Mac/Windows), deliver to every **target** (the channel matrix).
+- **The product is *building with dough*** — a person + **GitHub + AI** → their own
+  cross-platform app. *Building dough* (improving the base) is enabling work;
+  *forking dough itself* is a niche option, not the headline.
+- **Vocabulary** (to fold into PHILOSOPHY.md): **building dough** (deliverable = dough,
+  label *core*) vs **building with dough** (deliverable = an app, a "loaf", label
+  *app*); **host** (runs on) vs **target** (ships to). dough is **self-baking** (built
+  with its own oven). `rise`+`bake` are phases *inside* building-with-dough.
+- **The maker workflow = phases: Ingredients → Baking → Delivery.**
+  - **Ingredients** — the brief: big research + planning (name, features, aesthetic/UI,
+    custom icon, reuse-from-dough, delivery targets) → fills the sidecar + a plan doc.
+  - **Baking** — the build loop (GitHub + AI + user) on the owned base + `dough bake`.
+  - **Delivery** — guided per-target **helpers** that walk the maker from "built" to
+    "live" (artifact + account + secret + submission). The machinery exists; the
+    guided activation doesn't.
+
+## ▶ Pick up here next trip: dogfood butterPDF through the workflow
+
+Design the "building with dough" experience **by doing it** — run the first app,
+**butterPDF**, through Ingredients → Baking → Delivery, and let the real friction write
+the tooling + docs. Resume sequence:
+
+1. **Finish butterPDF's Ingredients brief.** butterPDF is an **empty greenfield folder**
+   at `/home/august/Projects/butterPDF` (a PDF tool, frosted aesthetic, wolfgang
+   warehaus brand: dough→butter→jelly). Needs the user's seed for **what it is /
+   features** (a reader? merge/organize? annotator?), then draft the full brief:
+   identity (`butterpdf`), features, aesthetic/UI, custom icon (butter motif),
+   reuse-vs-net-new (a PDF engine — Qt's `QtPdf`, currently EXCLUDED in the spec, gets
+   re-enabled), delivery targets. **Structuring this brief = designing dough's reusable
+   Ingredients template.**
+2. **Build `dough new <slug>` — the entry verb (full rename / own-it).** Scope approved;
+   rename survey done (below). A `dough.scaffold:main` console script (`dough-new`):
+   git-mv the package → slug, global identity replace (`dough`→slug,
+   `wolfgangwarehaus`→org), rename the tooling table key + the scripts, set identity +
+   display, **mint a fresh `inno_appid_guid`**, rename the brand SVG, update the test
+   literals, strip the dev scaffolding, replace AGENTS.md, re-bake. **Validate** on a
+   throwaway copy of dough → `pytest` + `<slug> bake --check` green (fully testable,
+   unlike the channels). Then use it to scaffold butterPDF.
+3. **Write `AGENTS.md`** (root, auto-discovered) — the AI front door; headline at top;
+   two modes, leading with "you're building WITH dough."
+4. **Build the Delivery per-target helpers** — stateful interactive walkthroughs
+   (e.g. a Windows helper: GitHub `.exe` → winget account/fork/token + submit →
+   Partner Center register + Store apply + MSIX submit). Turn RELEASING.md /
+   STORE-SUBMISSION.md from docs into guided activation. Design against butterPDF's
+   real channels.
+5. **Realign the docs vocabulary** — `dough bake` = RENDER (Baking); the release
+   pipeline = **Delivery**. "The baking phase" in BAKING.md is mostly Delivery.
+
+### `dough new` rename surface (survey done)
+~330 `dough` refs / ~67 `wolfgangwarehaus`, but identity is centralized (the seam +
+the sidecar), so it's a global identity-replace + package rename + GUID mint + re-bake.
+Strip: `dev/` (run.sh, shared.toml, sync.py), `docs/SYNC.md`. Touch: entry points
+(`[project.gui-scripts] dough`, `[project.scripts] dough-bake`), `version_file =
+"dough/_version.py"`, package-data `"dough.assets"`, brand `dough/assets/dough.svg`,
+the `[tool.dough.metadata]` table key (+ `bake.py`'s lookup). Decisions locked: full
+rename incl. the table key; keep BAKING/PHILOSOPHY as renamed reference, strip the
+process docs.
 
 ## Done this round
 
@@ -95,17 +156,21 @@ This is the pick-up list for next time. See `docs/ROADMAP.md` (the P0→P3 plan)
   no Windows/macOS/Partner-Center here.** 91 passed, ruff clean.
 
 Suite: **91 passed** (+1 skipped: cask `ruby -c`; green across shuffle seeds +
-xdist), ruff clean. Beats 1–5 are **pushed**; Beat 6 is committed locally (**unpushed**).
+xdist), ruff clean. **All 6 beats are pushed** (`main` even with origin); no git tags
+yet — `git tag v0.1.0` cuts the first release.
 
-## TODO — in rough priority order
+## Standing technical TODOs (the dough base)
 
-### 1. Push Beat 6 to `origin`, then cut v0.1.0  ·  ready
-The MSIX/macOS commits are local-only. The **channel matrix is complete** — cut the
-first real release: `git tag v0.1.0 && git push origin v0.1.0`. `release.yml` drafts
-it (Linux + Windows); you review + publish; PyPI / AUR / winget / macOS / MSIX light
-up per their (dormant) secrets. **First run caveats:** the Windows + (if activated)
-macOS jobs run for the FIRST time on that tag — they're CI-validated only, so watch
-them. PyPI's first publish needs the one-time pending-publisher setup (RELEASING.md).
+Base maintenance, secondary to the product push above. In rough priority order.
+
+### 1. Cut v0.1.0 (whenever)  ·  ready
+The channel matrix is complete: `git tag v0.1.0 && git push origin v0.1.0`.
+`release.yml` drafts it (Linux + Windows); you review + publish; PyPI / AUR / winget /
+macOS / MSIX light up per their (dormant) secrets. **First-run caveats:** the Windows +
+(if activated) macOS jobs run for the FIRST time on that tag — CI-validated only, so
+watch them. PyPI's first publish needs the one-time pending-publisher setup
+(RELEASING.md). (Doing the first app via `dough new` may reshuffle whether dough itself
+even gets a v0.1.0 vs going straight to butterPDF — revisit.)
 
 ### 2. `setDesktopFileName` → `identity.desktop_id()`  ·  needs a real desktop
 The last functional gap. The `.desktop`'s `StartupWMClass` → `app_id_base` too
