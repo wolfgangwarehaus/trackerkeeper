@@ -6,7 +6,7 @@
 
 # The jellytoast commit dough was last reconciled against.
 # `python dev/sync.py --jellytoast PATH --record` stamps this to jellytoast HEAD.
-synced_from = "de045ad"
+synced_from = "7357dad"
 
 # dough modules authored fresh (no jellytoast upstream) — sync skips them.
 authored = [
@@ -20,10 +20,41 @@ authored = [
 ]
 
 # Modules genericized BEYOND a pure rename — a blind overwrite would re-add the
-# music bits we stripped, so sync shows the upstream diff to port by hand.
+# music bits we stripped (or revert the identity seam / DOUGH_ env namespace /
+# first-looks polish / the load-bearing frameless decision), so sync shows the
+# upstream diff to port by hand. The macOS-absorption pass (de045ad→c4a9496)
+# diverged most shared modules; only true pure-lifts stay AUTO below.
 manual = [
-    "ui_helpers.py",  # the music image-loader was carved out
-    "window.py",      # AppWindow chrome extracted from jellytoast/app.py
+    "ui_helpers.py",             # the music image-loader was carved out
+    "window.py",                 # AppWindow chrome extracted from jellytoast/app.py (+ frameless decision, faux-frost, macOS inset/observer)
+    "async_io.py",               # de-cast docstring + generic cold_import_lock (blind lift re-adds cast rationale)
+    "boot_timing.py",            # DOUGH_ env namespace (was JT_)
+    "design_tokens.py",          # identity seam (QSettings(identity.org(), identity.app())) + square-corners/live-font
+    "frosted_dialog.py",         # authored fit-to-content + native_window_border frameless gate
+    "selector.py",               # authored AutoFadeScrollBar slim-accent-pill polish
+    "theme.py",                  # DOUGH_ env + authored Windows/macOS glass-alpha arms
+    "windows_shortcut.py",       # identity-routed exe/ico/lnk slugs + DOUGH_ env
+    "single_instance.py",        # identity-seam socket/shm name
+    "smooth_scroll.py",          # omits jellytoast's uncommitted jt_native_scroll opt-out
+    "icons.py",                  # dough omits the music_note glyph
+    "power/__init__.py",         # dough's generic inhibit()/release() (jellytoast re-coupled it to PlayerBus)
+    "macos_window.py",           # native NSWindow chrome; _dough_macos_* pins (transform doesn't catch _jt_)
+    "macos_menubar.py",          # native menu bar, music-stripped, Settings→AppBus.show_settings, About from metadata
+    "blur/__init__.py",          # DOUGH_ env namespace (was JT_)
+    "blur/_dwm.py",              # DOUGH_ env namespace (was JT_)
+    "blur/_macos.py",            # real NSVisualEffectView backend — untestable Apple code, review each sync
+    "blur/_faux_frost.py",       # de-musicked docstring (blind lift re-adds album-art phrasing)
+    "notifications/__init__.py", # genericized app_name: str | None = None (+ macOS routing)
+    "notifications/_linux.py",   # identity.app() default app_name
+    "notifications/_windows.py", # identity.windows_aumid() + MSIX runtime AUMID (no literals)
+    "notifications/_unsupported.py",  # doc trimmed for the implemented macOS backend
+    "notifications/_macos.py",   # identity.cf_bundle_id()/display_name()/app() routing
+    "autostart/__init__.py",     # Flatpak retired + macOS/MSIX routing merge
+    "autostart/_linux.py",       # identity-routed .desktop/Name/Exec/Icon, music Categories stripped
+    "autostart/_windows.py",     # identity.app() value-name/launch command
+    "autostart/_unsupported.py", # doc trimmed for the implemented macOS backend
+    "autostart/_macos.py",       # LaunchAgent/SMAppService, identity.cf_bundle_id() label
+    "autostart/_msix.py",        # StartupTask, f"{identity.app()}Startup" task id
 ]
 
 # Modules extracted from a differently-named jellytoast file.

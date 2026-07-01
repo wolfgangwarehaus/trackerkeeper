@@ -59,6 +59,24 @@ fork inherits a polished surface for free.
 | A settings/alert dialog | `FrostedDialog` (fixed-size by default) | `QMessageBox` / native dialog |
 | Frameless main window | leave `window.py` as-is (decorated + noborder on KDE Wayland) | `FramelessWindowHint` on the main window |
 
+## Corners & the frost fallback (real symbols)
+
+Two base primitives back the look above and are worth knowing by name:
+
+- **Square corners** — every finite radius flows through `design_tokens.rad()`, which
+  zeros it when the `ui/square_corners` setting is on (the pill/circle sentinel
+  `RADIUS_PILL` passes through, so round controls stay round). It's baked into the
+  `RADIUS_*` tokens at import; `set_square_corners()` flips the in-memory flag (the
+  Settings setter persists it and shows a restart notice). A fork gets a global
+  sharp/soft corner switch for free.
+- **Faux-frost fallback** — where the compositor/OS can't supply real blur
+  (GNOME/Wayland, Windows without Mica, KDE with the Blur effect off, macOS with
+  Reduce Transparency on), a frosted body would otherwise be a dead near-opaque panel.
+  `blur/_faux_frost.py`'s `FauxFrost` paints a self-contained frosted texture (soft
+  blooms + film grain, deterministic, cached per size/colour) so the glass still reads
+  as glass. `window.py` selects it automatically from `blur.status()`; nothing to wire
+  per surface. macOS specifics live in [MACOS.md](MACOS.md).
+
 ## Per-app, not base
 
 Some butterPDF tuning is app taste and deliberately stays out of dough: the 8px scrollbar

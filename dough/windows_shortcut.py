@@ -19,7 +19,7 @@ the post-show boot hook:
 
 Best-effort and idempotent: a marker file next to the .ico records the
 exe the shortcut was last written for, so boots after the first are a
-couple of ``Path.exists()`` calls. ``JT_NO_START_MENU_SHORTCUT=1`` opts
+couple of ``Path.exists()`` calls. ``DOUGH_NO_START_MENU_SHORTCUT=1`` opts
 out (and a source-checkout ``python -m dough`` run has no launcher
 exe to target, so it never fires there).
 """
@@ -82,11 +82,11 @@ def _launcher_exe() -> Path | None:
         cand = Path(sys.argv[0] or "")
         if (
             cand.suffix.lower() == ".exe"
-            and cand.stem.lower().startswith("dough")
+            and cand.stem.lower().startswith(identity.app())
             and cand.is_file()
         ):
             return cand
-        scripts = Path(sys.executable).parent / "dough.exe"
+        scripts = Path(sys.executable).parent / f"{identity.app()}.exe"
         if scripts.is_file():
             return scripts
     except Exception:
@@ -96,12 +96,12 @@ def _launcher_exe() -> Path | None:
 
 def _icon_path() -> Path:
     base = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
-    return base / "dough" / "dough.ico"
+    return base / identity.app() / f"{identity.app()}.ico"
 
 
 def _shortcut_path() -> Path:
     base = Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming"))
-    return base / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "dough.lnk"
+    return base / "Microsoft" / "Windows" / "Start Menu" / "Programs" / f"{identity.app()}.lnk"
 
 
 def _marker_path() -> Path:
@@ -228,7 +228,7 @@ namespace JT {
 # _write_shortcut so the marker is only written when the stamp actually
 # landed (a half-success — .lnk authored but property unstamped — would
 # otherwise mark "current" and never retry, leaving the generic icon).
-_STAMP_SENTINEL = "JT_STAMP_OK"
+_STAMP_SENTINEL = "DOUGH_STAMP_OK"
 
 
 def _shortcut_script(lnk: Path, exe: Path, ico: Path) -> str:
@@ -326,7 +326,7 @@ def sync() -> None:
     is a few ms of QPixmap work; the PowerShell .lnk authoring is
     dispatched to the shared pool. No-op off Windows, when opted out,
     on a no-exe launch, or when everything is already current."""
-    if not IS_WINDOWS or os.environ.get("JT_NO_START_MENU_SHORTCUT"):
+    if not IS_WINDOWS or os.environ.get("DOUGH_NO_START_MENU_SHORTCUT"):
         return
     exe = _launcher_exe()
     if exe is None:

@@ -1,4 +1,4 @@
-"""Boot-phase wall-clock instrumentation, opt-in via ``JT_BOOT_TIMING=1``.
+"""Boot-phase wall-clock instrumentation, opt-in via ``DOUGH_BOOT_TIMING=1``.
 
 Answers "where does startup time go on THIS machine" without a profiler:
 ``mark()`` calls sprinkled along the boot path log the delta since
@@ -10,8 +10,8 @@ Disabled (the default), each ``mark()`` is a single attribute check —
 safe to leave the call sites in permanently.
 
 Usage on any install:
-    JT_BOOT_TIMING=1 dough            (fish/bash)
-    $env:JT_BOOT_TIMING="1"; dough    (PowerShell)
+    DOUGH_BOOT_TIMING=1 dough            (fish/bash)
+    $env:DOUGH_BOOT_TIMING="1"; dough    (PowerShell)
 """
 
 from __future__ import annotations
@@ -22,13 +22,13 @@ import time
 
 logger = logging.getLogger("dough.boot")
 
-_ENABLED = os.environ.get("JT_BOOT_TIMING") == "1"
+_ENABLED = os.environ.get("DOUGH_BOOT_TIMING") == "1"
 _T0 = time.perf_counter()
 _LAST = _T0
 
 
 def mark(label: str) -> None:
-    """Record a boot milestone. No-op unless JT_BOOT_TIMING=1."""
+    """Record a boot milestone. No-op unless DOUGH_BOOT_TIMING=1."""
     global _LAST
     if not _ENABLED:
         return

@@ -1,16 +1,18 @@
-"""XDG autostart backend. Manages ~/.config/autostart/dough.desktop —
+"""XDG autostart backend. Manages ~/.config/autostart/<app-id>.desktop —
 the standard cross-DE mechanism for "launch on login" on Linux. KDE,
 GNOME, XFCE, Cinnamon, MATE, and LXQt all read this directory.
 
 Strategy:
-- Enable: copy ~/.local/share/applications/dough.desktop into the
-  autostart dir if it exists; otherwise synthesize a minimal entry
-  pointing at the current interpreter and script path.
+- Enable: copy the installed ~/.local/share/applications/<app-id>.desktop
+  into the autostart dir if it exists; otherwise synthesize a minimal
+  entry pointing at the current interpreter and package.
 - Disable: delete the autostart file.
 - is_enabled: file exists and isn't marked Hidden=true (some DEs flip
   this flag instead of removing the file).
 
-We never touch the source desktop file in ~/.local/share/applications.
+The desktop-id (``identity.desktop_id()`` = the reverse-DNS app-id) names
+both files, so the copy branch matches the file the installers actually
+drop. We never touch the source desktop file in ~/.local/share/applications.
 """
 
 from __future__ import annotations
@@ -18,9 +20,17 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from dough import identity
+
 _AUTOSTART_DIR = Path.home() / ".config" / "autostart"
-_AUTOSTART_FILE = _AUTOSTART_DIR / "dough.desktop"
-_SOURCE_DESKTOP = Path.home() / ".local" / "share" / "applications" / "dough.desktop"
+_AUTOSTART_FILE = _AUTOSTART_DIR / f"{identity.desktop_id()}.desktop"
+_SOURCE_DESKTOP = (
+    Path.home()
+    / ".local"
+    / "share"
+    / "applications"
+    / f"{identity.desktop_id()}.desktop"
+)
 
 
 def is_supported() -> bool:
@@ -97,23 +107,23 @@ def _strip_hidden_flags(content: str) -> str:
 
 def _synth_desktop_entry() -> str:
     """Fallback: build a minimal entry from the current interpreter and
-    the installed dough package (`python -m dough`). Used when
-    the canonical entry under ~/.local/share/applications is missing."""
-    # parent.parent = the dough package dir; its parent is whatever
-    # holds the package (repo root or site-packages) — Path= there so a
-    # repo checkout launches from the repo, same as before the rename.
+    the installed package (`python -m <app>`). Used when the canonical
+    entry under ~/.local/share/applications is missing."""
+    # parent.parent = the package dir; its parent is whatever holds the
+    # package (repo root or site-packages) — Path= there so a repo checkout
+    # launches from the repo.
     pkg_dir = Path(__file__).resolve().parent.parent
     interpreter = sys.executable or "python3"
     return (
         "[Desktop Entry]\n"
         "Type=Application\n"
-        "Name=dough\n"
-        "Comment=Audio-first native music client for Jellyfin and Subsonic\n"
-        f'Exec={interpreter} -m dough\n'
+        f"Name={identity.display_name()}\n"
+        f"Comment={identity.display_name()}\n"
+        f"Exec={interpreter} -m {identity.app()}\n"
         f"Path={pkg_dir.parent}\n"
-        "Icon=dough\n"
+        f"Icon={identity.desktop_id()}\n"
         "Terminal=false\n"
-        "Categories=AudioVideo;Audio;Player;\n"
+        "Categories=Utility;\n"
         "StartupNotify=true\n"
         "X-GNOME-Autostart-enabled=true\n"
     )

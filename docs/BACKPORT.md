@@ -67,3 +67,66 @@ FramelessWindowHint stays fine for **dialogs** (transient/modal, no sustained-dr
 ## Fork-rename note
 
 Both KWin assets are per-app namespaced (effect id `dough_dragrepaint`; noborder rule `wmclass` = app slug). `dough new` must rewrite **both** on rename — the effect id/dir/metadata/main.js matcher AND the keep_above wmclass. butterPDF is the proof case: it renamed the effect to `butterpdf_dragrepaint` but never gained keep_above (it took the FramelessWindowHint shortcut instead).
+
+---
+
+## macOS absorption (jellytoast → dough, `de045ad` → HEAD)
+
+A second sync, orthogonal to the first-looks backport above: pulling jellytoast's
+**mature macOS platform + packaging** into the dough base, so the whole warehaus
+app family inherits a native, signable, Store-eligible Mac target. The
+hardware-earned gotchas are captured in [MACOS.md](MACOS.md) so they don't stay
+locked in jellytoast's now-private ops repo.
+
+### What landed
+- **Real vibrancy blur backend** — `dough/blur/_macos.py` is now the live
+  `NSVisualEffectView` **sibling-below** backend (was a stub reporting UNSUPPORTED).
+  `probe()` → ACTIVE; pinned `Active` state; corner-radius reset for fullscreen;
+  install-order rollback + once-per-widget `destroyed` hook; a live
+  `install_accessibility_observer()` for runtime Reduce-Transparency toggles.
+- **Native chrome** — `dough/macos_window.py` (transparent titlebar + full-size
+  content view + debounced `NSWindowDidMove` position-sync) and
+  `dough/macos_menubar.py` (global menu bar by QAction *role*, Services/About-Qt
+  strip, Dock-click reopen, `CFBundleName` override for from-source runs).
+- **Platform backends** — `dough/notifications/_macos.py` (UNUserNotificationCenter
+  banner + osascript fallback), `dough/autostart/_macos.py` (SMAppService login item
+  under MAS / LaunchAgent otherwise) and `dough/autostart/_msix.py` (the Windows MSIX
+  peer absorbed in the same pass).
+- **platform_compat probes** — `is_macos_sandboxed()` (the MAS/App-Sandbox gate,
+  macOS analog of `is_msix_packaged()`).
+- **Theme mac arms** — `_mac_glass_alpha()` (110 vibrancy cap) + the `IS_MACOS`
+  branches in `body_color_for()` (glass cap when ACTIVE; dialog near-opaque bump under
+  the faux-frost fallback).
+- **faux-frost** — `dough/blur/_faux_frost.py`'s `FauxFrost` is the shared no-blur
+  fallback texture (GNOME/Wayland, Windows-no-Mica, KDE-blur-off, **and** macOS
+  Reduce-Transparency), painted by `window.py` instead of a dead panel.
+- **square-corners + live-font** — `design_tokens.rad()` / `set_square_corners()` (the
+  `ui/square_corners` QSetting baked into the `RADIUS_*` tokens at import, pill
+  sentinel passes through) alongside the existing `font_scale` seam.
+- **GNOME frameless refactor** — `window._resolve_chrome_mode()` now returns a
+  three-way `(win_frameless, linux_frameless, borderless)`; non-KDE Linux Wayland
+  (GNOME / wlroots) gets its own Qt-`FramelessWindowHint` / CSD arm
+  (`startSystemMove`/`startSystemResize`), distinct from the KDE-Wayland
+  decorated-noborder path.
+
+### Deliberate decisions
+- **Frameless decision PRESERVED (load-bearing).** macOS is the one platform that is
+  **never Qt-frameless** — it keeps its real NSWindow (`_resolve_chrome_mode` → all
+  False on Mac). KDE Wayland stays decorated + KWin noborder. The GNOME/Windows
+  frameless arms are unchanged. None of the mac work touched this.
+- **Flatpak RETIRED** — not carried into the mac/packaging matrix (matches the standing
+  "skip Flathub" call in the status memory).
+- **media_controls EXCLUDED** — jellytoast's `MPNowPlayingInfoCenter` /
+  `MPRemoteCommandCenter` transport integration is music-specific and deliberately
+  stays out of the base. No mpv/libmpv; no JIT `allow-unsigned-executable-memory`
+  entitlement.
+- **`cf_bundle_id` convention** — macOS identity single-sources through
+  `dough.identity.cf_bundle_id()` / the `{{ cf_bundle_id }}` + `{{ app_slug }}`
+  template vars; **no literal app-id or team-id** in any committed file (team id via
+  the `APPLE_TEAM_ID` CI secret / `$(TeamIdentifierPrefix)`).
+- **`DOUGH_*` env seam closed** — the macOS identity has **no** `DOUGH_*` env override;
+  it flows only through `identity` + the templates. (The `DOUGH_*` family stays a
+  dev-diagnostic seam — `DOUGH_MAC_GLASS_ALPHA`, `DOUGH_BLUR_FORCE`, `DOUGH_OPAQUE` —
+  never an identity/packaging input.)
+- **universal2** — a single fat `.dmg` (arm64 + x86_64), not two native per-arch
+  builds (guardrail D7).

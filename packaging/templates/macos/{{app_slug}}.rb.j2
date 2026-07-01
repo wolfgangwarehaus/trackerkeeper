@@ -3,6 +3,10 @@
 # version + sha256 thereafter (docs/BAKING.md §5). Committed form is version-free.
 cask "{{ app_slug }}" do
   version "{{ release_version | default('0.0.0') }}"
+  # universal2 → ONE fat .dmg serves both Apple Silicon and Intel, so a single
+  # sha256 + url is correct. The per-arch fallback (a fork that ships two native
+  # -macos-<arch>.dmg files) replaces these with on_arm/on_intel two-sha blocks
+  # + two urls — see the spec's target_arch note.
 {% if dmg_sha256 is defined and dmg_sha256 %}
   sha256 "{{ dmg_sha256 }}"
 {% else %}

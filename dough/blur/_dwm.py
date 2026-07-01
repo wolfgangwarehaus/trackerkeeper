@@ -2,7 +2,7 @@
 
 The DEFAULT is real **Acrylic** blur-behind — live frosted glass — driven by
 the legacy ``SetWindowCompositionAttribute`` accent policy
-(``ACCENT_ENABLE_ACRYLICBLURBEHIND``); see ``apply_acrylic``. ``JT_NO_WIN_BLUR``
+(``ACCENT_ENABLE_ACRYLICBLURBEHIND``); see ``apply_acrylic``. ``DOUGH_NO_WIN_BLUR``
 opts out to the DWM **Mica** system backdrop instead (an opaque, once-sampled
 wallpaper tint — NOT a live blur). Both composite BEHIND the window, visible
 through transparent Qt pixels — the Windows analog of KWin's blur-behind. The
@@ -189,7 +189,7 @@ _ACRYLIC_TINT_LIGHT = 0x99F2F2F2  # qframelesswindow's default light tint
 
 
 def _acrylic_tint(dark: bool, elevated: bool = False) -> int:
-    """Acrylic tint (AABBGGRR). JT_WIN_BLUR_ALPHA overrides just the alpha
+    """Acrylic tint (AABBGGRR). DOUGH_WIN_BLUR_ALPHA overrides just the alpha
     (0–255): lower = more blur reads through, higher = more solid tint.
 
     ``elevated`` (menus / dropdowns / volume popups / tooltips): these
@@ -200,17 +200,17 @@ def _acrylic_tint(dark: bool, elevated: bool = False) -> int:
     Windows round). Elevated surfaces therefore request a near-zero
     tint alpha — 0x01, not 0x00, because a fully transparent gradient
     disables the Acrylic material on some builds — leaving the QSS fill
-    as the single tint source on every platform. JT_WIN_POPUP_BLUR_ALPHA
+    as the single tint source on every platform. DOUGH_WIN_POPUP_BLUR_ALPHA
     tunes it live for eyeball calibration."""
     base = _ACRYLIC_TINT_DARK if dark else _ACRYLIC_TINT_LIGHT
     if elevated:
         try:
-            a = int(os.environ.get("JT_WIN_POPUP_BLUR_ALPHA", "1"))
+            a = int(os.environ.get("DOUGH_WIN_POPUP_BLUR_ALPHA", "1"))
         except ValueError:
             a = 1
         return (max(1, min(255, a)) << 24) | (base & 0x00FFFFFF)
     try:
-        a = int(os.environ.get("JT_WIN_BLUR_ALPHA", ""))
+        a = int(os.environ.get("DOUGH_WIN_BLUR_ALPHA", ""))
     except ValueError:
         return base
     return (max(0, min(255, a)) << 24) | (base & 0x00FFFFFF)
@@ -240,7 +240,7 @@ def apply(
 ) -> bool:
     """Apply (``enabled``) or remove (``not enabled``) the Windows backdrop
     behind ``widget`` — real Acrylic blur by default, the Mica system backdrop
-    when ``JT_NO_WIN_BLUR`` is set. ``corner_radius > 0`` additionally asks DWM to round
+    when ``DOUGH_NO_WIN_BLUR`` is set. ``corner_radius > 0`` additionally asks DWM to round
     the window's corners — needed for the frameless, self-painted surfaces
     (mini player + dialogs, and the main window once it goes frameless on
     Windows), because Windows does NOT clip a frameless translucent HWND to
@@ -274,14 +274,14 @@ def apply(
         # themes (light, wallpaper-tinted Mica). Follows the OS live when
         # the theme_mode is "auto".
         _set_attr(hwnd, _DWMWA_USE_IMMERSIVE_DARK_MODE, 1 if dark else 0)
-        # Real frosted-glass blur — the DEFAULT on Windows (JT_NO_WIN_BLUR
+        # Real frosted-glass blur — the DEFAULT on Windows (DOUGH_NO_WIN_BLUR
         # opts out to the Mica system-backdrop below). Drive the legacy
         # Acrylic accent policy instead of Mica (Mica is an opaque
         # once-sampled tint, not a live blur). The main window pairs this with
         # a NON-layered window (dough/app.py `_win_blur` drops
         # WA_TranslucentBackground); the accent path also blurs the layered
         # mini player / dialogs. enabled=False (a Solid theme) removes it.
-        if not os.environ.get("JT_NO_WIN_BLUR"):
+        if not os.environ.get("DOUGH_NO_WIN_BLUR"):
             # Propagate the accent-policy result instead of an unconditional
             # True — symmetric with the Mica branch below (`_set_attr(...) == 0`)
             # so apply()'s "issued" return is honest on BOTH paths. Safe to
@@ -331,11 +331,11 @@ def reason(status) -> str:
             "→ Colors) — using a near-opaque body"
         )
     if status == BlurStatus.ACTIVE:
-        # Default is the real Acrylic accent blur; JT_NO_WIN_BLUR falls back
+        # Default is the real Acrylic accent blur; DOUGH_NO_WIN_BLUR falls back
         # to the (flat) Mica system-backdrop.
         return (
             "Windows 11 Mica backdrop active"
-            if os.environ.get("JT_NO_WIN_BLUR")
+            if os.environ.get("DOUGH_NO_WIN_BLUR")
             else "Windows 11 Acrylic blur active"
         )
     return "blur unavailable — using a near-opaque body"

@@ -1,19 +1,21 @@
 """SettingsDialog — a FrostedDialog demonstrating dough's live theme system.
 
-Three controls — theme mode, accent color, font size — each writing to
-``Settings`` and re-stamping the whole app live via ``AppBus.theme_changed``
-(font size needs a relaunch; everything else applies instantly). It's both a
-working settings panel and the worked example of the dialog + Selector +
-live-theme pattern an app builds on.
+Five controls — theme mode, accent color, font size, font family, and a
+square-corners toggle — each writing to ``Settings`` and re-stamping the whole
+app live via ``AppBus.theme_changed``. Theme mode, accent, and font family
+apply instantly; font size and square corners re-stamp for an immediate preview
+but only fully land on a relaunch (both bake into ``design_tokens`` at import).
+It's both a working settings panel and the worked example of the dialog +
+Selector + live-theme pattern an app builds on.
 """
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton
+from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QPushButton
 
 from dough import ui_helpers
 from dough.bus import AppBus
-from dough.design_tokens import TYPE_CAPTION, type_qss
+from dough.design_tokens import TYPE_CAPTION, set_square_corners, type_qss
 from dough.frosted_dialog import FrostedDialog
 from dough.selector import Selector, selector_qss
 from dough.settings import get_settings
@@ -61,6 +63,41 @@ class SettingsDialog(FrostedDialog):
         self.font_sel.setFixedWidth(256)
         self.font_sel.currentIndexChanged.connect(self._on_font_size)
         self.content_layout.addWidget(self.font_sel)
+
+        # Font family — the app-wide UI text font. Lists installed families that
+        # can render Latin text (private + symbol/icon fonts are dropped so a
+        # pick can't turn every string into tofu); "System default" = '' = the
+        # built-in Inter stack. Applies LIVE (no restart) via the global QSS
+        # font stack + app.setFont; SVG icons are never touched.
+        self.content_layout.addWidget(self._label("FONT FAMILY"))
+        self.family_sel = Selector()
+        self.family_sel.addItem("System default", "")
+        from PySide6.QtGui import QFont, QFontDatabase
+
+        latin = QFontDatabase.WritingSystem.Latin
+        for fam in QFontDatabase.families():
+            if QFontDatabase.isPrivateFamily(fam):
+                continue
+            if latin not in QFontDatabase.writingSystems(fam):
+                continue
+            # Preview each family in its own typeface in the dropdown.
+            self.family_sel.addItem(fam, fam, font=QFont(fam))
+        self._select(self.family_sel, self.s.font_family)
+        self.family_sel.setFixedWidth(256)
+        self.family_sel.currentIndexChanged.connect(self._on_font_family)
+        self.content_layout.addWidget(self.family_sel)
+
+        # Square corners — zero every rounded corner in the UI (windows, tiles,
+        # dialogs, buttons, popups); genuinely circular controls (round icon
+        # buttons, slider handles) stay round. design_tokens bakes the radii at
+        # import, so the re-stamp below is a partial preview and the notice asks
+        # for a relaunch to land it everywhere.
+        self.content_layout.addWidget(self._label("CORNERS"))
+        self.corners_check = QCheckBox("Square corners")
+        self.corners_check.setChecked(self.s.square_corners)
+        self.corners_check.toggled.connect(self._on_square_corners)
+        self.content_layout.addWidget(self.corners_check)
+
         self._restart_note = QLabel("")
         self._restart_note.setStyleSheet(
             f"color: {ui_helpers.WARN_FG}; {type_qss(TYPE_CAPTION)}"
@@ -127,3 +164,18 @@ class SettingsDialog(FrostedDialog):
         self.s.font_scale = self.font_sel.currentData()
         # FONT_SCALE is baked at import (design_tokens) — needs a relaunch.
         self._restart_note.setText("Font size applies after a restart.")
+
+    def _on_font_family(self, _idx: int) -> None:
+        self.s.font_family = self.family_sel.currentData() or ""
+        # Live preview: recompute the font tokens, re-install the app font, and
+        # broadcast theme_changed — reads settings.font_family live, no restart.
+        ui_helpers.apply_font_settings_live()
+
+    def _on_square_corners(self, on: bool) -> None:
+        self.s.square_corners = bool(on)
+        # Keep design_tokens' in-memory flag in lockstep, then re-stamp for an
+        # immediate partial preview; the radii baked at import fully re-square on
+        # the next launch, so surface the restart notice too.
+        set_square_corners(bool(on))
+        self._apply_live()
+        self._restart_note.setText("Square corners fully applies after a restart.")

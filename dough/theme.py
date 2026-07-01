@@ -31,7 +31,7 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from dough.platform_compat import IS_WINDOWS
+from dough.platform_compat import IS_MACOS, IS_WINDOWS
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QColor
@@ -49,7 +49,7 @@ _WIN_BODY_FLOOR_ALPHA = 16
 # barely showed over the lighter Acrylic backdrop. Default to a clearly darker
 # glass (96, ~38%) so the dark theme reads as dark on Windows while staying
 # translucent enough for the Acrylic blur to show through. Tune live with
-# JT_WIN_GLASS_ALPHA, then bake the value you like.
+# DOUGH_WIN_GLASS_ALPHA, then bake the value you like.
 _WIN_BODY_DEFAULT_ALPHA = 96
 
 
@@ -58,11 +58,34 @@ def _win_glass_alpha() -> int:
     ``_WIN_BODY_DEFAULT_ALPHA`` (dark but translucent) and is clamped to
     ``[_WIN_BODY_FLOOR_ALPHA, 255]`` — the floor keeps every pixel hit-testable
     (a 0-alpha frameless body is click-through). Env-tunable both directions:
-    ``JT_WIN_GLASS_ALPHA=40`` (lighter) … ``=160`` (heavier)."""
+    ``DOUGH_WIN_GLASS_ALPHA=40`` (lighter) … ``=160`` (heavier)."""
     try:
-        v = int(os.environ.get("JT_WIN_GLASS_ALPHA", str(_WIN_BODY_DEFAULT_ALPHA)))
+        v = int(os.environ.get("DOUGH_WIN_GLASS_ALPHA", str(_WIN_BODY_DEFAULT_ALPHA)))
     except ValueError:
         v = _WIN_BODY_DEFAULT_ALPHA
+    return max(_WIN_BODY_FLOOR_ALPHA, min(255, v))
+
+
+# macOS NSVisualEffectView vibrancy veils heavier than KWin's blur, so the
+# shared ~67% glass body (172) reads noticeably more opaque on macOS than on
+# Linux — same number, denser backdrop. Cap the macOS body alpha lower so the
+# vibrancy reads through and the window matches the KWin glass feel; 110 (~43%)
+# was tuned by eye against KDE Plasma's blur. Tune live with DOUGH_MAC_GLASS_ALPHA.
+_MAC_BODY_DEFAULT_ALPHA = 110
+
+
+def _mac_glass_alpha() -> int:
+    """macOS-only frosted body alpha when native vibrancy is active. Defaults
+    to ``_MAC_BODY_DEFAULT_ALPHA`` (lighter than the shared glass so the vibrancy
+    shows through, matched by eye to KDE Plasma), with a small floor so the body
+    never goes fully transparent. Applied as ``min(theme glass alpha, this)`` in
+    body_color_for, so it only ever LIGHTENS the body — the effective ceiling is
+    the theme's own alpha (172 dark / 140 light), never 255. Env-tunable:
+    ``DOUGH_MAC_GLASS_ALPHA=90`` (lighter) … toward the theme base (heavier)."""
+    try:
+        v = int(os.environ.get("DOUGH_MAC_GLASS_ALPHA", str(_MAC_BODY_DEFAULT_ALPHA)))
+    except ValueError:
+        v = _MAC_BODY_DEFAULT_ALPHA
     return max(_WIN_BODY_FLOOR_ALPHA, min(255, v))
 
 
@@ -612,8 +635,19 @@ def body_color_for(theme: "Theme", status, surface: str = "main") -> tuple:
             # lower so it reads through (see _win_glass_alpha). min() keeps a
             # theme that's already lighter than the cap.
             return (base[0], base[1], base[2], min(base[3], _win_glass_alpha()))
+        if IS_MACOS:
+            # macOS vibrancy veils heavier than KWin — cap the body alpha
+            # lower so it reads through (see _mac_glass_alpha). min() keeps a
+            # theme that's already lighter than the cap.
+            return (base[0], base[1], base[2], min(base[3], _mac_glass_alpha()))
         return base
-    return (base[0], base[1], base[2], theme.fallback_body_alpha)
+    # macOS, no vibrancy (Reduce Transparency on, or AppKit absent): faux-frost
+    # fallback. Push dialogs/popups the OTHER way — near-opaque so the surface
+    # behind them doesn't bleed through. Main + mini + Linux/Windows unchanged.
+    alpha = theme.fallback_body_alpha
+    if IS_MACOS and surface == "dialog":
+        alpha = min(255, alpha + 14)
+    return (base[0], base[1], base[2], alpha)
 
 
 def ink_alpha(a: float) -> str:

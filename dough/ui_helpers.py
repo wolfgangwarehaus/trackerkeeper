@@ -22,6 +22,7 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QGuiApplication,
+    QLinearGradient,
     QPainter,
     QPainterPath,
     QPalette,
@@ -42,7 +43,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from dough.design_tokens import rad
 from dough.icon_button import IconButton
+from dough.platform_compat import IS_MACOS
 
 # ── Theme ────────────────────────────────────────────────────────────────────
 # Palette + body fills come from the active Theme (dough/theme.py).
@@ -58,6 +61,29 @@ from dough.icon_button import IconButton
 from dough.theme import get_active_theme, ink_alpha  # noqa: F401  (re-exported)
 
 _THEME = get_active_theme()
+
+
+def _popup_fill_opaque_on_macos(fill: str) -> str:
+    """Force a popup body fill near-opaque on macOS.
+
+    The themed ``popup_opaque_fill`` carries ~0.65 alpha so it reads as frosted
+    glass over a compositor blur. macOS has no app-controllable window blur and
+    its menu / combobox popup windows are translucent, so that 0.65 lets the
+    surface behind a dropdown bleed through — busy, hard-to-read popups. Bump it
+    near-opaque on macOS so every popup reads clean (covers both the
+    GLOBAL_STYLE bare QMenu/QComboBox path and the blur-aware
+    ``popup_body_fill``). No-op off macOS, where the fill rides real blur or an
+    opaque popup window. Accepts an ``rgba(r, g, b, a)`` literal; returns it
+    unchanged if it can't parse. Never raises."""
+    if not IS_MACOS:
+        return fill
+    s = fill.strip()
+    if s.startswith("rgba(") and s.endswith(")"):
+        parts = [p.strip() for p in s[5:-1].split(",")]
+        if len(parts) == 4:
+            return f"rgba({parts[0]}, {parts[1]}, {parts[2]}, 0.97)"
+    return fill
+
 
 # Every UI color now lives on the active Theme as a semantic token
 # (dough/theme.py). The constants below are flat re-exports of those
@@ -110,7 +136,9 @@ SLIDER_GROOVE = _THEME.slider_groove  # slider track (volume / seek / EQ)
 # ── Overlays / popups ──────────────────────────────────────────────────
 OVERLAY_DARK = _THEME.overlay_dark  # cover-art heart bg + downloads chip
 OVERLAY_DARK_HOVER = _THEME.overlay_dark_hover  # overlay on hover
-POPUP_OPAQUE_FILL = _THEME.popup_opaque_fill  # opaque popup body
+POPUP_OPAQUE_FILL = _popup_fill_opaque_on_macos(
+    _THEME.popup_opaque_fill
+)  # opaque popup body (near-opaque on macOS — no blur to ride)
 
 # ── Painted body fills ─────────────────────────────────────────────────
 # Used as `QColor(*BODY_COLOR)` inside paintEvent. Three slots because
@@ -133,7 +161,7 @@ def body_color_tuple(surface: str = "main") -> tuple:
 
     Reads the live active theme + the cached blur status, so it picks up a
     theme switch and a post-show blur re-probe for free. ``surface`` selects
-    main / mini / dialog. Does NOT apply the main window's JT_OPAQUE override
+    main / mini / dialog. Does NOT apply the main window's DOUGH_OPAQUE override
     (that's main-window-only; the caller handles it). Never raises."""
     from dough import blur
     from dough.theme import body_color_for, get_active_theme
@@ -141,6 +169,20 @@ def body_color_tuple(surface: str = "main") -> tuple:
     theme = get_active_theme()
     status = blur.status() if theme.blur else blur.BlurStatus.DISABLED
     return body_color_for(theme, status, surface)
+
+
+def frosted_fallback_active() -> bool:
+    """True when a frosted theme is NOT riding real compositor blur — i.e. the
+    surface would otherwise paint a flat near-opaque body and should instead
+    paint the faux-frost backdrop (``dough/blur/_faux_frost.py``). Shared by the
+    main window and mini player so they fall back identically. (The main window
+    additionally suppresses it under the DOUGH_OPAQUE override.)"""
+    from dough import blur
+    from dough.theme import get_active_theme
+
+    if not get_active_theme().blur:
+        return False
+    return blur.status() is not blur.BlurStatus.ACTIVE
 
 
 # Materialize the check-mark SVG to a cache file so QSS can reference
@@ -272,12 +314,82 @@ def _tooltip_fill_opaque() -> str:
     return POPUP_OPAQUE_FILL
 
 
+def _ui_font_family_stack() -> str:
+    """CSS font-family stack for the global style. Prefixes the user's chosen
+    family (Settings → Display → Font) onto the built-in Inter stack; an empty
+    selection ('') uses the built-in stack. Icons are SVG (not font glyphs), so
+    this only ever affects text."""
+    base = "'Inter', 'Segoe UI', 'Noto Sans', sans-serif"
+    try:
+        from dough.settings import get_settings
+
+        fam = (get_settings().font_family or "").strip()
+    except Exception:
+        fam = ""
+    return f"'{fam}', {base}" if fam else base
+
+
+# Snapshot of the platform/Qt default UI font, captured at boot BEFORE the
+# user's font_family (if any) is installed via app.setFont — so a live switch
+# back to "System default" can restore it (QFont("") does NOT reset the app
+# font to the platform default). Set by app.main() via set_boot_default_font.
+_BOOT_DEFAULT_FONT = None
+
+
+def set_boot_default_font(font) -> None:
+    """Record the app's default font at boot (see _BOOT_DEFAULT_FONT)."""
+    global _BOOT_DEFAULT_FONT
+    _BOOT_DEFAULT_FONT = font
+
+
+def apply_font_settings_live() -> None:
+    """Re-apply the current ``ui/font_family`` AND ``ui/font_scale`` to the
+    running app WITHOUT a restart. Recomputes the size-scaled design tokens
+    (``design_tokens.refresh_fonts``) and rebinds them across every module that
+    imported them by value (``_propagate_font_constants``) so a scale change is
+    actually seen; re-installs the application font for the family (so
+    painter-drawn delegate text, which inherits the app font, follows); then
+    broadcasts ``theme_changed`` — each surface re-runs its ``type_qss`` /
+    ``_build_fonts`` and picks up the new size + family. The whole fan-out is
+    wrapped in ``theme_swap_guard`` so it lands as a single repaint. Reads the
+    settings live, so a caller persists ``settings.font_family`` / ``font_scale``
+    first, then calls this."""
+    from PySide6.QtGui import QFont
+    from PySide6.QtWidgets import QApplication
+
+    from dough import design_tokens as _dt
+    from dough.bus import AppBus
+    from dough.settings import get_settings
+
+    app = QApplication.instance()
+    if app is None:
+        return
+    fam = (get_settings().font_family or "").strip()
+    with theme_swap_guard():
+        # Rebuild the size tokens + rebind them across modules BEFORE the emit,
+        # so the first theme_changed slot re-stamps from the fresh sizes.
+        _dt.refresh_fonts()
+        _propagate_font_constants()
+        # app.setFont MUST also precede the emit — delegates rebuild their bare
+        # QFont() during the fan-out and must resolve against the new app font.
+        app.setFont(QFont(fam) if fam else (_BOOT_DEFAULT_FONT or QFont()))
+        AppBus.get().theme_changed.emit()
+
+
 def _build_global_style() -> str:
+    # Radii flow through the rad()-resolved tokens so the "Square corners"
+    # setting zeros every corner here in lockstep with the rest of the UI.
+    # rad(N) handles the few non-token literals (a 3px checkbox tick, 1px
+    # slider groove). The circular slider HANDLE is left at a fixed radius so
+    # it stays a round dot when corners are squared.
+    from dough.design_tokens import RADIUS_LG, RADIUS_MD, RADIUS_SM, rad
+
     ar, ag, ab = _accent_rgb_tuple()
     # Regenerate the check-mark PNG for the current accent (lazy +
     # cached per color). Embedding the path into the QSS string here
     # means the next stamp picks up the new path automatically.
     check_url = check_url_for_accent()
+    font_stack = _ui_font_family_stack()
     # NB hover tooltips are drawn by our custom popup (dough/custom_tooltip),
     # NOT Qt's QTipLabel — the QToolTip QSS rule below is a defensive fallback
     # for any stray native tooltip and stays `background: transparent`, so the
@@ -285,7 +397,7 @@ def _build_global_style() -> str:
     return f"""
 * {{
     color: {TEXT};
-    font-family: 'Inter', 'Segoe UI', 'Noto Sans', sans-serif;
+    font-family: {font_stack};
 }}
 QMainWindow, QDialog, QWidget {{
     background: {BG};
@@ -299,7 +411,7 @@ QCheckBox::indicator {{
     width: 16px;
     height: 16px;
     border: 1px solid {BORDER};
-    border-radius: 3px;
+    border-radius: {rad(3)}px;
     background: {ink_alpha(0.04)};
 }}
 QCheckBox::indicator:hover {{
@@ -320,22 +432,22 @@ QCheckBox::indicator:disabled {{
 }}
 QScrollArea {{ background: transparent; border: none; }}
 QScrollBar:vertical {{
-    background: {ink_alpha(0.03)}; width: 8px; border-radius: 4px;
+    background: {ink_alpha(0.03)}; width: 8px; border-radius: {RADIUS_SM}px;
     margin: 2px;
 }}
 QScrollBar::handle:vertical {{
-    background: rgba({ar},{ag},{ab},0.4); border-radius: 4px; min-height: 24px;
+    background: rgba({ar},{ag},{ab},0.4); border-radius: {RADIUS_SM}px; min-height: 24px;
 }}
 QScrollBar::handle:vertical:hover {{ background: {ACCENT}; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 QScrollBar:horizontal {{ height: 8px; background: transparent; }}
 QScrollBar::handle:horizontal {{
-    background: rgba({ar},{ag},{ab},0.4); border-radius: 4px; min-width: 24px;
+    background: rgba({ar},{ag},{ab},0.4); border-radius: {RADIUS_SM}px; min-width: 24px;
 }}
 QLineEdit {{
     background: {ink_alpha(0.05)};
     border: 1px solid {BORDER};
-    border-radius: 8px;
+    border-radius: {RADIUS_LG}px;
     padding: 8px 12px;
     color: {TEXT};
     selection-background-color: {ACCENT_DEEP};
@@ -345,7 +457,7 @@ QPushButton {{
     background: {ink_alpha(0.05)};
     color: {TEXT};
     border: 1px solid {BORDER};
-    border-radius: 8px;
+    border-radius: {RADIUS_LG}px;
     padding: 8px 14px;
 }}
 QPushButton:hover {{ background: rgba({ar},{ag},{ab},0.15); border-color: {BORDER_ACCENT}; }}
@@ -361,7 +473,7 @@ QPushButton#ghost:hover {{ background: {ink_alpha(0.06)}; }}
 QComboBox {{
     background: {ink_alpha(0.05)};
     border: 1px solid {BORDER};
-    border-radius: 8px;
+    border-radius: {RADIUS_LG}px;
     padding: 6px 12px;
     min-height: 22px;
 }}
@@ -369,18 +481,18 @@ QComboBox::drop-down {{ border: none; width: 20px; }}
 QComboBox QAbstractItemView {{
     background: {POPUP_OPAQUE_FILL};
     border: none;
-    border-radius: 6px;
+    border-radius: {RADIUS_MD}px;
     selection-background-color: rgba({ar},{ag},{ab},0.25);
     padding: 4px;
 }}
 QListWidget {{
     background: transparent;
     border: 1px solid {BORDER};
-    border-radius: 8px;
+    border-radius: {RADIUS_LG}px;
     outline-style: none;
 }}
 QListWidget::item {{
-    padding: 8px 10px; border-radius: 6px; margin: 1px 2px;
+    padding: 8px 10px; border-radius: {RADIUS_MD}px; margin: 1px 2px;
 }}
 QListWidget::item:selected {{ background: rgba({ar},{ag},{ab},0.18); }}
 QListWidget::item:hover {{ background: {ink_alpha(0.04)}; }}
@@ -398,9 +510,9 @@ QTabBar::tab:selected {{
     color: {ACCENT}; border-bottom: 2px solid {ACCENT};
 }}
 QSlider::groove:horizontal {{
-    height: 3px; background: {ink_alpha(0.12)}; border-radius: 1px;
+    height: 3px; background: {ink_alpha(0.12)}; border-radius: {rad(1)}px;
 }}
-QSlider::sub-page:horizontal {{ background: {ACCENT}; border-radius: 1px; }}
+QSlider::sub-page:horizontal {{ background: {ACCENT}; border-radius: {rad(1)}px; }}
 QSlider::handle:horizontal {{
     width: 12px; height: 12px; margin: -5px 0;
     background: {TEXT}; border-radius: 6px;
@@ -409,11 +521,11 @@ QSlider::handle:horizontal:hover {{ background: {ACCENT}; }}
 QMenu {{
     background: {POPUP_OPAQUE_FILL};
     border: none;
-    border-radius: 8px;
+    border-radius: {RADIUS_LG}px;
     padding: 4px;
 }}
 QMenu::item {{
-    padding: 8px 24px 8px 14px; border-radius: 4px;
+    padding: 8px 24px 8px 14px; border-radius: {RADIUS_SM}px;
 }}
 QMenu::item:selected {{ background: rgba({ar},{ag},{ab},0.2); }}
 QMenu::separator {{
@@ -426,7 +538,7 @@ QToolTip {{
        slips past the filter — keep it transparent + minimal so such a
        fallback still reads as a plain pill. */
     background: transparent; color: {TEXT};
-    border: none; padding: 4px 8px; border-radius: 6px;
+    border: none; padding: 4px 8px; border-radius: {RADIUS_MD}px;
 }}
 """
 
@@ -489,7 +601,7 @@ def refresh_theme() -> str:
     SLIDER_GROOVE = _THEME.slider_groove
     OVERLAY_DARK = _THEME.overlay_dark
     OVERLAY_DARK_HOVER = _THEME.overlay_dark_hover
-    POPUP_OPAQUE_FILL = _THEME.popup_opaque_fill
+    POPUP_OPAQUE_FILL = _popup_fill_opaque_on_macos(_THEME.popup_opaque_fill)
     BODY_COLOR = _THEME.body_color
     MINI_BODY_COLOR = _THEME.mini_body_color
     DIALOG_BODY_COLOR = _THEME.dialog_body_color
@@ -552,6 +664,38 @@ def _propagate_theme_constants() -> None:
     values = {n: getattr(src, n) for n in _PROPAGATED_TOKENS}
     for mod_name, mod in list(sys.modules.items()):
         if mod is None or mod is src or not mod_name.startswith("dough."):
+            continue
+        for name, value in values.items():
+            if hasattr(mod, name):
+                setattr(mod, name, value)
+
+
+# Font-scale tokens are frozen dataclasses in design_tokens, baked from
+# FONT_SCALE at import; surfaces did `from design_tokens import TYPE_BODY,
+# BTN_PRIMARY, …` and hold those objects by value. A live font-scale change
+# rebuilds them (design_tokens.refresh_fonts), so — exactly like the color
+# tokens above — the by-value copies across every module must be rebound or a
+# surface's theme_changed re-stamp would read the OLD size.
+_PROPAGATED_FONT_TOKENS = (
+    "TYPE_DISPLAY", "TYPE_TITLE", "TYPE_HEADING", "TYPE_SUBHEAD",
+    "TYPE_BODY", "TYPE_CAPTION", "TYPE_TINY", "TYPE_MICRO", "TYPE",
+    "BTN_PRIMARY", "BTN_SECONDARY", "BTN_GHOST", "BTN_ICON", "BTN_DESTRUCTIVE",
+    "BUTTON",
+)
+
+
+def _propagate_font_constants() -> None:
+    """Rebind the rebuilt ``design_tokens`` typography/button tokens into every
+    ``dough.*`` module that imported them by value — the font-scale analog
+    of :func:`_propagate_theme_constants`. Call after
+    ``design_tokens.refresh_fonts()`` and before emitting ``theme_changed``."""
+    import sys
+
+    from dough import design_tokens as _dt
+
+    values = {n: getattr(_dt, n) for n in _PROPAGATED_FONT_TOKENS}
+    for mod_name, mod in list(sys.modules.items()):
+        if mod is None or mod is _dt or not mod_name.startswith("dough."):
             continue
         for name, value in values.items():
             if hasattr(mod, name):
@@ -995,6 +1139,7 @@ class MarqueeLabel(QLabel):
     GAP_PX = 48
     PAUSE_TICKS = 90  # ~3s at 33ms tick — longer dwell on the start
     TICK_MS = 33
+    FADE_PX = 16  # soft edge so overflow dissolves instead of hard-clipping
 
     def __init__(self, text: str = "", parent=None):
         super().__init__(parent)
@@ -1053,15 +1198,48 @@ class MarqueeLabel(QLabel):
         if not self._needs_scroll():
             super().paintEvent(e)
             return
-        p = QPainter(self)
-        p.setPen(self.palette().color(self.foregroundRole()))
-        p.setFont(self.font())
-        fm = p.fontMetrics()
-        baseline = (self.height() + fm.ascent() - fm.descent()) // 2
+        w, h = self.width(), self.height()
+        if w <= 0 or h <= 0:
+            return
+        # Render the scrolling text into a transparent layer, then dissolve its
+        # edges with an alpha mask. A hard right clip (drawText into the widget)
+        # looks like a broken mid-word elide in a still frame — and the ~3s
+        # start-pause shows that clip live after every track change. The mask is
+        # applied to the ISOLATED layer (DestinationIn), so it only touches the
+        # text and never punches a hole in the frosted bar painted behind us.
+        dpr = self.devicePixelRatioF()
+        buf = QPixmap(max(1, round(w * dpr)), max(1, round(h * dpr)))
+        buf.setDevicePixelRatio(dpr)
+        buf.fill(Qt.GlobalColor.transparent)
+        bp = QPainter(buf)
+        bp.setPen(self.palette().color(self.foregroundRole()))
+        bp.setFont(self.font())
+        fm = bp.fontMetrics()
+        baseline = (h + fm.ascent() - fm.descent()) // 2
         text_w = fm.horizontalAdvance(self._marquee_text)
         x = -self._marquee_offset
-        p.drawText(x, baseline, self._marquee_text)
-        p.drawText(x + text_w + self.GAP_PX, baseline, self._marquee_text)
+        bp.drawText(x, baseline, self._marquee_text)
+        bp.drawText(x + text_w + self.GAP_PX, baseline, self._marquee_text)
+        fade = min(self.FADE_PX, w // 2)
+        if fade > 0:
+            bp.setCompositionMode(
+                QPainter.CompositionMode.CompositionMode_DestinationIn
+            )
+            rg = QLinearGradient(w - fade, 0, w, 0)
+            rg.setColorAt(0.0, QColor(0, 0, 0, 255))
+            rg.setColorAt(1.0, QColor(0, 0, 0, 0))
+            bp.fillRect(QRectF(w - fade, 0, fade, h), rg)
+            # Fade the left edge too, but only once scrolled past the start, so
+            # the head isn't faded during the opening dwell (when it sits next
+            # to the cover art).
+            if self._marquee_offset > 0:
+                lg = QLinearGradient(0, 0, fade, 0)
+                lg.setColorAt(0.0, QColor(0, 0, 0, 0))
+                lg.setColorAt(1.0, QColor(0, 0, 0, 255))
+                bp.fillRect(QRectF(0, 0, fade, h), lg)
+        bp.end()
+        p = QPainter(self)
+        p.drawPixmap(0, 0, buf)
 
 
 # ── Cover-overlay button ─────────────────────────────────────────────────
@@ -1292,7 +1470,7 @@ class EmptyState(QWidget):
             QPushButton {{
                 background: {WASH_HOVER};
                 border: 1px solid {ink_alpha(0.10)};
-                border-radius: 8px;
+                border-radius: {rad(8)}px;
                 padding: 6px 14px;
                 color: {TEXT};
                 font-weight: 500;
@@ -1433,7 +1611,7 @@ def opaque_menu(parent=None, *, menu_cls=None, blur_corner_radius: int = 4) -> "
             background-color: {popup_body_fill()};
             color: {TEXT};
             border: none;
-            border-radius: 4px;
+            border-radius: {rad(4)}px;
             padding: 4px;
         }}
         QMenu::item {{
@@ -1444,7 +1622,7 @@ def opaque_menu(parent=None, *, menu_cls=None, blur_corner_radius: int = 4) -> "
                needed. Symmetric padding tightens the menu to its
                content + matches the visual balance left↔right. */
             padding: 7px 14px;
-            border-radius: 4px;
+            border-radius: {rad(4)}px;
         }}
         QMenu::item:selected {{
             background-color: rgba({a_r},{a_g},{a_b},0.28);

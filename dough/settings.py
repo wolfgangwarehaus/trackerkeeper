@@ -63,6 +63,17 @@ class Settings:
     def font_scale(self, v: str) -> None:
         self._set("ui/font_scale", v)
 
+    @property
+    def font_family(self) -> str:
+        # User-chosen UI text font family; "" means the system/built-in default.
+        # Applied app-wide via the global QSS font-family rule + app.setFont;
+        # SVG icons are never affected.
+        return str(self._s.value("ui/font_family", ""))
+
+    @font_family.setter
+    def font_family(self, v: str) -> None:
+        self._set("ui/font_family", v)
+
     # ── Window chrome ─────────────────────────────────────────────────
     @property
     def native_window_border(self) -> bool:
@@ -71,6 +82,18 @@ class Settings:
     @native_window_border.setter
     def native_window_border(self, v: bool) -> None:
         self._set("ui/native_window_border", bool(v))
+
+    @property
+    def square_corners(self) -> bool:
+        # When True every rounded corner in the UI — windows, tiles, dialogs,
+        # buttons, popups — is squared off; genuinely circular controls (round
+        # icon buttons, slider handles) stay round. Baked into design_tokens at
+        # module import, so it takes effect on the next launch.
+        return _as_bool(self._s.value("ui/square_corners"), False)
+
+    @square_corners.setter
+    def square_corners(self, v: bool) -> None:
+        self._set("ui/square_corners", bool(v))
 
     @property
     def auto_hide_scrollbars(self) -> bool:

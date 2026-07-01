@@ -22,11 +22,53 @@ import sys
 IS_LINUX = sys.platform.startswith("linux")
 IS_WINDOWS = sys.platform == "win32"
 IS_MACOS = sys.platform == "darwin"
-# Inside a Flatpak sandbox (the canonical marker file). Gates the KWin
-# shell-out integrations (their writes would land in the sandbox's own
-# config, never read by host KWin) and flips autostart to the
-# Background portal. See docs/research/flatpak_manifest_2026-06-11.md.
-IS_FLATPAK = IS_LINUX and os.path.exists("/.flatpak-info")
+
+
+def is_msix_packaged() -> bool:
+    """True iff running inside an MSIX/AppX package (the process has package
+    identity). False for the Inno .exe, pip/pipx installs, and source runs —
+    so it's the single gate for the handful of Windows behaviours that differ
+    when packaged: the package supplies the AUMID + Start-menu entry, the
+    install dir is read-only, and Run-key autostart is ignored. No-op off
+    Windows.
+
+    Detection: ``GetCurrentPackageFullName`` returns
+    ``APPMODEL_ERROR_NO_PACKAGE`` (15700) when there is no package identity."""
+    if not IS_WINDOWS:
+        return False
+    try:
+        import ctypes
+
+        length = ctypes.c_uint32(0)
+        rc = ctypes.windll.kernel32.GetCurrentPackageFullName(
+            ctypes.byref(length), None
+        )
+        return rc != 15700  # 15700 == APPMODEL_ERROR_NO_PACKAGE
+    except Exception:
+        return False
+
+
+def is_macos_sandboxed() -> bool:
+    """True iff running inside the macOS App Sandbox — i.e. the Mac App Store
+    build, NOT the Developer-ID .dmg or a source / pip run. The single gate for
+    the MAS-only behaviours, the macOS analog of ``is_msix_packaged()`` on
+    Windows:
+      - autostart via SMAppService login items (a sandboxed app cannot write
+        ``~/Library/LaunchAgents`` the way the .dmg build does);
+      - a one-time migration of settings/downloads/caches from the
+        non-sandboxed location into the app container on first launch;
+      - security-scoped bookmarks for any folder the user picks OUTSIDE the
+        container (downloads target).
+    No-op off macOS.
+
+    Detection: macOS exports ``APP_SANDBOX_CONTAINER_ID`` into a sandboxed
+    process's environment. Belt-and-suspenders fallback: a sandboxed process's
+    HOME is redirected under ``~/Library/Containers/<bundle-id>/Data``."""
+    if not IS_MACOS:
+        return False
+    if os.environ.get("APP_SANDBOX_CONTAINER_ID"):
+        return True
+    return "/Library/Containers/" in os.environ.get("HOME", "")
 
 
 def will_be_wayland() -> bool:
@@ -97,3 +139,11 @@ def is_kde_wayland() -> bool:
     """KDE Plasma running on Wayland. The combo we use to gate KWin
     window-rule installation (no equivalent on X11/non-KDE/non-Linux)."""
     return is_kde_desktop() and will_be_wayland()
+
+
+def is_linux_wayland() -> bool:
+    """Any Linux Wayland session. dough draws its own frameless chrome
+    here — KDE strips the decoration with a KWin noborder rule, GNOME / wlroots
+    via the Qt FramelessWindowHint (CSD) — so the "native window border" opt-out
+    is meaningful. X11 / macOS / Windows are handled by their own gates."""
+    return IS_LINUX and will_be_wayland()

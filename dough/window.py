@@ -38,7 +38,12 @@ from PySide6.QtWidgets import (
 
 from dough.bus import AppBus
 from dough.design_tokens import RADIUS_WINDOW
-from dough.platform_compat import IS_WINDOWS, is_kde_wayland
+from dough.platform_compat import (
+    IS_MACOS,
+    IS_WINDOWS,
+    is_kde_wayland,
+    is_linux_wayland,
+)
 from dough.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -142,6 +147,41 @@ class _ResizeEdgeFilter(QObject):
         return Qt.CursorShape.SizeVerCursor
 
 
+def _resolve_chrome_mode(
+    *,
+    is_windows: bool,
+    kde_wayland: bool,
+    linux_wayland: bool,
+    native_border: bool,
+):
+    """Pure, side-effect-free decision for the main window's chrome mode (no Qt,
+    no settings reads) so the platform matrix is trivially testable.
+
+    Returns ``(win_frameless, linux_frameless, borderless)``:
+      * ``win_frameless`` — Windows: Qt ``FramelessWindowHint`` + a native
+        sizing frame (``win_frameless`` module) for atomic edge resize, and the
+        per-pixel alpha the Acrylic backdrop shows through.
+      * ``linux_frameless`` — non-KDE Linux Wayland (GNOME / wlroots): Qt
+        ``FramelessWindowHint`` / CSD; the compositor draws no decoration and
+        the window owns the chrome via ``startSystemMove`` / ``startSystemResize``
+        — no KWin rule, no native frame.
+      * ``borderless`` — the window draws its own rounded body + top-bar
+        titlebar + edge-resize zones. True for KDE Wayland (a KWin ``noborder``
+        rule strips the decoration, staying DECORATED — never Qt-frameless) OR
+        either frameless mode.
+
+    ``native_border`` (the user setting) forces the native decoration back on
+    everywhere. macOS is never frameless — it keeps its real NSWindow — so it
+    resolves to all-False here (native chrome).
+    """
+    win_frameless = is_windows and not native_border
+    linux_frameless = linux_wayland and not kde_wayland and not native_border
+    borderless = (
+        (kde_wayland and not native_border) or win_frameless or linux_frameless
+    )
+    return win_frameless, linux_frameless, borderless
+
+
 class AppWindow(QMainWindow):
     """The frosted cross-platform main window. Use ``set_content()`` to fill the
     area below the top bar."""
@@ -175,14 +215,52 @@ class AppWindow(QMainWindow):
         # near-opaque ~92% without) so a frosted theme never renders see-through.
         self._body_qcolor = self._resolve_body_qcolor()
 
-        # Windows: Qt-frameless (also grants the per-pixel alpha the Acrylic
-        # backdrop shows through). KDE Wayland: a KWin noborder rule does it.
-        self._win_frameless = IS_WINDOWS and not s.native_window_border
-        if self._win_frameless:
+        # Faux-frost backdrop for the no-real-blur fallback (GNOME/Wayland,
+        # Windows-without-Mica, KDE blur off, macOS Reduce-Transparency): paint
+        # a self-contained frosted texture built from the body colour instead of
+        # a flat near-opaque panel, so the surface still reads as glass. See
+        # dough/blur/_faux_frost.py.
+        from dough.blur._faux_frost import FauxFrost
+
+        self._faux_frost = FauxFrost()
+
+        # Chrome mode (pure decision in _resolve_chrome_mode):
+        #   * Windows → Qt frameless (also grants the per-pixel alpha the
+        #     Acrylic backdrop shows through) + the native sizing frame.
+        #   * non-KDE Linux Wayland (GNOME / wlroots) → Qt frameless (CSD):
+        #     the compositor draws no decoration and we own the chrome via
+        #     startSystemMove / startSystemResize — no KWin rule, no native
+        #     frame. Opt back into the native titlebar with native_window_border.
+        #   * KDE Wayland → a KWin `noborder` rule strips the decoration; the
+        #     window stays DECORATED and is NEVER Qt-frameless.
+        #   * macOS → a real NSWindow (never frameless); resolves all-False.
+        # Either frameless flag must be set before show; the borderless window
+        # then paints its own rounded body + top-bar titlebar + edge-resize.
+        self._win_frameless, self._linux_frameless, self._borderless = (
+            _resolve_chrome_mode(
+                is_windows=IS_WINDOWS,
+                kde_wayland=is_kde_wayland(),
+                linux_wayland=is_linux_wayland(),
+                native_border=s.native_window_border,
+            )
+        )
+        if self._win_frameless or self._linux_frameless:
             self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
-        self._borderless = (
-            is_kde_wayland() and not s.native_window_border
-        ) or self._win_frameless
+
+        # One-line record of the resolved chrome mode — invaluable for
+        # diagnosing "why did it boot with the native titlebar?" on a given
+        # desktop/session (settings vs platform) without a rebuild.
+        app = QApplication.instance()
+        logger.info(
+            "chrome: borderless=%s linux_frameless=%s win_frameless=%s "
+            "native_border=%s is_linux_wayland=%s platform=%s",
+            self._borderless,
+            self._linux_frameless,
+            self._win_frameless,
+            s.native_window_border,
+            is_linux_wayland(),
+            app.platformName() if app else "?",
+        )
 
         if self._borderless:
             # Wayland: re-supply edge resize (KWin draws no border). Windows: the
@@ -202,6 +280,14 @@ class AppWindow(QMainWindow):
         self._root = QVBoxLayout(central)
         self._root.setContentsMargins(0, 0, 0, 0)
         self._root.setSpacing(0)
+        # macOS: reserve a thin top strip for the transparent native titlebar
+        # (full-size content view, see dough/macos_window.py) so the top bar
+        # clears the floating traffic lights while the frosted backdrop shows
+        # through behind them.
+        if IS_MACOS:
+            from dough.macos_window import TITLEBAR_INSET
+
+            self._root.setContentsMargins(0, TITLEBAR_INSET, 0, 0)
 
         self.top_bar = self._make_top_bar(title)
         self._root.addWidget(self.top_bar)
@@ -298,6 +384,25 @@ class AppWindow(QMainWindow):
 
         return QColor(*ui_helpers.body_color_tuple("main"))
 
+    def _faux_frost_active(self) -> bool:
+        """True when we should paint the faux-frost texture behind the body: a
+        frosted theme whose real compositor blur is NOT active, and not the
+        opaque override (``DOUGH_OPAQUE``, main-window-only). Replaces the flat
+        near-opaque panel with the frosted material."""
+        from dough import blur, ui_helpers
+
+        if blur.opaque_mode_active():
+            return False
+        return ui_helpers.frosted_fallback_active()
+
+    def _faux_frost_base(self) -> QColor:
+        """Base colour for the faux-frost texture: the near-opaque fallback
+        body, knocked back a pinch more transparent so the frosted surface
+        reads as glass rather than a solid panel."""
+        c = QColor(self._body_qcolor)
+        c.setAlpha(int(c.alpha() * 0.85))
+        return c
+
     def _refresh_body_color(self):
         if self._win_blur:
             from dough.theme import get_active_theme
@@ -337,6 +442,27 @@ class AppWindow(QMainWindow):
         else:
             logger.debug("Compositor blur: %s", blur.reason())
 
+        # macOS: re-probe + re-stamp when "Reduce transparency" is toggled at
+        # runtime, else apply() strips the vibrancy while the body keeps painting
+        # at its glass alpha (a see-through window). Installed once, post-show,
+        # only where blur matters (frosted themes; past the early return above).
+        if IS_MACOS:
+            from dough.blur import _macos
+
+            _macos.install_accessibility_observer(self._on_accessibility_changed)
+
+    def _on_accessibility_changed(self):
+        """macOS *Reduce transparency* (or another accessibility-display option)
+        changed at runtime. The verified blur ``status()`` is cached for the
+        session, so re-probe it and re-stamp the whole app via
+        ``theme_changed``: the frosted body switches to its near-opaque fallback
+        when transparency is reduced (and back to glass when restored), and the
+        vibrancy is removed/installed to match. Runs on the GUI thread."""
+        from dough import blur
+
+        blur.status(force=True)  # drop the per-session cache; re-probe live
+        self.bus.theme_changed.emit()
+
     def _apply_blur(self):
         """Shape the compositor blur to the rounded body (squared when flush)."""
         from dough import blur
@@ -365,15 +491,27 @@ class AppWindow(QMainWindow):
             return
         p = QPainter(self)
         try:
+            # No-real-blur fallback: paint a self-contained frosted texture
+            # (built from the body colour) instead of a flat panel, so the
+            # surface still reads as frosted glass. Plain body fill when real
+            # blur is active or it's a non-frosted / opaque theme.
+            frost = self._faux_frost_active()
+            frost_base = self._faux_frost_base() if frost else None
             if self._borderless:
                 radius = 0 if self._is_edge_flush() else RADIUS_WINDOW
                 p.setRenderHint(QPainter.RenderHint.Antialiasing)
                 p.setPen(Qt.PenStyle.NoPen)
-                p.setBrush(self._body_qcolor)
-                p.drawRoundedRect(self.rect(), radius, radius)
+                if frost:
+                    self._faux_frost.paint(p, self.rect(), frost_base, radius)
+                else:
+                    p.setBrush(self._body_qcolor)
+                    p.drawRoundedRect(self.rect(), radius, radius)
                 self._paint_body_backdrop(p, self.rect(), radius)
             else:
-                p.fillRect(self.rect(), self._body_qcolor)
+                if frost:
+                    self._faux_frost.paint(p, self.rect(), frost_base, 0)
+                else:
+                    p.fillRect(self.rect(), self._body_qcolor)
                 self._paint_body_backdrop(p, self.rect(), 0)
         finally:
             p.end()
@@ -385,6 +523,19 @@ class AppWindow(QMainWindow):
         return
 
     def changeEvent(self, e):
+        # macOS: the transparent-titlebar top inset is only needed while the
+        # window has a titlebar — drop it in fullscreen (traffic lights gone,
+        # content should fill the screen) and restore it on exit. STANDALONE
+        # (macOS is a real NSWindow, not _borderless): it must NOT fold into the
+        # _borderless WindowStateChange branch below and trigger the
+        # Wayland/Windows _apply_blur_whole reshape.
+        if IS_MACOS and e.type() == QEvent.Type.WindowStateChange:
+            from dough.macos_window import TITLEBAR_INSET
+
+            top = 0 if self.isFullScreen() else TITLEBAR_INSET
+            m = self._root.contentsMargins()
+            if m.top() != top:
+                self._root.setContentsMargins(m.left(), top, m.right(), m.bottom())
         if e.type() == QEvent.Type.DevicePixelRatioChange:
             try:
                 AppBus.get().dpr_changed.emit()

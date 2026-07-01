@@ -54,6 +54,18 @@ dependencies = [
 # (tests/test_bake.py) runs in the default test pass.
 bake = ["jinja2>=3"]
 dev = ["ruff", "pytest", "pytest-xdist", "setuptools-scm>=8", "jinja2>=3"]
+# macOS-native integration (pyobjc). darwin-only via env markers; the base stays
+# PySide6-only, so these are OPT-IN — the lazy, guarded platform imports
+# (notifications, autostart via ServiceManagement, Cocoa) degrade to UNSUPPORTED
+# when pyobjc is absent. Deliberately NOT in `dev`/any aggregate: installing on a
+# non-mac dev machine must never pull pyobjc. No pyobjc-framework-MediaPlayer —
+# media_controls is excluded from the base (music-only, no libmpv).
+macos = [
+    "pyobjc-core>=10.0 ; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa>=10.0 ; sys_platform == 'darwin'",
+    "pyobjc-framework-UserNotifications>=10.0 ; sys_platform == 'darwin'",
+    "pyobjc-framework-ServiceManagement>=10.0 ; sys_platform == 'darwin'",
+]
 
 [project.gui-scripts]
 dough = "dough.app:main"

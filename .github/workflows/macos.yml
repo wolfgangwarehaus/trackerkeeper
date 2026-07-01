@@ -4,10 +4,17 @@ name: macos
 # release is PUBLISHED. DORMANT until the Apple secrets exist (the whole job
 # skips) — macOS is a present-but-dormant goal (docs/BAKING.md §5).
 #
+# One UNIVERSAL2 .dmg (arm64 + x86_64 in a single bundle) — dough has no native
+# deps, so a single fat build reaches both chips (see the freeze step for the
+# per-arch-matrix fallback).
+#
 # Activate (one-time): a $99/yr Apple Developer membership, then add the secrets
 # MACOS_CERTIFICATE (base64 of a Developer ID Application .p12), MACOS_CERTIFICATE_PWD,
-# MACOS_KEYCHAIN_PWD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID, and
-# HOMEBREW_TAP_TOKEN (a PAT for the separate homebrew-<tap> repo). See docs/RELEASING.md.
+# MACOS_KEYCHAIN_PWD, APPLE_TEAM_ID, and HOMEBREW_TAP_TOKEN (a PAT for the separate
+# homebrew-<tap> repo). For NOTARIZATION add EITHER the App Store Connect API key
+# (PREFERRED — scoped + revocable, no 2FA coupling): APPLE_API_KEY_ID,
+# APPLE_API_ISSUER, APPLE_API_KEY_B64 (base64 of the AuthKey_XXXX.p8); OR the
+# Apple-ID fallback: APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD. See docs/RELEASING.md.
 
 on:
   release:
@@ -23,9 +30,20 @@ permissions:
 
 jobs:
   macos:
-    runs-on: macos-latest
+    # macos-14 = the oldest FREE Apple-silicon image, and setup-python installs a
+    # universal2 CPython framework on it — so the freeze can emit both slices for
+    # a single universal2 .app/.dmg. The bundle's honest macOS floor is pinned to
+    # this runner's OS (see the freeze step). FALLBACK: a fork that later adds a
+    # native dependency WITHOUT universal2 wheels must switch to a per-arch
+    # (arm64 + x86_64) matrix — PyInstaller --target-arch universal2 aborts on the
+    # thin binaries (jellytoast ships exactly that matrix for its libmpv build).
+    runs-on: macos-14
     env:
       HAVE_APPLE: ${{ secrets.APPLE_TEAM_ID != '' }}
+    permissions:
+      contents: write # gh release upload (+ attest reads the artifact)
+      id-token: write # Sigstore OIDC for build provenance
+      attestations: write # write the provenance attestation
     steps:
       - name: Dormant — Apple secrets not set
         if: env.HAVE_APPLE != 'true'
@@ -41,6 +59,8 @@ jobs:
       - uses: actions/setup-python@v5
         if: env.HAVE_APPLE == 'true'
         with:
+          # setup-python's macOS builds are universal2 framework builds — needed
+          # so PyInstaller can freeze a universal2 (arm64 + x86_64) bundle.
           python-version: "3.12"
       - name: Resolve version
         id: ver
@@ -68,7 +88,49 @@ jobs:
             rsvg-convert -w $((s*2)) -h $((s*2)) dough/assets/dough.svg -o "$ICONSET/icon_${s}x${s}@2x.png"
           done
           iconutil -c icns "$ICONSET" -o packaging/macos/dough.icns
+          # UNIVERSAL2: the spec's EXE carries target_arch="universal2" (rendered
+          # by `dough bake`), and the universal2 CPython above lets the freeze emit
+          # both slices; dough has no native deps, so every wheel ships universal2
+          # and the freeze never hits a thin binary.
+          #
+          # HONEST FLOOR: the bundle's REAL macOS minimum is the runner OS — this is
+          # the only macOS we ever build + smoke-test on, so we can't truthfully
+          # claim to support anything older. Match the C-extension deployment target
+          # to that floor BEFORE the freeze (so any source-built wheel agrees), then
+          # stamp it into the frozen Info.plist AFTER the freeze. An unpinned build
+          # would inherit the spec's low default and dock-bounce-and-die (dyld/Qt
+          # bail before first paint) on a too-old macOS; the offscreen smoke-test
+          # below runs ON this floor, so a too-high floor can't ship silently either.
+          FLOOR="$(sw_vers -productVersion | cut -d. -f1).0"
+          export MACOSX_DEPLOYMENT_TARGET="$FLOOR"
           pyinstaller packaging/pyinstaller/dough.spec --noconfirm
+          /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $FLOOR" \
+            "dist/dough.app/Contents/Info.plist"
+          echo "LSMinimumSystemVersion now: $(/usr/libexec/PlistBuddy -c \
+            'Print :LSMinimumSystemVersion' dist/dough.app/Contents/Info.plist)"
+
+      - name: Smoke-test the .app (boots headless, offscreen)
+        if: env.HAVE_APPLE == 'true'
+        # Boot the frozen binary with no display: an import/loader failure (a
+        # missing bundled lib, a broken universal2 slice) dies fast with a real
+        # exit code; surviving ~12s means Qt + the bundle initialized. Runs ON the
+        # pinned floor OS, so a false/too-high floor can't ship silently.
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          BIN="dist/dough.app/Contents/MacOS/dough"
+          test -x "$BIN"
+          "$BIN" &
+          PID=$!
+          sleep 12
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "still alive after 12s — Qt + bundle initialized OK"
+            kill "$PID" 2>/dev/null || true
+          else
+            wait "$PID"; rc=$?
+            echo "app exited early (rc=$rc) — likely an import/loader failure"
+            exit 1
+          fi
 
       - name: Import the signing certificate
         if: env.HAVE_APPLE == 'true'
@@ -90,6 +152,10 @@ jobs:
       - name: Sign, package, notarize, staple
         if: env.HAVE_APPLE == 'true'
         env:
+          # Notarization credentials — API key PREFERRED, Apple ID as fallback.
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -116,8 +182,19 @@ jobs:
           create-dmg --volname "dough ${VERSION}" --app-drop-link 480 120 \
             --icon "dough.app" 160 120 --window-size 640 280 "$DMG" "$APP"
           codesign --force --timestamp --sign "$IDENTITY" "$DMG"
-          xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          # Notarize the .dmg. PREFER the App Store Connect API key (scoped,
+          # individually revocable, not coupled to an Apple ID's 2FA) when its
+          # secrets exist; otherwise use the Apple ID + app-specific password.
+          if [ -n "${APPLE_API_KEY_ID:-}" ]; then
+            KEY="$(mktemp /tmp/AuthKey_XXXXXX.p8)"
+            echo "$APPLE_API_KEY_B64" | base64 --decode > "$KEY"
+            xcrun notarytool submit "$DMG" \
+              --key "$KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
+            rm -f "$KEY"
+          else
+            xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          fi
           xcrun stapler staple "$DMG"
 
       - name: Upload the .dmg to the release
@@ -126,6 +203,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: gh release upload "$TAG" --repo "${{ github.repository }}" --clobber dist/*-macos.dmg
+
+      - name: Attest .dmg build provenance
+        if: env.HAVE_APPLE == 'true'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/*-macos.dmg
 
       - name: Bump the Homebrew cask
         if: ${{ env.HAVE_APPLE == 'true' && secrets.HOMEBREW_TAP_TOKEN != '' }}

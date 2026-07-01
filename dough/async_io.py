@@ -21,12 +21,25 @@ without a live ``QApplication``.
 """
 
 import logging
+import threading
 from typing import Any, Callable, Optional
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 from PySide6.QtNetwork import QNetworkAccessManager
 
 logger = logging.getLogger(__name__)
+
+# ── cold-import serialization ───────────────────────────────────────────────
+# CPython 3.14's import system raises `_DeadlockError` ("deadlock detected by
+# _ModuleLock(...)") when two threads cold-import overlapping module graphs at
+# once. A fork that fans several heavy *lazy* imports onto this module's shared
+# QThreadPool at startup can hit exactly that: distinct gateways whose first
+# import pulls in overlapping transitive deps race each other. Hold this one
+# lock around each lazy gateway's *cold* import (double-checked against that
+# gateway's own "already imported" flag) so first imports run one at a time;
+# once cached the lock is uncontended. Inert in bare dough — no gateway here
+# takes it — it's a shared primitive for forks that need the serialization.
+cold_import_lock = threading.Lock()
 
 # ── QNetworkAccessManager singleton ─────────────────────────────────────────
 
@@ -242,11 +255,12 @@ class _GuiInvoker(QObject):
 def call_on_gui(fn: Callable[[], Any]) -> None:
     """Invoke ``fn()`` on the GUI thread, callable from any thread.
 
-    Use when a callback fires on a non-GUI thread (e.g. snapcast's
-    asyncio loop via ``concurrent.futures.Future.add_done_callback``)
-    but needs to touch widgets — which must only happen on the GUI
-    thread. With no QApplication (headless unit tests) there is no GUI
-    event loop to marshal onto, so ``fn`` runs inline on the caller.
+    Use when a callback fires on a non-GUI thread (e.g. a background
+    thread's completion callback via
+    ``concurrent.futures.Future.add_done_callback``) but needs to touch
+    widgets — which must only happen on the GUI thread. With no
+    QApplication (headless unit tests) there is no GUI event loop to
+    marshal onto, so ``fn`` runs inline on the caller.
     """
     try:
         from PySide6.QtCore import QCoreApplication

@@ -7,25 +7,31 @@ Public API:
     enable() -> bool         # turn on; True iff the change took effect
     disable() -> bool        # turn off; True iff a previous entry was removed
 
-Linux: writes/reads ~/.config/autostart/dough.desktop (XDG).
-Linux under Flatpak: the XDG Background portal instead — the sandbox's
-autostart dir is private and Flathub forbids the filesystem grant
-(see dough/autostart/_flatpak.py for the contract drift).
-Windows: a value under the per-user Run registry key.
-macOS: not yet implemented — the unsupported backend returns False from
-every call so call sites can no-op cleanly.
+Linux: writes/reads the XDG autostart entry in ~/.config/autostart.
+Windows (MSIX package): the AppxManifest ``startupTask``, toggled through
+the ``Windows.ApplicationModel.StartupTask`` WinRT API — packages can't use
+the Run key.
+Windows (Inno .exe / pip / source): a value under the per-user Run
+registry key.
+macOS: a LaunchAgent .plist in ~/Library/LaunchAgents with RunAtLoad for the
+Dev-ID/.dmg/pip/source builds; an SMAppService login item for the sandboxed
+Mac App Store build.
+Everything else: the unsupported backend returns False from every call so
+call sites can no-op cleanly.
 """
 
 from __future__ import annotations
 
-from dough.platform_compat import IS_FLATPAK, IS_LINUX, IS_WINDOWS
+from dough.platform_compat import IS_LINUX, IS_MACOS, IS_WINDOWS, is_msix_packaged
 
-if IS_LINUX and IS_FLATPAK:
-    from dough.autostart import _flatpak as _backend
-elif IS_LINUX:
+if IS_LINUX:
     from dough.autostart import _linux as _backend
+elif IS_WINDOWS and is_msix_packaged():
+    from dough.autostart import _msix as _backend
 elif IS_WINDOWS:
     from dough.autostart import _windows as _backend
+elif IS_MACOS:
+    from dough.autostart import _macos as _backend
 else:
     from dough.autostart import _unsupported as _backend
 

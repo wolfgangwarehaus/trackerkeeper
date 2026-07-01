@@ -54,6 +54,15 @@ if sys.platform == "win32":
     _ver = os.path.join(ROOT, "packaging", "windows", "version_info.txt")
     if os.path.exists(_ver):
         exe_kwargs["version"] = _ver
+# macOS: build a SINGLE universal2 (arm64 + x86_64) binary so ONE .dmg + one
+# Homebrew cask serve both Apple Silicon and Intel Macs. This needs a
+# universal2 wheel for every compiled dependency (PySide6 ships them). The
+# PER-ARCH FALLBACK — two native builds → two -macos-<arch>.dmg files with
+# on_arm/on_intel sha256 blocks in the cask — is for a fork whose deps are
+# thin-only (e.g. numpy/cffi with no universal2 wheel), where --target-arch
+# universal2 aborts on the thin binaries.
+elif sys.platform == "darwin":
+    exe_kwargs["target_arch"] = "universal2"
 
 exe = EXE(
     pyz,
@@ -90,6 +99,13 @@ if sys.platform == "darwin":
             "CFBundleShortVersionString": "{{ release_version | default('0.0.0') }}",
             "CFBundleVersion": "{{ release_version | default('0.0.0') }}",
             "NSHighResolutionCapable": True,
+            # CI-OVERWRITTEN PLACEHOLDER — macos.yml pins the bundle's REAL macOS
+            # floor into Contents/Info.plist after freezing, via PlistBuddy
+            #   "Set :LSMinimumSystemVersion <floor>"
+            # (the honest-floor pin), so LaunchServices shows an honest "needs
+            # macOS X" instead of a silent dock-bounce on an older system. 11.0
+            # (Big Sur) is the universal2 baseline and the default a local,
+            # un-pinned build ships.
             "LSMinimumSystemVersion": "11.0",
             # A fork maps its freedesktop categories to the right UTI here.
             "LSApplicationCategoryType": "public.app-category.developer-tools",

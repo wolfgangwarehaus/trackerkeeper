@@ -1,10 +1,6 @@
-"""Stub autostart backend for platforms where launch-on-login isn't
-wired up yet. Every call returns False so the settings UI can hide the
-toggle and call sites no-op cleanly.
-
-Future replacements:
-- macOS: drop a LaunchAgent .plist into ~/Library/LaunchAgents/ with
-  RunAtLoad=true.
+"""Stub autostart backend for platforms with no launch-on-login mechanism
+(Linux, Windows, and macOS each have a real backend). Every call returns
+False so the settings UI can hide the toggle and call sites no-op cleanly.
 """
 
 from __future__ import annotations

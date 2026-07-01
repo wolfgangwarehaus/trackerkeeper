@@ -79,17 +79,17 @@ else:  # pragma: no cover
 # Blur-effect toggle.
 _status_cache: BlurStatus | None = None
 
-# Debug override: JT_BLUR_FORCE=active|unverifiable|unsupported pins the
+# Debug override: DOUGH_BLUR_FORCE=active|unverifiable|unsupported pins the
 # reported status, bypassing the probe. Lets you eyeball the near-opaque
-# fallback body (JT_BLUR_FORCE=unsupported) without disabling the
+# fallback body (DOUGH_BLUR_FORCE=unsupported) without disabling the
 # compositor's Blur effect, and the reverse on a box where blur is off.
-# Same JT_* debug-switch family as JT_OPAQUE / JT_SHUFFLE_DEBUG.
-_FORCE = os.environ.get("JT_BLUR_FORCE", "").strip().lower()
+# Same JT_* debug-switch family as DOUGH_OPAQUE.
+_FORCE = os.environ.get("DOUGH_BLUR_FORCE", "").strip().lower()
 
 
 def opaque_mode_active() -> bool:
     """Dev diagnostic: fully-opaque chrome — no translucency, no blur — via the
-    ``JT_OPAQUE=1`` env switch. When on, :func:`status` reports UNSUPPORTED (so
+    ``DOUGH_OPAQUE=1`` env switch. When on, :func:`status` reports UNSUPPORTED (so
     frosted bodies + popups use their near-opaque fallback) and :func:`apply`
     skips requesting compositor blur.
 
@@ -97,9 +97,9 @@ def opaque_mode_active() -> bool:
     can't get real blur already falls back to a near-opaque body automatically
     (status() → UNSUPPORTED/REQUESTED_UNVERIFIABLE), which covers the real user
     need; the old Settings toggle additionally dropped WA_TranslucentBackground
-    and broke the window's rounded corners, so it was removed. JT_OPAQUE stays
+    and broke the window's rounded corners, so it was removed. DOUGH_OPAQUE stays
     for the screencast / streaming-flicker repro it was born for. Never raises."""
-    return os.environ.get("JT_OPAQUE") == "1"
+    return os.environ.get("DOUGH_OPAQUE") == "1"
 
 
 def is_supported() -> bool:
@@ -152,6 +152,12 @@ def apply(
             from dough.theme import get_active_theme
 
             dark = get_active_theme().dark
+        # On macOS this dispatches to the live NSVisualEffectView vibrancy
+        # backend (dough/blur/_macos.py): it installs a "behind window" effect
+        # view as a SIBLING ordered strictly below Qt's content view, so the
+        # system frost shows through the translucent body — the mac-native
+        # equivalent of KWin's blur-behind. corner_radius/dark/elevated all
+        # forward through, same as the KWin/DWM backends.
         return _backend.apply(widget, enabled, corner_radius, dark, elevated)
     except Exception:
         return False
@@ -179,7 +185,7 @@ def status(*, force: bool = False) -> BlurStatus:
         except ValueError:
             forced = None  # unrecognised value → ignore, probe normally
         # status() reports a machine capability and never returns DISABLED
-        # (that's the theme's call) — so JT_BLUR_FORCE=disabled is ignored.
+        # (that's the theme's call) — so DOUGH_BLUR_FORCE=disabled is ignored.
         if forced is not None and forced is not BlurStatus.DISABLED:
             return forced
     if _status_cache is not None and not force:

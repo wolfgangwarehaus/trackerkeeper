@@ -10,9 +10,17 @@ Linux: shells out to `notify-send` (libnotify), which routes through the
 freedesktop.org `org.freedesktop.Notifications` D-Bus service. Picked up
 by KDE Plasma, GNOME Shell, dunst, mako, swaync, etc.
 
-Windows / macOS: not yet implemented — the unsupported backend's
-`notify()` is a silent no-op and `is_supported()` returns False so call
-sites can gate UX cleanly.
+Windows: Action-Center toasts via the `windows_toasts` package (WinRT
+`ToastNotificationManager`), bound to dough's stamped AppUserModelID.
+
+macOS: real Notification Center banners via `UNUserNotificationCenter`
+inside the signed `.app`, falling back to an `osascript` banner for
+from-source runs — see `_macos`.
+
+If a platform backend can't be imported (package/runtime missing) the
+selector degrades to the unsupported backend, whose `notify()` is a
+silent no-op and `is_supported()` returns False so call sites can gate
+UX cleanly.
 
 Failures from the active backend (D-Bus down, no notification daemon
 running, notify-send missing mid-process) never raise to the caller —
@@ -33,13 +41,18 @@ def _select_backend() -> ModuleType:
     if _backend is not None:
         return _backend
 
-    from dough.platform_compat import IS_LINUX, IS_WINDOWS
+    from dough.platform_compat import IS_LINUX, IS_MACOS, IS_WINDOWS
 
     if IS_LINUX:
         from dough.notifications import _linux as backend
     elif IS_WINDOWS:
         try:
             from dough.notifications import _windows as backend
+        except Exception:
+            from dough.notifications import _unsupported as backend
+    elif IS_MACOS:
+        try:
+            from dough.notifications import _macos as backend
         except Exception:
             from dough.notifications import _unsupported as backend
     else:
@@ -63,8 +76,8 @@ def notify(
     """Show a desktop notification. Silent no-op on unsupported
     platforms; never raises. ``app_name`` defaults to the live app identity
     (``dough.identity.app()``) — pass it only to override. ``tag`` groups
-    successive notifications so a new one *replaces* the prior (used by the
-    now-playing stream so track-change toasts don't pile up)."""
+    successive notifications so a new one *replaces* the prior in place
+    rather than stacking."""
     try:
         _select_backend().notify(title, body, icon, app_name, tag)
     except Exception:

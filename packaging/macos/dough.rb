@@ -3,6 +3,10 @@
 # version + sha256 thereafter (docs/BAKING.md §5). Committed form is version-free.
 cask "dough" do
   version "0.0.0"
+  # universal2 → ONE fat .dmg serves both Apple Silicon and Intel, so a single
+  # sha256 + url is correct. The per-arch fallback (a fork that ships two native
+  # -macos-<arch>.dmg files) replaces these with on_arm/on_intel two-sha blocks
+  # + two urls — see the spec's target_arch note.
   sha256 :no_check
 
   url "https://github.com/wolfgangwarehaus/dough/releases/download/v#{version}/dough-#{version}-macos.dmg"

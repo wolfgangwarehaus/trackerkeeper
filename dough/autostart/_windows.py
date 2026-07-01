@@ -5,7 +5,7 @@ user in Task Manager's Startup tab and Settings → Apps → Startup.
 
 The command targets the gui-script launcher exe when one exists (pip /
 pipx install) so login launches without a console window. A source
-checkout falls back to ``pythonw.exe -m dough`` (then plain
+checkout falls back to ``pythonw.exe -m <app>`` (then plain
 ``python.exe`` if pythonw is missing).
 """
 
@@ -15,6 +15,8 @@ import logging
 import sys
 from pathlib import Path
 
+from dough import identity
+
 try:
     import winreg
 except ImportError:  # pragma: no cover — non-Windows; tests patch this attr
@@ -23,12 +25,12 @@ except ImportError:  # pragma: no cover — non-Windows; tests patch this attr
 logger = logging.getLogger(__name__)
 
 _RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-_VALUE_NAME = "dough"
+_VALUE_NAME = identity.app()
 
 
 def _launch_command() -> str:
     """The command line to register: the launcher exe if we have one,
-    else a ``-m dough`` invocation, preferring pythonw so a login
+    else a ``-m <app>`` invocation, preferring pythonw so a login
     launch doesn't flash a console."""
     from dough.windows_shortcut import _launcher_exe
 
@@ -39,7 +41,7 @@ def _launch_command() -> str:
     pythonw = interp.with_name("pythonw.exe")
     if pythonw.is_file():
         interp = pythonw
-    return f'"{interp}" -m dough'
+    return f'"{interp}" -m {identity.app()}'
 
 
 def is_supported() -> bool:
