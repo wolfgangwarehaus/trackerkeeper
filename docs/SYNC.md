@@ -49,6 +49,47 @@ reconciled against; `--record` advances it after a sync.
    drifted. `--apply` the AUTO ones, hand-port the MANUAL ones.
 4. Review the diff, commit to dough, and `--record` to advance the sync point.
 
+## The down-door: dough → a loaf (fork)
+
+The up-door above carries jellytoast refinements INTO dough. The **down-door**
+(`dev/sync_loaf.py`) carries dough improvements the other way — into an existing
+**loaf** (an app forked with `dough new`). This is how a fork-and-own app pulls
+base updates without re-forking; it's the mechanism the fork-and-own model rests
+on (see `docs/PHILOSOPHY.md`).
+
+```bash
+# from the dough checkout, pointed at your loaf:
+python dev/sync_loaf.py --loaf ~/Projects/butterPDF --init     # seed the loaf's manifest
+python dev/sync_loaf.py --loaf ~/Projects/butterPDF            # report drift (no writes)
+python dev/sync_loaf.py --loaf ~/Projects/butterPDF --apply    # write AUTO + NEW modules
+python dev/sync_loaf.py --loaf ~/Projects/butterPDF --record   # stamp synced_from = dough HEAD
+```
+
+It reproduces a loaf's copy of a shared module by applying the **same whole-word
+identity replace `dough new` did** (dough→slug, org, owner) to dough's *current*
+source, then diffs against the loaf. Four outcomes:
+
+- **AUTO** — a shared module in both; transformed-dough differs → `--apply`
+  overwrites the loaf's copy (you review + commit in the loaf).
+- **NEW** — dough gained a module the loaf lacks (a package added after the fork,
+  e.g. `noborder/`) → `--apply` adds it, transformed.
+- **MANUAL** — a module the fork hand-customized (listed in the loaf's manifest).
+  Never overwritten; dough's upstream diff since `synced_from` is shown to port
+  by hand — exactly like the up-door's MANUAL handling.
+- **authored / in-sync** — the fork's own files (listed) and unchanged modules:
+  skipped.
+
+The per-loaf manifest `<loaf>/dough-sync.toml` holds `synced_from` (the dough
+commit last reconciled) plus the fork's `authored` / `manual` lists. **Curate
+those lists before `--apply`** — anything the maker changed (its window, its
+content, its `app.py`) must be `manual` or `authored`, or a blind AUTO overwrite
+would clobber it. Identity (slug/org/owner) is read from each side's
+`[tool.<pkg>.metadata]`, so nothing is duplicated in the manifest.
+
+> Direction is dough → loaf. Today the tool lives in dough and points at a loaf;
+> a later step ships a thin `--loaf .` wrapper into new forks via `dough new` so a
+> maker updates from within their own repo.
+
 ## Adding a new shared module
 
 If dough lifts another module from jellytoast later, add it implicitly (any
