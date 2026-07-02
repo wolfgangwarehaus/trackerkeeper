@@ -5,7 +5,11 @@ direction is settled (below), **`dough new` is built**, and the first app **butt
 **scaffolded, has a working PDF viewer (MVP #1), and drove a deep first-looks polish that's
 now BACKPORTED into dough** (see `docs/DESIGN.md` + `docs/BACKPORT.md`). The full
 thesis/vocabulary/status live in the AI memory (`dough-thesis-vocabulary`); this is the
-human pick-up list. See also `docs/BAKING.md`, `docs/DESIGN.md`, `docs/WIND-DOWN.md`.
+human pick-up list. See also `docs/BAKING.md`, `docs/DESIGN.md`, `docs/MACOS.md`, `docs/WIND-DOWN.md`.
+
+**Since then (2026-07-01):** absorbed jellytoast's macOS work + refinements into the base
+(commit `9314681`, merged + pushed to `main`) — see the shipped entry below. The sync door
+moved: `dev/shared.toml` `synced_from` is now `7357dad` and most shared modules are `manual`.
 
 ## The product direction (settled this session)
 
@@ -50,6 +54,28 @@ pass complete the **dough chrome-machinery backport**. Resume sequence:
    secret → submit), designed against butterPDF's real channels.
 5. **Realign the docs vocabulary** — `dough bake` = RENDER (Baking); the release pipeline =
    **Delivery**. "The baking phase" in BAKING.md is mostly Delivery.
+
+## Shipped 2026-07-01 — jellytoast → dough macOS absorption
+
+Piped 72 commits of jellytoast drift UP into the base (sync `de045ad`→`7357dad`), genericized
+and hand-reconciled so nothing regressed the identity seam / first-looks polish / load-bearing
+frameless decision. Merged + pushed to `main` (commit `9314681`, 54 files).
+- **New macOS primitives** (pyobjc lazy+guarded → no-op off-mac): real `blur/_macos.py`
+  NSVisualEffectView vibrancy (replaced the stub) + Reduce-Transparency observer;
+  `blur/_faux_frost.py` painted fallback; `macos_window.py` + `macos_menubar.py` (native menu,
+  music-stripped, Settings→`AppBus.show_settings`); `notifications/_macos.py`;
+  `autostart/_macos.py` + `_msix.py`; `platform_compat` `is_msix_packaged`/`is_macos_sandboxed`/
+  `is_linux_wayland`.
+- **Refinements:** square-corners `rad()` + live font-family picker; `window.py`
+  `_resolve_chrome_mode()` refactor + additive GNOME/wlroots frameless (KDE stays decorated);
+  `theme.py` mac glass-alpha arms; selector scrollable dropdown + `dough_native_scroll`.
+- **Packaging:** `macos.yml` honest-floor pin + offscreen smoke + API-key notarization +
+  build provenance + universal2; single darwin `macos` pyobjc extra (base stays PySide6-only);
+  dormant mpv-free MAS signing templates. `docs/MACOS.md` captures the hardware-earned gotchas.
+- **Decisions:** Flatpak RETIRED (`_flatpak.py` deleted); `media_controls` EXCLUDED
+  (music/PlayerBus-coupled); `cf_bundle_id()` the macOS bundle-id convention; all `JT_*`→`DOUGH_*`.
+- Verified: 102 passed, ruff clean, `dough bake --check` clean, sync in-sync, a 6-dimension
+  adversarial review = 0 confirmed findings. New mac code is **CI-validated only** (no Mac here).
 
 ## Shipped this session (the butterPDF run, 2026-06-22)
 
@@ -184,14 +210,14 @@ A hosted **apt/PPA** repo (signed Release/InRelease via reprepro + Pages) and th
 disqualifies a `Co-Authored-By: Claude` lineage — docs/BAKING.md §5).
 
 ### 4. Wire the shipped-but-dead subsystems into `run_app`  ·  ready (P1 leftover)
-`notifications/` and `autostart/` ship but nothing calls them. `notifications/` is
-now routed through `dough.identity`; **`autostart/` still holds bare-slug `"dough"`
-literals** the review confirmed are fork-blind (`_linux.py` `.desktop` basename /
-`Name=`/`Icon=`/`Exec -m dough` — and the source-copy path looks for `dough.desktop`
-while an installer ships `io.github.…dough.desktop`, so the copy branch never
-matches; `_windows.py` `_VALUE_NAME`/`-m dough`; `_flatpak.py` `commandline
-["dough"]`). Route them through `dough.identity` (use `desktop_id()` for the
-`.desktop`/icon names, `display_name()` for `Name=`) and wire them opt-in in `run_app`.
+`notifications/` and `autostart/` ship but nothing calls them. **Identity routing DONE**
+(2026-07-01 macOS pass): both now route through `dough.identity` — `autostart/_linux.py`'s
+`.desktop` basename/`Name=`/`Icon=`/`Exec` use `desktop_id()`/`display_name()`/`app()` (fixing
+the copy-branch mismatch), `_windows.py` `_VALUE_NAME`/launch command use `app()`, the music
+`Comment`/`Categories` are stripped, `_flatpak.py` is retired, and the new `_macos.py`/`_msix.py`
+route through `cf_bundle_id()`/`app()`. **What remains: wire them opt-in in `run_app`** (they're
+still never called) — plus expose the `autostart` toggle in Settings and drive `notifications`
+from real app events.
 
 ### 5. JellytoastWindow full inversion  ·  needs the real desktop + a server
 The real jellytoast PR. Validated feasible; mechanical but **needs a KDE Wayland
@@ -213,13 +239,14 @@ guided session on the machine. Steps (also in the AI memory handoff):
 
 ### 6. P3 polish sweep  ·  low priority, cosmetic
 - Route the remaining bare-slug identity literals through `dough.identity` (review-confirmed):
-  - `dough/windows_shortcut.py` — `dough.exe` / `%LOCALAPPDATA%/dough/dough.ico` /
-    `dough.lnk` (the AUMID + Description are already routed; these paths aren't).
+  - ~~`dough/windows_shortcut.py` — `dough.exe` / `dough.ico` / `dough.lnk` paths~~ **DONE
+    2026-07-01** (routed through `identity.app()`; AUMID + Description were already routed).
   - `dough/power/_linux.py:56` — `Inhibit("dough", "Playing music")`: a music-domain
-    leftover in a generic base. Use `identity.app()` + a neutral reason.
-  - (`autostart/` is tracked above in §3.)
+    leftover in a generic base. Use `identity.app()` + a neutral reason. **(still open)**
+  - (`autostart/` identity is now DONE — see §4.)
 - Rename the `[JT.Lnk]` C# namespace in `windows_shortcut.py`.
-- `JT_*` env vars + `jt*` objectName renames (currently self-consistent, harmless).
+- ~~`JT_*` env vars~~ **DONE 2026-07-01** (all renamed to `DOUGH_*`; the `JT_WIN_GLASS_ALPHA`
+  leak fixed). `jt*` objectName renames (`jtSelector`, `doughWindow` etc.) still open — cosmetic.
 - Docstring sweep: `PlayerBus`→`AppBus`, music examples → neutral.
 - Split `icons.py` into a chrome core vs a `dough.icons.media` extra.
 - Fix `docs/PHILOSOPHY.md`'s false "identity comes from `applicationName()`" claim
