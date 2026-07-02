@@ -30,7 +30,40 @@ moved: `dev/shared.toml` `synced_from` is now `7357dad` and most shared modules 
     "live" (artifact + account + secret + submission). The machinery exists; the
     guided activation doesn't.
 
-## ▶ The settled goal + game plan (2026-07-02, with the user)
+## ▶ Wind-down 2026-07-02 — MILESTONES A + B DONE; next = C (ship)
+
+**Big session.** The interleaved, butterPDF-led arc drove dough + butterPDF a long way.
+State now (all committed + pushed; dough `main` @ `945a434`, butterPDF `main` @ `92cf97b`):
+
+- **Milestone A (reconnect the fork) ✅** — A1 chrome-machinery (`dough/drag_repaint/` +
+  `dough/noborder/`, identity-templated so `dough new` needs no re-namespacing), A2 the
+  **dough→loaf sync tool** (`dev/sync_loaf.py`, `docs/SYNC.md`), A3 butterPDF is a **public
+  repo** (github.com/wolfgangwarehaus/butterPDF, CI green), A4 butterPDF **fully synced**
+  onto dough's current base. All visual-smoked on real KDE Wayland.
+- **Milestone B (butterPDF MVP) ✅ — v1 feature-complete.** B1 AcroForm fill (own rendered
+  view + 6 document backgrounds + image-preserving smart dark mode + non-modal live
+  settings), B2 correct save/flatten (regenerated appearance streams — verified in Adobe/
+  browser), B3 Quick-sign (draw/type/import → place → composite as image XObject w/ SMask),
+  B4 converters (PDF⇄PNG/JPEG), B5 safe-open + XFA-decline. 131 tests green. butterPDF deps
+  now: PySide6 + numpy + pypdf + pikepdf + img2pdf (installed on this machine via
+  `--break-system-packages`).
+
+**Next = Milestone C (ship):** C1 Delivery per-target helpers (Linux-first) → C2 cut dough
+`v0.1.0` → C3 butterPDF's first real release. Plus the standing dough TODOs below.
+
+**NEW product directions this session (capture, then design into C):**
+- **The IMPROVEMENTS phase** (user insight) — the workflow is a LOOP, not linear:
+  Ingredients (once) → **Baking ⇄ Delivery (forever)**; every lap after launch is an
+  Improvement (refine → re-bake → re-deliver updates). C1's helpers must be UPDATE-aware
+  (version bump, changelog, RE-release, store re-review), and the dough→loaf sync (A2) is
+  Improvements-phase infrastructure. See [[dough-thesis-vocabulary]].
+- **Session open/close SYSTEMS** (user insight) — dough should ship tried-and-true session
+  lifecycle: an **opening** (AGENTS.md front door + read the handoff TODO + memory/resume
+  pointer → orient with zero ramp-up) and a **closing** (the `docs/WIND-DOWN.md` checklist).
+  Closing exists as a policy doc; the opening isn't formalized (AGENTS.md unwritten). Make
+  both first-class, part of "building with dough" — possibly a `dough session` helper.
+
+## The settled goal + game plan (2026-07-02) — for reference
 
 > **dough exists to make *building WITH dough* real.** Success for this arc = **butterPDF
 > v1 ships to real users through dough's Delivery matrix**, and every dough gap butterPDF
