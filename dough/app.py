@@ -275,7 +275,30 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
         macos_menubar.install(win)
         macos_window.apply(win)
 
+    # KDE Wayland borderless chrome: the main window stays server-side-decorated
+    # (so compositor blur survives a drag — a Qt-frameless window loses it) and a
+    # KWin `noborder` Force rule strips the visible decoration. Reconcile it
+    # BEFORE show so a fresh launch never flashes a titlebar; idempotent +
+    # self-healing, a no-op off KDE Wayland. `native_window_border` opts back into
+    # the real server-side titlebar.
+    from dough import noborder
+
+    if get_settings().native_window_border:
+        noborder.remove_main_window_noborder()
+    else:
+        noborder.install_main_window_noborder()
+
     win.show()
+
+    # KWin drag-repaint effect — installed AFTER show (off the first-paint path;
+    # it only matters once a drag begins). Forces KWin's full-repaint render path
+    # while one of the app's windows is dragged, killing the NVIDIA-EGL stale-blur
+    # "line artifact" (KWin bug 455526/457727). Idempotent, best-effort, a no-op
+    # off KDE Wayland; DOUGH_NO_DRAG_REPAINT=1 removes it instead.
+    from dough import drag_repaint
+
+    drag_repaint.sync()
+
     return app.exec()
 
 

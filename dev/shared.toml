@@ -55,11 +55,23 @@ manual = [
     "autostart/_unsupported.py", # doc trimmed for the implemented macOS backend
     "autostart/_macos.py",       # LaunchAgent/SMAppService, identity.cf_bundle_id() label
     "autostart/_msix.py",        # StartupTask, f"{identity.app()}Startup" task id
+    "drag_repaint/__init__.py",  # DOUGH_NO_DRAG_REPAINT env (was JT_)
+    "drag_repaint/_kwin.py",     # identity-templated: renders {{app_id}} at install (blind lift re-adds jellytoast_ static id/wmclass) + un-prefixed effect/dragrepaint/ dir (assets diverged too — not .py, sync-invisible)
+    "drag_repaint/_unsupported.py",
+    "noborder/__init__.py",      # genericized+renamed from jellytoast/keep_above: dropped keep-above + dialog rules, matches wmclass not exact title (so the window title stays free)
+    "noborder/_kwin.py",         # main-window noborder only; identity.app() wmclass; QSettings(identity.org(), identity.app())
+    "noborder/_unsupported.py",
 ]
 
 # Modules extracted from a differently-named jellytoast file.
 [source_override]
 "window.py" = "app.py"
+# dough/noborder/ is the genericized descendant of jellytoast/keep_above/ — point
+# sync at the upstream so a keep_above change surfaces for hand-porting (the APIs
+# diverged heavily: dough keeps only the main-window noborder rule).
+"noborder/__init__.py" = "keep_above/__init__.py"
+"noborder/_kwin.py" = "keep_above/_kwin.py"
+"noborder/_unsupported.py" = "keep_above/_unsupported.py"
 
 # String substitutions (applied in order) that reproduce a dough AUTO module
 # from its jellytoast source. These mirror exactly how the base was lifted.

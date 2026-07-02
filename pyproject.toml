@@ -176,6 +176,14 @@ exclude = ["tests*", "docs*", "packaging*"]
 # The brand SVG (dough/assets/dough.svg) ships in the wheel so make_app_icon
 # resolves it via importlib.resources.
 "dough.assets" = ["*.svg"]
+# The drag-repaint KWin scripted effect ships as data (a JSON + JS template pair
+# carrying the {{app_id}} token) inside the dough.drag_repaint package — rendered
+# from the app identity and installed into the user's KWin effects dir at runtime
+# by dough/drag_repaint/_kwin.py.
+"dough.drag_repaint" = [
+    "effect/dragrepaint/metadata.json",
+    "effect/dragrepaint/contents/code/main.js",
+]
 
 [tool.pytest.ini_options]
 # GUI tests run headless — conftest.py forces QT_QPA_PLATFORM=offscreen before

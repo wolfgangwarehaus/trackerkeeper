@@ -6,12 +6,24 @@
   `CenteredBar`; `frost_scroll_surface`; `settings.auto_hide_scrollbars`; FrostedDialog
   frameless-gate + fit-to-content; `TopBar(CenteredBar)`). dough: 100 passed, ruff clean.
 - ✅ **DONE:** rank 11 — `docs/DESIGN.md` (the seven first-looks principles).
-- ⏭ **DEFERRED → the "chrome-machinery pass" (next session):** rank 9 (`drag_repaint`
-  sub-package) + rank 10 (generic wmclass `keep_above`). Both are KWin assets that also
-  require `dough new` to re-namespace them on fork (the effect id/dir/metadata/main.js
-  matcher AND the keep_above wmclass — note the whole-word `\bdough\b` replace does NOT
-  catch `dough_dragrepaint`), paired with the `setDesktopFileName` reverse-DNS Wayland
-  wiring, and a real-KDE-Wayland smoke. Do them together.
+- ✅ **DONE (2026-07-02, task A1) — the "chrome-machinery pass":** rank 9 (`drag_repaint`)
+  + rank 10 (the noborder rule, shipped as `dough/noborder/`). **Two design changes made
+  both self-standing, retiring the deferral's prerequisites:**
+  - **`dough new` re-namespacing eliminated** — instead of hardcoding `dough_dragrepaint`
+    + a `dough` wmclass and asking scaffold to rewrite them (the fragile `\bdough\b` miss),
+    the effect ships as a `{{app_id}}` **template** rendered from `dough.identity.app()` at
+    install (`drag_repaint/_kwin.py`), and the noborder rule matches `identity.app()` at
+    runtime. A fork inherits both correctly with **zero scaffold edits** (proven: a
+    simulated `butterpdf` identity renders `butterpdf_dragrepaint` + a `butterpdf` matcher).
+  - **`setDesktopFileName` dependency dropped** — the noborder rule uses a **substring**
+    wmclass match (`wmclassmatch=2`), so if the cross-cutting §2 later switches
+    `setDesktopFileName` to the reverse-DNS `desktop_id()` (`io.github.owner.dough`, which
+    still *contains* the slug), the rule keeps matching. A1 no longer has to land with §2.
+  - Wired in `run_app`: noborder reconciled BEFORE `show` (install unless
+    `native_window_border`), `drag_repaint.sync()` AFTER `show`. 52 tests; the install/
+    uninstall machinery ran clean on a real KDE Wayland session. **Only the VISUAL smoke
+    remains** (single chrome / blur-survives-drag / no NVIDIA trails — needs eyes on the
+    running app).
 
 ## What we learned (verified against dough source)
 
