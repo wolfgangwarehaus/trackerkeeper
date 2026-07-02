@@ -30,30 +30,53 @@ moved: `dev/shared.toml` `synced_from` is now `7357dad` and most shared modules 
     "live" (artifact + account + secret + submission). The machinery exists; the
     guided activation doesn't.
 
-## ▶ Pick up here next trip: finish butterPDF + the chrome-machinery backport
+## ▶ The settled goal + game plan (2026-07-02, with the user)
 
-Continue the "building with dough" arc by **finishing butterPDF's MVP**, and in the same
-pass complete the **dough chrome-machinery backport**. Resume sequence:
+> **dough exists to make *building WITH dough* real.** Success for this arc = **butterPDF
+> v1 ships to real users through dough's Delivery matrix**, and every dough gap butterPDF
+> hits gets fixed *in the base* — including a **reusable dough→loaf sync** so the app
+> family can pull base improvements without re-forking.
 
-1. **Finish butterPDF's MVP** (remaining features, per `butterPDF/BRIEF.md`): AcroForm
-   **form-fill that saves into the doc** → **correct save/flatten** (regenerate appearance
-   streams; test the Adobe + print round-trip — the make-or-break) → **Quick-sign** (draw/
-   type/import a reusable signature) → **light converters** (PDF↔PNG/JPEG). Pulls in the
-   deps: `pypdf` (fill), `pikepdf` (structure), `img2pdf`/Pillow (convert). butterPDF is at
-   `/home/august/Projects/butterPDF` (its own git repo, branch `master`, **no remote yet**).
-2. **The dough "chrome-machinery" backport** (deferred this session — `docs/BACKPORT.md`
-   ranks 9–10): port **`drag_repaint`** (the NVIDIA drag-trails KWin effect, proven in
-   butterPDF) + a **generic wmclass `keep_above`** noborder package into dough; wire in
-   `run_app` (drag_repaint AFTER `show`, keep_above BEFORE `show`); pair with §2 below
+Two settled decisions: the arc is **interleaved and butterPDF-led** (drive dough purely by
+finishing butterPDF; fix each dough gap as it surfaces), and we **build the dough→loaf sync
+tool now** (butterPDF diverged Jun-22, pre-macOS; divergence gets managed, not permanent).
+
+The live task list is in the session tracker (13 tasks, A/B/C milestones). butterPDF's
+side is `../butterPDF/docs/TODO.md`. Milestones:
+
+**A — reconnect the fork, close the chrome gap** *(dough-heavy, unblocks everything)*
+1. **A1 · chrome-machinery backport UP** (butterPDF→dough — `docs/BACKPORT.md` ranks 9–10):
+   port **`drag_repaint`** (the NVIDIA drag-trails KWin effect, proven in butterPDF) + a
+   **generic wmclass `keep_above`** noborder package into dough; wire in `run_app`
+   (drag_repaint AFTER `show`, keep_above BEFORE `show`); pair with cross-cutting §2
    (`setDesktopFileName → desktop_id()`). **`dough new` must re-namespace both KWin assets
-   on fork** (the effect id `dough_dragrepaint` + the keep_above wmclass — the whole-word
+   on fork** (effect id `dough_dragrepaint` + the keep_above wmclass — the whole-word
    `\bdough\b` replace does NOT catch `dough_dragrepaint`). Smoke on real KDE Wayland.
-3. **Write `AGENTS.md`** (root, auto-discovered) — the AI front door; headline at top; lead
-   with "you're building WITH dough"; record the `opaque_menu`-not-raw-`QMenu` convention.
-4. **Build the Delivery per-target helpers** — stateful walkthroughs (artifact → account →
-   secret → submit), designed against butterPDF's real channels.
-5. **Realign the docs vocabulary** — `dough bake` = RENDER (Baking); the release pipeline =
-   **Delivery**. "The baking phase" in BAKING.md is mostly Delivery.
+2. **A2 · the dough→loaf sync tool** — generalize `dev/sync.py` + `dev/shared.toml` into a
+   per-fork updater that pushes base improvements DOWN into an existing loaf (AUTO/MANUAL
+   split mirroring the jellytoast→dough up-door; records a sync point). The structural
+   answer to "how do improvements reach existing forks?"
+3. **A3/A4 · butterPDF** — give it a git remote (`gh repo create` + push), then pull
+   dough's post-fork gains via A2 (validates the tool on a real fork).
+
+**B — butterPDF MVP engine** (the net-new wedge; see `../butterPDF/docs/TODO.md`):
+AcroForm fill → correct save/flatten (the make-or-break Adobe+print round-trip) →
+Quick-sign → converters → safe-open + XFA-decline. Deps: `pypdf`/`pikepdf`/`img2pdf`.
+
+**C — ship it (dogfood Delivery)**
+- **C1 · Delivery per-target helpers** (Linux-first) — stateful walkthroughs (artifact →
+  account → secret → submit), designed against butterPDF's real channels.
+- **C2 · cut dough `v0.1.0`** (see §1 below) so butterPDF depends on a tagged base.
+- **C3 · butterPDF's first real release** through the matrix — the end-to-end Delivery proof.
+
+**Cross-cutting (close as they surface):**
+- **Write `AGENTS.md`** (root, auto-discovered) — the AI front door; lead with "you're
+  building WITH dough"; record the `opaque_menu`-not-raw-`QMenu` convention.
+- **`setDesktopFileName → desktop_id()`** + `StartupWMClass → app_id_base` (needs KDE
+  Wayland+X11 smoke — pairs with A1).
+- **Wire autostart/notifications** opt-in into `run_app` (§4 below) + Settings toggle.
+- **Realign the docs vocabulary** — `dough bake` = RENDER (Baking); the release pipeline =
+  **Delivery**. "The baking phase" in BAKING.md is mostly Delivery.
 
 ## Shipped 2026-07-01 — jellytoast → dough macOS absorption
 

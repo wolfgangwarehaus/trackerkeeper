@@ -38,13 +38,16 @@ what jellytoast proved in production), and what it means concretely here.
   core. `python-mpv` loads `libmpv` *at import time* — exactly what must stay
   out of the base. dough core installs in seconds with zero native libs.
 - **One identity, parameterized once.** App name / app-id / repo URL come from
-  `QApplication.applicationName()` and one config block — not hardcoded across
-  twenty packaging, autostart, and D-Bus files.
+  a single source — `dough/identity.py` (or `dough.configure(org, app,
+  display_name)` at runtime), which every projection (QSettings handle, Qt
+  app/org names, window title, Windows AUMID, desktop id) reads — not hardcoded
+  across twenty packaging, autostart, and D-Bus files.
 - **Flat, runnable layout.** A single `dough/` package, `python -m dough`, no
   install needed from a checkout. Fork → rename → run.
-- **Batteries, templated.** Packaging (deb / flatpak / winget / AUR), CI,
-  release, and a landing-page template ship with `{{placeholders}}` so a new
-  app is installable on day one, not month three.
+- **Batteries, templated.** Packaging (PyPI / deb / AppImage / AUR / Windows
+  Inno+winget / MSIX / macOS), CI, and the release pipeline ship as
+  `{{placeholder}}` templates rendered by `dough bake` — so a new app is
+  installable on day one, not month three.
 
 ## 3. Looks good across platforms, resolutions, and mediums
 

@@ -9,6 +9,13 @@ baking phase.
 
 ## Keystone decision: hybrid, leaning library
 
+> **⚠️ SUPERSEDED (2026-07-02).** The product model is now settled as **fork-and-own**:
+> dough is a **project starter** an AI forks from GitHub — you never `import dough`. The
+> "leaf tier as a real `import dough` dependency" endgame below is **not** the direction;
+> base improvements reach an existing fork via the **dough→loaf sync tool**, not `pip`.
+> This section is retained for the jellytoast-inversion history that motivated it. See
+> `docs/PHILOSOPHY.md` (fork-and-own) and the memory `dough-thesis-vocabulary`.
+
 Ship the proven **leaf tier** as a real `import dough` dependency:
 design system (`theme`, `color_tokens`, `design_tokens`), widget kit
 (`frosted_dialog`, `selector`, `icon_button`, `custom_tooltip`,
