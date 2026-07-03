@@ -129,9 +129,14 @@ class SettingsDialog(FrostedDialog):
 
     @staticmethod
     def _swatch_qss(hex_: str, selected: bool) -> str:
-        border = "2px solid #ffffff" if selected else "2px solid transparent"
+        ring = "#ffffff" if selected else "transparent"
+        # NOTE: the border MUST carry its `border:` property — a bare
+        # "2px solid …" is an invalid declaration that makes Qt discard the whole
+        # rule (background included → empty black swatches). Fix found in
+        # butterPDF; backported up.
         return (
-            f"QPushButton{{background:{hex_};border-radius:14px;{border};}}"
+            f"QPushButton{{background:{hex_};border-radius:14px;"
+            f"border:2px solid {ring};}}"
             f"QPushButton:hover{{border:2px solid rgba(255,255,255,0.6);}}"
         )
 

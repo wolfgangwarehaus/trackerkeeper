@@ -86,6 +86,18 @@ content, its `app.py`) must be `manual` or `authored`, or a blind AUTO overwrite
 would clobber it. Identity (slug/org/owner) is read from each side's
 `[tool.<pkg>.metadata]`, so nothing is duplicated in the manifest.
 
+Two working rules, learned the hard way (2026-07-03 — a sync clobbered
+butterPDF's `settings.py`/`settings_dialog.py` customizations because they
+weren't listed):
+
+1. **List a file under `manual` the moment you hand-customize it**, in the same
+   commit as the customization — not at the next sync, when you've forgotten.
+2. **Review `git diff` after every `--apply` before committing.** The tool
+   can't distinguish "shared module the fork customized silently" from "stale
+   shared module"; the diff review is where a clobber gets caught. Bonus: a
+   fork's local fix showing up in that diff is a **backport-UP candidate**
+   (that's how dough got the `_swatch_qss` QSS fix).
+
 > Direction is dough → loaf. Today the tool lives in dough and points at a loaf;
 > a later step ships a thin `--loaf .` wrapper into new forks via `dough new` so a
 > maker updates from within their own repo.
