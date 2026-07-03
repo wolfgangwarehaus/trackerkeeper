@@ -30,6 +30,19 @@ moved: `dev/shared.toml` `synced_from` is now `7357dad` and most shared modules 
     "live" (artifact + account + secret + submission). The machinery exists; the
     guided activation doesn't.
 
+## ▶ Wind-down 2026-07-03 — the audit + autonomous batch + C1 + rigging + walkthrough day
+
+**Everything green + pushed; both repos on the 3-OS CI matrix.** dough highlights: the CI
+truth-check fixes (below), AGENTS.md (+ the `dough new` loaf template), the P3 sweep + X2,
+run_app autostart/notifications wiring, `setDesktopFileName(desktop_id())` (live-probed),
+`rig.py` (boot/probe/shot — the RIGGING direction seeded), `deliver.py` (C1 v1 + the
+NAME-CONFLICT finding: PyPI `dough` is TAKEN), PR #1 merged. butterPDF: the whole
+walkthrough refinement set landed live (smooth ink, baked ✕, grey-on-dark fills, CLI
+front, editable install). **Resume: (1) finish the walkthrough's in-person tail
+(cross-viewer PDFs + feel verdicts), (2) the C2 naming decision (PyPI `dough` taken;
+`butterpdf` free) → tag → `deliver` walks the rest, (3) rigging build-out (visual
+baselines) per the tracker.**
+
 ## ▶ Audit 2026-07-03 — CI truth-check + workflow fixes
 
 A full-state audit found the repos healthy locally but **CI quietly red in two ways**
@@ -90,11 +103,10 @@ desktop. **Roadmap:** cross-OS CI test matrix (branch `ci-cross-os`, CI-validati
 visual BASELINES (`rig shot` + stored goldens + diff — the visual-bump gate); more
 chrome invariants (blur active, drag/edge-resize, maximize squaring); GNOME/wlroots
 probe legs; wire `rig probe`/`shot` into the wind-down + walkthrough rituals.
-**PR #1 (ci-cross-os) is ALL GREEN (ubuntu+windows+macos) and awaits August's merge** —
-it carries the matrix plus what the first Windows run caught: `.gitattributes`
-`* text=auto eol=lf` (runner autocrlf broke the byte-exact bake gate), POSIX-gated
-exec bits in `bake.py`, and three platform-naive test fixes. After merging: sync
-`bake.py` down to butterPDF + hand-port the `.gitattributes`/test patches/matrix.
+**PR #1 (ci-cross-os) MERGED 2026-07-03** — the ubuntu+windows+macos matrix is live in
+BOTH repos (butterPDF's first 3-OS run: green), with what the first Windows run caught:
+`.gitattributes` `* text=auto eol=lf` (runner autocrlf broke the byte-exact bake gate),
+POSIX-gated exec bits in `bake.py`, and three platform-naive test fixes.
 
 **NEW product directions this session (capture, then design into C):**
 - **The IMPROVEMENTS phase** (user insight) — the workflow is a LOOP, not linear:

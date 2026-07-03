@@ -12,7 +12,10 @@ lives only in the conversation; the wind-down makes it durable + actionable.
    not just the `CI` check: a workflow-file parse error (e.g. a `secrets` reference inside
    an `if:`) fails as a separate 0-second run that a green `CI` badge hides. Never wind
    down red — leave unfinished work behind a clear marker (an `xfail`, or a `TODO` with
-   the trigger condition), not broken.
+   the trigger condition), not broken. **If the session touched chrome or anything
+   visual**, also run the rig: `python -m <pkg>.rig boot` anywhere, and on the KDE
+   desktop `python -m <pkg>.rig probe` (compositor ground truth) + a `rig shot`
+   eyeball — a visual bump is a red build the unit suite can't see.
 
 2. **Update the handoff doc** — `docs/TODO.md`, the single "pick up here next":
    - current state in 1–2 lines,

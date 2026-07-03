@@ -83,3 +83,13 @@ Some butterPDF tuning is app taste and deliberately stays out of dough: the 8px 
 lane (dough's default is 12px), TopBar density (48px / 36×32 buttons), the per-app
 top-bar content, and any document/PDF-specific geometry. A fork overrides these by
 subclassing — the base ships comfortable, grabbable defaults.
+
+## No plain white on dark (2026-07-03, from the butterPDF walkthrough)
+
+A light surface embedded in a dark context (an input fill, a sign-here canvas, any
+"paper" moment) should be a **soft light grey** — the `rgb(233–241)` family — never
+`#ffffff`. Pure white against a dark page or chrome reads as glare; the grey stays
+unmistakably "a light surface to act on" while sitting calmer. Light contexts keep
+their near-white fills. butterPDF applies this to its form-field fills (live, derived
+from the resolved page-paper lightness — no mode list) and its signature canvas; the
+same rule applies to any future base surface with a light inset.
