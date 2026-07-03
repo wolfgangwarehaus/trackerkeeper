@@ -90,6 +90,11 @@ desktop. **Roadmap:** cross-OS CI test matrix (branch `ci-cross-os`, CI-validati
 visual BASELINES (`rig shot` + stored goldens + diff — the visual-bump gate); more
 chrome invariants (blur active, drag/edge-resize, maximize squaring); GNOME/wlroots
 probe legs; wire `rig probe`/`shot` into the wind-down + walkthrough rituals.
+**PR #1 (ci-cross-os) is ALL GREEN (ubuntu+windows+macos) and awaits August's merge** —
+it carries the matrix plus what the first Windows run caught: `.gitattributes`
+`* text=auto eol=lf` (runner autocrlf broke the byte-exact bake gate), POSIX-gated
+exec bits in `bake.py`, and three platform-naive test fixes. After merging: sync
+`bake.py` down to butterPDF + hand-port the `.gitattributes`/test patches/matrix.
 
 **NEW product directions this session (capture, then design into C):**
 - **The IMPROVEMENTS phase** (user insight) — the workflow is a LOOP, not linear:
