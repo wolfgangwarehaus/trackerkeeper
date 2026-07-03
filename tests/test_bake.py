@@ -18,6 +18,7 @@ jinja2 is a build-time-only (``bake``/``dev``) dependency; a env without it skip
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -291,5 +292,6 @@ def test_check_catches_every_drift_class(tmp_path: Path, packaging_dir: Path) ->
     assert any("orphan" in d for d in bake.check(tmp_path))
     stale.unlink()
 
-    (tmp_path / "deb" / "build_deb.sh").chmod(0o644)
-    assert any("not executable" in d for d in bake.check(tmp_path))
+    if os.name == "posix":  # exec bits are POSIX semantics; check() skips them on Windows
+        (tmp_path / "deb" / "build_deb.sh").chmod(0o644)
+        assert any("not executable" in d for d in bake.check(tmp_path))
