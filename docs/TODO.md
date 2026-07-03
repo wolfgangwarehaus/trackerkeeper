@@ -1,6 +1,6 @@
 # dough — TODO / handoff
 
-Status as of **2026-06-22**. The **baking-phase channel matrix is complete**, the product
+Status as of **2026-07-03**. The **baking-phase channel matrix is complete**, the product
 direction is settled (below), **`dough new` is built**, and the first app **butterPDF** is
 **scaffolded, has a working PDF viewer (MVP #1), and drove a deep first-looks polish that's
 now BACKPORTED into dough** (see `docs/DESIGN.md` + `docs/BACKPORT.md`). The full
@@ -29,6 +29,27 @@ moved: `dev/shared.toml` `synced_from` is now `7357dad` and most shared modules 
   - **Delivery** — guided per-target **helpers** that walk the maker from "built" to
     "live" (artifact + account + secret + submission). The machinery exists; the
     guided activation doesn't.
+
+## ▶ Audit 2026-07-03 — CI truth-check + workflow fixes
+
+A full-state audit found the repos healthy locally but **CI quietly red in two ways**
+(both fixed this session, in dough AND butterPDF):
+
+- **`macos.yml` was rejected by GitHub at parse time** on EVERY push since Beat 6 —
+  a 0-second "workflow file issue" failure. Cause: `secrets.HOMEBREW_TAP_TOKEN` inside
+  a step-level `if:` (the `secrets` context isn't valid in `if:` expressions). Fixed
+  with the same job-level env gate the file already used for `HAVE_APPLE` (`HAVE_TAP`).
+- **butterPDF's `lint-and-smoke` job was red since B1**: it installed a hardcoded
+  `ruff PySide6` while the boot smoke imports the real app (numpy/pypdf/…). Fixed by
+  installing the project itself (`pip install ruff -e .` + `fetch-depth: 0` for
+  setuptools-scm) — in butterPDF AND in dough's ci.yml (the template `dough new`
+  forks), so future loaves stay green when they add deps.
+
+Lesson recorded: **"CI green" claims must name the workflow** — the `CI` workflow was
+green while `macos.yml` failed on the same pushes. Local health at audit time: dough
+160 passed + ruff clean + `bake --check` clean; butterPDF 131 passed + ruff clean;
+both `main` even with origin. Workflows are NOT covered by the dough→loaf sync
+manifest (it only maps package files) — workflow fixes go to each repo by hand.
 
 ## ▶ Wind-down 2026-07-02 — MILESTONES A + B DONE; next = C (ship)
 

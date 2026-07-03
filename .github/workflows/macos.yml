@@ -40,6 +40,10 @@ jobs:
     runs-on: macos-14
     env:
       HAVE_APPLE: ${{ secrets.APPLE_TEAM_ID != '' }}
+      # secrets.* is NOT a valid context inside `if:` — referencing it there makes
+      # GitHub reject the whole workflow file at parse time (a 0s "workflow file
+      # issue" failure on every push). Gate via env, same as HAVE_APPLE.
+      HAVE_TAP: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
     permissions:
       contents: write # gh release upload (+ attest reads the artifact)
       id-token: write # Sigstore OIDC for build provenance
@@ -211,7 +215,7 @@ jobs:
           subject-path: dist/*-macos.dmg
 
       - name: Bump the Homebrew cask
-        if: ${{ env.HAVE_APPLE == 'true' && secrets.HOMEBREW_TAP_TOKEN != '' }}
+        if: ${{ env.HAVE_APPLE == 'true' && env.HAVE_TAP == 'true' }}
         uses: macauley/action-homebrew-bump-cask@v1
         with:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}

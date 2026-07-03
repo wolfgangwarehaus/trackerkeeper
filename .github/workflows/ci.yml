@@ -10,14 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The editable install runs setuptools-scm, which derives the version
+          # from the tag — it needs the full history + tags, not a shallow clone.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       # PySide6's offscreen platform plugin still needs the EGL/GL/xkb libs.
       - name: System libs for headless Qt
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0
+      # Install the project itself, not a hand-picked dep list — the boot smoke
+      # imports the real app, so it needs whatever [project].dependencies says
+      # (a fork that adds deps stays green without touching this file).
       - name: Install
-        run: pip install ruff PySide6
+        run: pip install ruff -e .
       - name: Lint
         run: ruff check dough/
       - name: Boot smoke (offscreen)
