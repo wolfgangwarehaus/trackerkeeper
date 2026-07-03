@@ -19,6 +19,7 @@ GENERIC_SIGNALS = {
     "navigate",
     "hotkeys_changed",
     "dpr_changed",
+    "notify",
 }
 
 # The music signals jellytoast's PlayerBus adds on top — the base must NOT have

@@ -287,15 +287,17 @@ A hosted **apt/PPA** repo (signed Release/InRelease via reprepro + Pages) and th
 **landing page** (`site/` + `pages.yml`). Skip **Flathub** (the Generative-AI ban
 disqualifies a `Co-Authored-By: Claude` lineage — docs/BAKING.md §5).
 
-### 4. Wire the shipped-but-dead subsystems into `run_app`  ·  ready (P1 leftover)
-`notifications/` and `autostart/` ship but nothing calls them. **Identity routing DONE**
-(2026-07-01 macOS pass): both now route through `dough.identity` — `autostart/_linux.py`'s
-`.desktop` basename/`Name=`/`Icon=`/`Exec` use `desktop_id()`/`display_name()`/`app()` (fixing
-the copy-branch mismatch), `_windows.py` `_VALUE_NAME`/launch command use `app()`, the music
-`Comment`/`Categories` are stripped, `_flatpak.py` is retired, and the new `_macos.py`/`_msix.py`
-route through `cf_bundle_id()`/`app()`. **What remains: wire them opt-in in `run_app`** (they're
-still never called) — plus expose the `autostart` toggle in Settings and drive `notifications`
-from real app events.
+### 4. Wire the shipped-but-dead subsystems into `run_app`  ·  DONE 2026-07-03
+`notifications/` and `autostart/` are now LIVE. Identity routing was done 2026-07-01
+(everything routes through `dough.identity`; `_flatpak.py` retired). **2026-07-03:**
+`run_app` re-asserts a user-enabled autostart entry at boot (`_reconcile_autostart` —
+self-heals a moved exe path; strictly opt-in, dough never turns it ON), the Settings
+dialog gained a "Launch on login" toggle (shown only when `autostart.is_supported()`;
+the OS entry is the source of truth — no QSettings mirror), and `AppBus.notify(title,
+body)` routes to `dough.notifications` (`_wire_notifications`) so apps drive desktop
+notifications from real events with zero imports. Covered by `tests/test_app_wiring.py`.
+**Remaining (visual):** eyeball the toggle + a real notification on KDE — piggyback the
+next guided session.
 
 ### 5. JellytoastWindow full inversion  ·  needs the real desktop + a server
 The real jellytoast PR. Validated feasible; mechanical but **needs a KDE Wayland

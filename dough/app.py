@@ -152,6 +152,37 @@ def _enable_faulthandler() -> None:
         pass
 
 
+def _reconcile_autostart() -> None:
+    """Re-assert an ENABLED launch-on-login entry at boot. ``enable()`` rewrites
+    the OS entry (XDG .desktop / Run key / LaunchAgent), self-healing a stale
+    ``Exec``/command after the executable or venv moved. Strictly opt-in: dough
+    never turns autostart ON — only the Settings toggle does; if it's off or
+    unsupported this is a no-op. Best-effort, never fatal."""
+    try:
+        from dough import autostart
+
+        if autostart.is_supported() and autostart.is_enabled():
+            autostart.enable()
+    except Exception:
+        pass
+
+
+def _wire_notifications(bus) -> None:
+    """Route ``AppBus.notify`` (title, body) to the desktop-notification
+    backend. App code emits the signal from its real events with zero imports;
+    ``dough.notifications`` no-ops where unsupported and never raises."""
+
+    def _notify(title: str, body: str = "") -> None:
+        try:
+            from dough import notifications
+
+            notifications.notify(title, body)
+        except Exception:
+            pass
+
+    bus.notify.connect(_notify)
+
+
 def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     """Boot a dough app and run it to exit. Does the cross-platform Qt setup
     every warehaus app needs — HiDPI rounding, app identity, persisted theme
@@ -164,7 +195,11 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
       * **persisted theme** — accent / colour overrides load BEFORE the first
         widget so every surface stamps from the saved palette;
       * **the settings dialog** — wired to ``AppBus.show_settings``;
-      * **window geometry** — restored on launch, saved on quit.
+      * **window geometry** — restored on launch, saved on quit;
+      * **launch on login** — re-asserts a user-enabled autostart entry (the
+        Settings toggle turns it on; dough never does);
+      * **desktop notifications** — ``AppBus.notify.emit(title, body)`` reaches
+        the OS notification backend (silent no-op where unsupported).
 
     ``identity`` (optional) is a mapping forwarded to :func:`dough.configure`
     (``org`` / ``app`` / ``display_name``). NOTE: for the import-time font scale
@@ -264,6 +299,13 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
             pass
 
     app.aboutToQuit.connect(_flush_settings)
+
+    # Launch-on-login + desktop notifications — the shipped subsystems, wired:
+    # autostart re-asserts an entry the user enabled (Settings toggle) so it
+    # survives a moved executable; AppBus.notify(title, body) reaches the OS
+    # notification backend. Both opt-in and best-effort.
+    _reconcile_autostart()
+    _wire_notifications(AppBus.get())
 
     # macOS: the global menu bar (App/File/Edit/View/Window/Help) + native
     # window chrome (transparent titlebar / full-size content view) — native

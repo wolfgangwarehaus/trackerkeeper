@@ -31,6 +31,9 @@ class AppBus(QObject):
     # ── System ────────────────────────────────────────────────────────
     hotkeys_changed = Signal()        # global hotkeys reconfigured
     dpr_changed = Signal()            # device-pixel-ratio changed → re-rasterize cached art
+    notify = Signal(str, str)         # (title, body) → a desktop notification; run_app
+    #                                   routes it to dough.notifications (no-op where
+    #                                   unsupported), so app code emits with zero imports
 
     _instance: "AppBus | None" = None
     _factory = None  # optional callable -> AppBus (subclass); see set_factory()

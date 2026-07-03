@@ -1,11 +1,13 @@
 """SettingsDialog — a FrostedDialog demonstrating dough's live theme system.
 
-Five controls — theme mode, accent color, font size, font family, and a
-square-corners toggle — each writing to ``Settings`` and re-stamping the whole
+The look controls — theme mode, accent color, font size, font family, and a
+square-corners toggle — each write to ``Settings`` and re-stamp the whole
 app live via ``AppBus.theme_changed``. Theme mode, accent, and font family
 apply instantly; font size and square corners re-stamp for an immediate preview
 but only fully land on a relaunch (both bake into ``design_tokens`` at import).
-It's both a working settings panel and the worked example of the dialog +
+Plus a launch-on-login toggle (shown only where ``dough.autostart`` has a
+working backend; the OS entry is the source of truth, not QSettings). It's
+both a working settings panel and the worked example of the dialog +
 Selector + live-theme pattern an app builds on.
 """
 
@@ -98,6 +100,19 @@ class SettingsDialog(FrostedDialog):
         self.corners_check.toggled.connect(self._on_square_corners)
         self.content_layout.addWidget(self.corners_check)
 
+        # Launch on login — only offered when a platform backend can actually
+        # fulfil it (XDG autostart / Run key / StartupTask / LaunchAgent). The
+        # OS entry is the source of truth — no QSettings mirror to drift: the
+        # box reads is_enabled() and writes enable()/disable() directly.
+        from dough import autostart
+
+        if autostart.is_supported():
+            self.content_layout.addWidget(self._label("SYSTEM"))
+            self.autostart_check = QCheckBox("Launch on login")
+            self.autostart_check.setChecked(autostart.is_enabled())
+            self.autostart_check.toggled.connect(self._on_autostart)
+            self.content_layout.addWidget(self.autostart_check)
+
         self._restart_note = QLabel("")
         self._restart_note.setStyleSheet(
             f"color: {ui_helpers.WARN_FG}; {type_qss(TYPE_CAPTION)}"
@@ -184,3 +199,14 @@ class SettingsDialog(FrostedDialog):
         set_square_corners(bool(on))
         self._apply_live()
         self._restart_note.setText("Square corners fully applies after a restart.")
+
+    def _on_autostart(self, on: bool) -> None:
+        from dough import autostart
+
+        ok = autostart.enable() if on else autostart.disable()
+        if on and not ok:
+            # The backend refused (no launchable path, sandbox denial) — snap
+            # the box back to what the OS actually says rather than lying.
+            self.autostart_check.blockSignals(True)
+            self.autostart_check.setChecked(autostart.is_enabled())
+            self.autostart_check.blockSignals(False)
