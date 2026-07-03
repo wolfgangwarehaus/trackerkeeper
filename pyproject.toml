@@ -75,6 +75,9 @@ dough = "dough.app:main"
 dough-bake = "dough.bake:main"
 # The entry verb for building WITH dough: scaffold a fresh OWNED app from a clone.
 dough-new = "dough.scaffold:main"
+# The Delivery-phase walkthroughs: the channel board, per-channel activation,
+# and the update lap (docs/DELIVERY.md).
+dough-deliver = "dough.deliver:main"
 
 [project.urls]
 Homepage = "https://github.com/wolfgangwarehaus/dough"

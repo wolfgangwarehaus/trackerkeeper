@@ -1,7 +1,14 @@
-# Delivery helpers — design proposal (C1)
+# Delivery helpers — design + v1 (C1)
 
-> **STATUS: DRAFT for review, 2026-07-03.** Nothing here is built. This is the
-> design check-in before C1 implementation — poke holes first.
+> **STATUS: v1 BUILT, 2026-07-03** — `dough/deliver.py` (`dough-deliver` /
+> `python -m dough.deliver`), tests in `tests/test_deliver.py`. The open
+> questions below were resolved as proposed (separate verb; helper-only
+> selection; interactive-only). One design addition earned in the first real
+> run: **name-ownership detection** — a channel-namespace probe compares the
+> found project's URLs to our repo, because a squatted name must read
+> **NAME CONFLICT**, never LIVE. (Found live immediately: PyPI `dough` is a
+> 2015-era third-party package — see the C2 note in `docs/TODO.md`. PyPI
+> `butterpdf` and AUR `dough`/`butterpdf` are free.)
 
 ## The problem
 

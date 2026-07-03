@@ -69,8 +69,14 @@ State now (all committed + pushed; dough `main` @ `945a434`, butterPDF `main` @ 
   now: PySide6 + numpy + pypdf + pikepdf + img2pdf (installed on this machine via
   `--break-system-packages`).
 
-**Next = Milestone C (ship):** C1 Delivery per-target helpers (Linux-first) → C2 cut dough
-`v0.1.0` → C3 butterPDF's first real release. Plus the standing dough TODOs below.
+**Next = Milestone C (ship):** ~~C1 Delivery per-target helpers~~ **C1 v1 BUILT 2026-07-03**
+(`dough/deliver.py` — the board / per-channel walkthroughs / the update lap; state DETECTED
+from git+gh+endpoints; docs/DELIVERY.md updated) → C2 cut dough `v0.1.0` → C3 butterPDF's
+first real release. **⚠ C2 DECISION (found by the first board run): the PyPI name `dough`
+is TAKEN** (a 2015-era third-party package, v0.6.0) — dough itself can't publish to PyPI
+under its own name. Options: a different `[project].name` (e.g. `dough-base`; the import
+package keeps `dough`), or skip PyPI for the base (apps are the product — `butterpdf` IS
+free on PyPI, and AUR is clear for both). Decide at C2.
 
 **NEW product direction 2026-07-03 (user): RIGGING & TESTING is part of the pipeline.**
 dough should always be able to *rig up and test* — visual bumps, code bumps, every
