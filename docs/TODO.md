@@ -72,6 +72,19 @@ State now (all committed + pushed; dough `main` @ `945a434`, butterPDF `main` @ 
 **Next = Milestone C (ship):** C1 Delivery per-target helpers (Linux-first) → C2 cut dough
 `v0.1.0` → C3 butterPDF's first real release. Plus the standing dough TODOs below.
 
+**NEW product direction 2026-07-03 (user): RIGGING & TESTING is part of the pipeline.**
+dough should always be able to *rig up and test* — visual bumps, code bumps, every
+platform. **Seeded today: `dough/rig.py`** (ships in the package → syncs to loaves):
+`rig boot` (offscreen boot smoke — now THE ci.yml smoke, one source), `rig probe`
+(live-KDE ground truth: Wayland app_id == desktop_id, noBorder, X11 WM_CLASS +
+`_KDE_NET_WM_DESKTOP_FILE` — the probe that caught the StartupWMClass review error),
+`rig shot` (screenshot the live window → a maker or an AI can SEE the app; proven —
+the shot verified the single-chrome noborder look). All dogfooded green on the real
+desktop. **Roadmap:** cross-OS CI test matrix (branch `ci-cross-os`, CI-validating);
+visual BASELINES (`rig shot` + stored goldens + diff — the visual-bump gate); more
+chrome invariants (blur active, drag/edge-resize, maximize squaring); GNOME/wlroots
+probe legs; wire `rig probe`/`shot` into the wind-down + walkthrough rituals.
+
 **NEW product directions this session (capture, then design into C):**
 - **The IMPROVEMENTS phase** (user insight) — the workflow is a LOOP, not linear:
   Ingredients (once) → **Baking ⇄ Delivery (forever)**; every lap after launch is an

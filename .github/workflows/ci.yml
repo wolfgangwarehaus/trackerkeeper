@@ -27,25 +27,10 @@ jobs:
         run: pip install ruff -e .
       - name: Lint
         run: ruff check dough/
+      # The rig owns the smoke (one source — the same verb a maker or an AI
+      # runs locally): offscreen boot + settings dialog. See dough/rig.py.
       - name: Boot smoke (offscreen)
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          python -c "
-          import sys
-          from PySide6.QtCore import QTimer
-          from PySide6.QtWidgets import QApplication
-          app = QApplication(sys.argv)
-          app.setApplicationName('dough'); app.setOrganizationName('dough')
-          import dough.app as A
-          from dough.window import AppWindow
-          w = AppWindow(title='dough'); w.set_content(A._placeholder()); w.show()
-          app.processEvents()
-          from dough.settings_dialog import SettingsDialog
-          SettingsDialog(w).show(); app.processEvents()
-          QTimer.singleShot(0, app.quit); app.exec()
-          print('dough boots + settings opens')
-          "
+        run: python -m dough.rig boot
 
   tests:
     runs-on: ubuntu-latest
