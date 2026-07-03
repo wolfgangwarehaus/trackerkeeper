@@ -239,12 +239,17 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     app.setApplicationDisplayName(ident.display_name())
     app.setOrganizationName(ident.org())
     app.setApplicationVersion(__version__)
-    # NOTE: the installed .desktop is named by the reverse-DNS app-id
-    # (io.github.{owner}.{app}), so for the Wayland taskbar to associate the
-    # window with its icon this should be ident.desktop_id(), and the .desktop's
-    # StartupWMClass should match (X11). Left as the bare slug until both DEs can
-    # be smoke-tested on a real desktop — see docs/TODO.md (baking Beat 2 defer).
-    app.setDesktopFileName(ident.app())
+    # The installed .desktop is named by the reverse-DNS app-id
+    # (io.github.{owner}.{app}), so the desktop file name must carry
+    # desktop_id() for the taskbar to associate the window with its installed
+    # icon. Verified live (KDE, 2026-07-03): on Wayland this value becomes the
+    # window's app_id; on X11 Qt exports it as _KDE_NET_WM_DESKTOP_FILE (KDE's
+    # association path) while WM_CLASS stays the bare applicationName slug —
+    # which is why the .desktop's StartupWMClass keeps the slug (non-KDE X11
+    # matches on WM_CLASS). The KWin machinery survives the app_id change by
+    # design: the noborder rule and the drag_repaint effect both match the
+    # bare slug as a SUBSTRING (proven: noBorder=true under the new app_id).
+    app.setDesktopFileName(ident.desktop_id())
 
     # Single instance: hand off to the already-running copy rather than opening
     # a second window. Keep the lock object alive for the process lifetime.

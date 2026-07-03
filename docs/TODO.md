@@ -276,11 +276,16 @@ watch them. PyPI's first publish needs the one-time pending-publisher setup
 (RELEASING.md). (Doing the first app via `dough new` may reshuffle whether dough itself
 even gets a v0.1.0 vs going straight to butterPDF — revisit.)
 
-### 2. `setDesktopFileName` → `identity.desktop_id()`  ·  needs a real desktop
-The last functional gap. The `.desktop`'s `StartupWMClass` → `app_id_base` too
-(review-confirmed HIGH: the installed `.desktop` is named by the reverse-DNS id, so
-the Wayland taskbar icon won't associate until this lands). **Needs KDE Wayland +
-X11 smoke-testing** — a guided session, like the JellytoastWindow inversion.
+### 2. `setDesktopFileName` → `identity.desktop_id()`  ·  DONE 2026-07-03 (code + live probe)
+`run_app` now sets `setDesktopFileName(desktop_id())`. **Probed live on the real KDE
+session** (KWin-script `resourceClass` + `xprop`): Wayland app_id = the reverse-DNS id ✓;
+the noborder rule still matches (substring design — `noBorder=true` under the new app_id) ✓;
+X11 exports `_KDE_NET_WM_DESKTOP_FILE` = the id (KDE's association path) while `WM_CLASS`
+stays the bare slug — so the review's "`StartupWMClass` → `app_id_base`" claim was WRONG:
+`StartupWMClass` must keep `{{ app_slug }}` to match `WM_CLASS` on non-KDE X11 (rationale
+now in the template). **Remaining (eyes, in-person):** install a built `.deb`/AppImage and
+confirm the taskbar icon + grouping actually associate on KDE Wayland; a GNOME X11 check
+if available.
 
 ### 3. Remaining channels (low priority)  ·  greenfield / deferred
 A hosted **apt/PPA** repo (signed Release/InRelease via reprepro + Pages) and the

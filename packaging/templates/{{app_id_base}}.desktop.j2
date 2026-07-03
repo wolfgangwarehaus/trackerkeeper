@@ -9,6 +9,12 @@ Terminal=false
 Categories={{ categories | join(';') }};
 Keywords={{ keywords | join(';') }};
 StartupNotify=true
+# The bare slug, NOT {{ app_id_base }} — Qt/xcb derives WM_CLASS from
+# applicationName (the slug), and StartupWMClass must equal WM_CLASS to
+# associate on non-KDE X11. KDE X11 association instead rides the
+# _KDE_NET_WM_DESKTOP_FILE property and Wayland rides the app_id, both set
+# from setDesktopFileName(desktop_id()) in run_app. Verified with xprop on
+# a live KDE session 2026-07-03.
 StartupWMClass={{ app_slug }}
 # No MimeType / %U: {{ app_slug }} is a windowed app with no file/URL handler
 # (the single-instance relay only sends "raise"). A fork that opens files adds them.
