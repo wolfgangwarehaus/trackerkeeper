@@ -1,10 +1,10 @@
 """Linux keep-awake backend.
 
 Inhibits the session's idle/suspend behaviour via the freedesktop
-``org.freedesktop.ScreenSaver`` service while audio plays. Cookie-based:
-``Inhibit`` returns a uint token that ``UnInhibit`` releases. This is the
-interface mpv/browsers use for "don't idle while media plays"; on
-KDE/GNOME it suppresses idle screen-lock and idle-suspend. Best-effort —
+``org.freedesktop.ScreenSaver`` service while the app asks to stay awake.
+Cookie-based: ``Inhibit`` returns a uint token that ``UnInhibit`` releases.
+This is the interface mpv/browsers use for "don't idle while media plays";
+on KDE/GNOME it suppresses idle screen-lock and idle-suspend. Best-effort —
 on a minimal WM with no provider it silently no-ops (``is_supported`` is
 False and the controller never calls through).
 
@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+
+from dough import identity
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +55,7 @@ def inhibit() -> bool:
     if iface is None:
         return False
     try:
-        reply = iface.call("Inhibit", "dough", "Playing music")
+        reply = iface.call("Inhibit", identity.app(), "Keep-awake requested by the app")
         args = reply.arguments()
         if not args:
             return False

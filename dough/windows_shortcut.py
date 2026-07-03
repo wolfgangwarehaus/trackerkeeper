@@ -169,7 +169,7 @@ _APPID_CSHARP = """
 using System;
 using System.Runtime.InteropServices;
 
-namespace JT {
+namespace Shortcut {
   [StructLayout(LayoutKind.Sequential, Pack = 4)]
   public struct PropertyKey {
     public Guid fmtid; public uint pid;
@@ -245,7 +245,7 @@ def _shortcut_script(lnk: Path, exe: Path, ico: Path) -> str:
         f"$s.Description = {_ps_quote(identity.display_name())};\n"
         "$s.Save();\n"
         f"Add-Type -TypeDefinition @'\n{_APPID_CSHARP}\n'@;\n"
-        f"[JT.Lnk]::SetAppId({_ps_quote(lnk)}, '{_aumid()}');\n"
+        f"[Shortcut.Lnk]::SetAppId({_ps_quote(lnk)}, '{_aumid()}');\n"
         f"Write-Output '{_STAMP_SENTINEL}'"
     )
 

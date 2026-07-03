@@ -51,7 +51,7 @@ def notify(
     if tag:
         # The "synchronous" hint makes mainstream daemons (KDE, GNOME,
         # dunst) replace a prior notification with the same tag in place
-        # rather than stacking — exactly the now-playing stream's need.
+        # rather than stacking — what a frequently-updating stream needs.
         cmd.extend(["--hint", f"string:x-canonical-private-synchronous:{tag}"])
     cmd.append(title)
     if body:

@@ -83,3 +83,33 @@ def test_transform_owner_before_org_and_slug(sl):
 def test_noop_transform_when_identity_matches(sl):
     transform = sl._make_transform(("dough", "o", "w"), ("dough", "o", "w"))
     assert transform("from dough import x") == "from dough import x"
+
+
+def test_transform_renames_env_var_prefixes(sl):
+    # X2: DOUGH_* env vars must re-namespace on sync exactly as `dough new`
+    # does at fork time ('_' is a word char — \bdough\b never reaches them).
+    transform = sl._make_transform(
+        ("dough", "org", "owner"), ("butterpdf", "org", "owner")
+    )
+    assert transform('os.environ.get("DOUGH_OPAQUE")') == 'os.environ.get("BUTTERPDF_OPAQUE")'
+    assert transform("DOUGH_NO_DRAG_REPAINT") == "BUTTERPDF_NO_DRAG_REPAINT"
+    # Suffix forms stay untouched (none exist in the tree; jinja renders those).
+    assert transform("V_FOR_DOUGH") == "V_FOR_DOUGH"
+
+
+def test_transform_matches_scaffold_on_env_vars(sl):
+    # The parity promise: sync_loaf reproduces what `dough new` stamped —
+    # byte-for-byte — including the env-prefix rename.
+    from pathlib import Path as _P
+
+    from dough import scaffold
+
+    src = 'import dough\nDOUGH_OPAQUE = "DOUGH_BLUR_FORCE"\n'
+    transform = sl._make_transform(("dough", "o", "w"), ("butterpdf", "o", "w"))
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        f = _P(td) / "m.py"
+        f.write_text(src, encoding="utf-8")
+        scaffold._replace_in_tree(_P(td), [("o", "o"), ("dough", "butterpdf")])
+        assert f.read_text(encoding="utf-8") == transform(src)

@@ -21,7 +21,7 @@ in `THEMES`. `ui_helpers.py` reads `get_active_theme()` once at import
 and re-exports its colors as module-level constants for back-compat.
 
 Live theme switching IS wired: ``ui_helpers.refresh_theme()`` re-reads every
-token in place and a ``PlayerBus.theme_changed`` emit re-stamps the whole app,
+token in place and a ``AppBus.theme_changed`` emit re-stamps the whole app,
 so a theme-mode change — and the OS-driven ``"auto"`` (follow-OS) swap — applies
 with no restart. Only ``font_scale`` still needs a relaunch.
 """
@@ -566,7 +566,7 @@ def get_active_theme() -> Theme:
     ``theme_mode == "auto"`` follows the OS light/dark setting, resolving
     to ``frosted_light`` / ``frosted_dark`` via ``os_color_scheme()``. Theme
     + accent are read live: ``ui_helpers.refresh_theme()`` + a
-    ``PlayerBus.theme_changed`` emit re-stamp the whole app, so a theme (or
+    ``AppBus.theme_changed`` emit re-stamp the whole app, so a theme (or
     OS-scheme) change applies without a restart.
     """
     from dataclasses import replace as _replace

@@ -71,7 +71,7 @@ class FrostedDialog(QDialog):
             flags |= Qt.WindowType.FramelessWindowHint
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setObjectName("jtFrostedDialog")
+        self.setObjectName("doughFrostedDialog")
         self.setModal(True)
         self.setMinimumWidth(min_width)
         # Status-aware body: glass when blur is verified, near-opaque frosted
@@ -105,10 +105,10 @@ class FrostedDialog(QDialog):
 
         tb = QWidget()
         tb.setFixedHeight(46)
-        tb.setObjectName("jtFrostedTitle")
+        tb.setObjectName("doughFrostedTitle")
         tb.setStyleSheet(
-            "QWidget#jtFrostedTitle { background: transparent; }"
-            "QWidget#jtFrostedTitle QLabel { background: transparent; }"
+            "QWidget#doughFrostedTitle { background: transparent; }"
+            "QWidget#doughFrostedTitle QLabel { background: transparent; }"
         )
         h = QHBoxLayout(tb)
         h.setContentsMargins(20, 0, 8, 0)

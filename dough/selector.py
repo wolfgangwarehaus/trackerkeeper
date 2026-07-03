@@ -20,7 +20,7 @@ popup pass.
 Styling lives at the **host surface**, not on the widget. Use
 ``selector_qss()`` below to render the rule block; the host
 (settings dialog, login view) merges it into its own
-``setStyleSheet`` and refreshes on ``PlayerBus.theme_changed``.
+``setStyleSheet`` and refreshes on ``AppBus.theme_changed``.
 
 Why not self-style? At widget-scope ``setStyleSheet`` Qt's QSS
 parser handles the ``background: …; background-image: url(…);
@@ -96,9 +96,9 @@ _CHEVRON_SIZE = 12
 
 def selector_qss(host_selector: str = "") -> str:
     """Return the QSS rule block that styles ``Selector`` instances
-    (matched on ``QPushButton#jtSelector``). Pulls the active theme's
+    (matched on ``QPushButton#doughSelector``). Pulls the active theme's
     accent + text colour at call-time, so hosts that subscribe to
-    ``PlayerBus.theme_changed`` and re-apply this on every fire get
+    ``AppBus.theme_changed`` and re-apply this on every fire get
     live accent updates for free.
 
     ``host_selector`` (optional) prepends a parent selector to every
@@ -106,7 +106,7 @@ def selector_qss(host_selector: str = "") -> str:
     carries a broad rule that would otherwise win on specificity —
     e.g. LoginView's ``QWidget#loginView QWidget { background:
     transparent; }`` would override an unprefixed
-    ``QPushButton#jtSelector { background: ink_alpha(...); }`` and
+    ``QPushButton#doughSelector { background: ink_alpha(...); }`` and
     leave the Selector body see-through. Passing
     ``"QWidget#loginView"`` here gives every Selector rule the same
     parent-id weight so it wins.
@@ -132,7 +132,7 @@ def selector_qss(host_selector: str = "") -> str:
         _ar, _ag, _ab = (255, 255, 255)
     prefix = f"{host_selector} " if host_selector else ""
     return f"""
-        {prefix}QPushButton#jtSelector {{
+        {prefix}QPushButton#doughSelector {{
             background: {ink_alpha(0.06)};
             color: {TEXT};
             border: 1px solid rgba({_ar},{_ag},{_ab},0.45);
@@ -142,13 +142,13 @@ def selector_qss(host_selector: str = "") -> str:
             text-align: left;
             outline: 0;
         }}
-        {prefix}QPushButton#jtSelector:hover {{
+        {prefix}QPushButton#doughSelector:hover {{
             border-color: rgba({_ar},{_ag},{_ab},0.65);
         }}
-        {prefix}QPushButton#jtSelector:focus {{
+        {prefix}QPushButton#doughSelector:focus {{
             border-color: rgba({_ar},{_ag},{_ab},0.85);
         }}
-        {prefix}QPushButton#jtSelector:disabled {{
+        {prefix}QPushButton#doughSelector:disabled {{
             color: {TEXT_FAINT};
         }}
     """
@@ -166,7 +166,7 @@ class Selector(QPushButton):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("jtSelector")
+        self.setObjectName("doughSelector")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         # autoDefault off so the selector doesn't get the Qt-default
         # "default action" outline when its dialog is shown — matches
@@ -337,10 +337,10 @@ class Selector(QPushButton):
         # The long-list QListWidget is already internally capped, so skip it.
         if not long_list and menu_h > cap_h:
             base = QStyleFactory.create(QApplication.style().objectName())
-            menu._jt_scroll_style = (
+            menu._dough_scroll_style = (
                 _ScrollableMenuStyle(base) if base else _ScrollableMenuStyle()
             )
-            menu.setStyle(menu._jt_scroll_style)
+            menu.setStyle(menu._dough_scroll_style)
             menu.setMaximumHeight(cap_h)
             menu_h = cap_h
         room_below = bot_limit - btn_bottom_y
@@ -388,7 +388,7 @@ class Selector(QPushButton):
             _ar, _ag, _ab = (255, 255, 255)
 
         lw = QListWidget()
-        lw.setObjectName("jtSelectorList")
+        lw.setObjectName("doughSelectorList")
         lw.setFrameShape(QFrame.Shape.NoFrame)
         lw.setUniformItemSizes(True)
         lw.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -400,15 +400,15 @@ class Selector(QPushButton):
         lw.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerItem)
         lw.setStyleSheet(
             f"""
-            QListWidget#jtSelectorList {{
+            QListWidget#doughSelectorList {{
                 background: transparent; border: none; outline: none;
                 {type_qss(TYPE_BODY)}
             }}
-            QListWidget#jtSelectorList::item {{
+            QListWidget#doughSelectorList::item {{
                 color: {TEXT}; padding: 7px 14px; border-radius: {rad(6)}px;
             }}
-            QListWidget#jtSelectorList::item:hover {{ background: {ink_alpha(0.06)}; }}
-            QListWidget#jtSelectorList::item:selected {{
+            QListWidget#doughSelectorList::item:hover {{ background: {ink_alpha(0.06)}; }}
+            QListWidget#doughSelectorList::item:selected {{
                 background: rgba({_ar},{_ag},{_ab},0.28); color: {TEXT};
             }}
             """

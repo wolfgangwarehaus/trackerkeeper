@@ -197,7 +197,7 @@ class _ArrowNav(QObject):
         if key not in (Qt.Key.Key_Left, Qt.Key.Key_Right):
             return False
         # Recompute the reachable set each press — top-bar controls show/hide
-        # with the view (library controls, window buttons, the Music dropdown).
+        # with the view (content controls, window buttons, dropdown menus).
         live = [b for b in self._buttons if b.isVisible() and b.isEnabled()]
         if obj not in live:
             return False

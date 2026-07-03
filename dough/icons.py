@@ -107,7 +107,7 @@ _SVG = {
         'stroke-linecap="round" stroke-linejoin="round"/></svg>'
     ),
     # Crescent moon — sleep-timer affordance. Feather's `moon` path,
-    # drawn as a filled glyph so it reads at 18px in the player bar.
+    # drawn as a filled glyph so it reads at 18px in a compact bar.
     "moon": (
         '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
         '<path d="M21 12.79 A 9 9 0 1 1 11.21 3 A 7 7 0 0 0 21 12.79 Z" '
@@ -448,7 +448,7 @@ def refresh_theme() -> None:
     objects callers hold are not retroactively updated — they were
     built with the old colors baked in. Callers that want live-
     updating icons must re-call ``icon(name)`` /
-    ``accent_icon(name)`` on the ``PlayerBus.theme_changed`` signal."""
+    ``accent_icon(name)`` on the ``AppBus.theme_changed`` signal."""
     global ICON_ACCENT, ICON_DIM, ICON_BRIGHT
     ICON_ACCENT = _resolve_icon_accent()
     ICON_DIM = _resolve_icon_default("IDLE_TEXT", "#a8a8a8")

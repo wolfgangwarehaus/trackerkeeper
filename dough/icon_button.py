@@ -27,25 +27,25 @@ from PySide6.QtWidgets import QPushButton
 class IconButton(QPushButton):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._jt_qicon: QIcon | None = None
+        self._own_qicon: QIcon | None = None
         # Icon buttons are mouse-driven chrome: they keep the default arrow
         # cursor (no pointing-hand — that affordance is reserved for text CTAs
         # and clickable cards) and take NO keyboard focus, so a focus snap
         # (e.g. after a mode toggle) never paints Qt's focus ring on a
         # transport button. Centralised here so every site — including the
-        # VolumeButton / CoverOverlayButton subclasses and the top/now-playing
-        # bars — is uniform; a styled focus ring belongs with a real
+        # subclasses (CoverOverlayButton here; an app's own
+        # transport buttons) and the top/footer bars — is uniform; a styled focus ring belongs with a real
         # keyboard-nav pass, not on these.
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
     def setIcon(self, icon: QIcon) -> None:  # noqa: N802 — Qt override
         # Capture the icon and paint it ourselves (snapped). Deliberately NOT
         # forwarded to QPushButton, whose style would draw it un-snapped.
-        self._jt_qicon = icon
+        self._own_qicon = icon
         self.update()
 
     def icon(self) -> QIcon:  # noqa: N802 — keep the getter consistent
-        return self._jt_qicon if self._jt_qicon is not None else QIcon()
+        return self._own_qicon if self._own_qicon is not None else QIcon()
 
     def sizeHint(self):  # noqa: N802 — Qt override
         # We don't forward the glyph to QPushButton, so its sizeHint ignores
@@ -58,7 +58,7 @@ class IconButton(QPushButton):
         # QPushButton paints the flat background + hover/pressed wash (it has
         # no icon on the super, so it draws none).
         super().paintEvent(e)
-        ic = self._jt_qicon
+        ic = self._own_qicon
         s = self.iconSize()
         if ic is not None and not ic.isNull() and not s.isEmpty():
             dpr = self.devicePixelRatioF()

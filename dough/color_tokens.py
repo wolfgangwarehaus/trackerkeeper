@@ -16,7 +16,7 @@ The override flow:
    - Persists the override to QSettings.
    - Mutates the module-level global in place (same pattern as
      ``ui_helpers.refresh_theme()``).
-   - Fires ``PlayerBus.theme_changed`` so every widget that listens
+   - Fires ``AppBus.theme_changed`` so every widget that listens
      re-stamps its QSS / re-paints.
 4. ``reset(name)`` removes the override and restores the default.
 
@@ -368,7 +368,7 @@ def get_current(name: str) -> Any:
 
 def apply_override(name: str, value: Any, *, persist: bool = True) -> None:
     """Apply an override: mutate the module global in place, fire
-    ``PlayerBus.theme_changed``, and (by default) persist to
+    ``AppBus.theme_changed``, and (by default) persist to
     QSettings.
 
     Special-case ACCENT: also recompute ACCENT_DEEP (~10% darker)
@@ -639,12 +639,12 @@ def _deserialize(raw: str, kind: str) -> Any:
 
 def _emit_theme_changed() -> None:
     """Fire theme_changed so every subscriber re-stamps its styles.
-    Wrapped because PlayerBus may not be initialised in early-boot
+    Wrapped because the bus may not be initialised in early-boot
     contexts (token overrides loaded before QApplication)."""
     try:
-        from dough.bus import AppBus as PlayerBus
+        from dough.bus import AppBus
 
-        PlayerBus.get().theme_changed.emit()
+        AppBus.get().theme_changed.emit()
     except Exception:
         # No bus yet (app booting): persisted overrides apply via
         # load_persisted_overrides() mutating the globals directly,

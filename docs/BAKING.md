@@ -11,6 +11,15 @@ This document is the design for that second half. It's a spec, not yet code —
 captured from the `baking-phase-research` sweep (2026-06-21) over jellytoast's
 real release stack plus each channel's canonical schema.
 
+> **Terminology note (2026-07-03).** This spec predates the settled maker-workflow
+> vocabulary (**Ingredients → Baking → Delivery**, then the Improvements loop —
+> see `docs/TODO.md`). In that vocabulary, what this document calls "the baking
+> phase" is the machinery behind the **Delivery** phase (channels, release
+> pipeline, stores). `dough bake` itself is the **render step** — regenerating
+> `packaging/` from the metadata sidecar — which a maker runs *during Baking*
+> (the build loop). The doc keeps its historical phrasing; read "baking phase"
+> below as "the Delivery machinery."
+
 ---
 
 ## 1. The problem it actually solves

@@ -70,14 +70,21 @@ def _identity(pyproject: Path) -> tuple[str, str, str]:
 
 
 def _make_transform(old: tuple[str, str, str], new: tuple[str, str, str]):
-    """Whole-word replace mirroring ``dough new`` (owner, org, slug order). Same
-    ``\\b``-escaped regex as scaffold._replace_in_tree, so an AUTO module renders
-    byte-for-byte identical to what the fork was stamped with."""
+    """Whole-word replace mirroring ``dough new`` (owner, org, slug order), plus
+    each pair's UPPER_SNAKE env-var prefix (``DOUGH_*`` → ``BUTTERPDF_*`` — ``_``
+    is a word char, so ``\\b`` alone never reaches it). Same patterns as
+    scaffold._replace_in_tree, so an AUTO module renders byte-for-byte identical
+    to what the fork was stamped with; keep the two in step."""
     old_slug, old_org, old_owner = old
     new_slug, new_org, new_owner = new
     pairs = [(old_owner, new_owner), (old_org, new_org), (old_slug, new_slug)]
     patterns = [
         (re.compile(rf"\b{re.escape(o)}\b"), n) for o, n in pairs if o != n
+    ]
+    patterns += [
+        (re.compile(rf"\b{re.escape(o.upper())}_"), f"{n.upper()}_")
+        for o, n in pairs
+        if o != n and o.upper() != n.upper()
     ]
 
     def transform(text: str) -> str:

@@ -131,7 +131,7 @@ def font(tier: TypeTier) -> QFont:
     consistent across 1×/1.5×/2×/3× displays. The tradeoff is that
     OS-level "Large Text" / accessibility text-scale preferences
     (KDE font DPI override, Windows "Make text bigger") are ignored —
-    the music-player aesthetic stays pinned regardless of system
+    the app's aesthetic stays pinned regardless of system
     preference. If we ever want to honour those prefs, swap to
     ``setPointSize`` here and the rest of the codebase follows.
     """

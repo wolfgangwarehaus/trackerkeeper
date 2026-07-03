@@ -77,8 +77,16 @@ def _text_files(root: Path):
 
 
 def _replace_in_tree(root: Path, pairs: list[tuple[str, str]]) -> None:
-    """Whole-word replace each (old → new) across every text file."""
+    """Whole-word replace each (old → new) across every text file, plus each
+    pair's UPPER_SNAKE env-var prefix (``DOUGH_*`` → ``BUTTERPDF_*``) — ``_``
+    is a word character, so the ``\\b`` word pattern alone never reaches it.
+    Mirrored by dev/sync_loaf.py ``_make_transform``; keep the two in step."""
     patterns = [(re.compile(rf"\b{re.escape(old)}\b"), new) for old, new in pairs if old != new]
+    patterns += [
+        (re.compile(rf"\b{re.escape(old.upper())}_"), f"{new.upper()}_")
+        for old, new in pairs
+        if old != new and old.upper() != new.upper()
+    ]
     if not patterns:
         return
     for path in _text_files(root):

@@ -43,6 +43,25 @@ def test_replace_in_tree_is_whole_word(tmp_path: Path) -> None:
     assert "'butterpdf._version'" in out  # quoted: replaced
 
 
+def test_replace_in_tree_renames_env_var_prefixes(tmp_path: Path) -> None:
+    """DOUGH_* env vars re-namespace on fork (X2): '_' is a word char, so the
+    whole-word pattern alone never reaches DOUGH_FOO — the upper env-prefix
+    pattern must. Suffix forms (…_FOR_DOUGH) stay untouched by design (none
+    exist in the tree; templates render those via jinja)."""
+    f = tmp_path / "x.py"
+    f.write_text(
+        'os.environ.get("DOUGH_OPAQUE")\n'
+        "DOUGH_NO_WIN_BLUR = 1\n"
+        "keep = SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DOUGH\n",
+        encoding="utf-8",
+    )
+    scaffold._replace_in_tree(tmp_path, [("dough", "butterpdf")])
+    out = f.read_text(encoding="utf-8")
+    assert '"BUTTERPDF_OPAQUE"' in out
+    assert "BUTTERPDF_NO_WIN_BLUR = 1" in out
+    assert "SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DOUGH" in out  # suffix form: untouched
+
+
 def test_agents_loaf_template_substitutes_clean() -> None:
     """The loaf AGENTS.md template fills every token and keeps 'dough' in prose
     (it's written AFTER the whole-word replace, so references to the base must

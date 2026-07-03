@@ -129,8 +129,9 @@ Quick-sign → converters → safe-open + XFA-decline. Deps: `pypdf`/`pikepdf`/`
 - **`setDesktopFileName → desktop_id()`** + `StartupWMClass → app_id_base` (needs KDE
   Wayland+X11 smoke — pairs with A1).
 - **Wire autostart/notifications** opt-in into `run_app` (§4 below) + Settings toggle.
-- **Realign the docs vocabulary** — `dough bake` = RENDER (Baking); the release pipeline =
-  **Delivery**. "The baking phase" in BAKING.md is mostly Delivery.
+- ~~**Realign the docs vocabulary**~~ **DONE 2026-07-03** — BAKING.md now carries a
+  terminology note: `dough bake` = RENDER (run during Baking); "the baking phase" in that
+  doc = the **Delivery** machinery.
 
 ## Shipped 2026-07-01 — jellytoast → dough macOS absorption
 
@@ -314,17 +315,20 @@ guided session on the machine. Steps (also in the AI memory handoff):
 - Smoke on KDE Wayland: blur, frameless drag/edge-resize, rounded-body squaring when
   maximized, music top bar, page switching, pinned np_bar, theme re-stamp.
 
-### 6. P3 polish sweep  ·  low priority, cosmetic
-- Route the remaining bare-slug identity literals through `dough.identity` (review-confirmed):
-  - ~~`dough/windows_shortcut.py` — `dough.exe` / `dough.ico` / `dough.lnk` paths~~ **DONE
-    2026-07-01** (routed through `identity.app()`; AUMID + Description were already routed).
-  - `dough/power/_linux.py:56` — `Inhibit("dough", "Playing music")`: a music-domain
-    leftover in a generic base. Use `identity.app()` + a neutral reason. **(still open)**
+### 6. P3 polish sweep  ·  MOSTLY DONE 2026-07-03
+- Route the remaining bare-slug identity literals through `dough.identity`:
+  - ~~`dough/windows_shortcut.py` paths~~ **DONE 2026-07-01**.
+  - ~~`dough/power/_linux.py` `Inhibit("dough", "Playing music")`~~ **DONE 2026-07-03**
+    (`identity.app()` + a neutral reason; docstring de-musicked).
   - (`autostart/` identity is now DONE — see §4.)
-- Rename the `[JT.Lnk]` C# namespace in `windows_shortcut.py`.
-- ~~`JT_*` env vars~~ **DONE 2026-07-01** (all renamed to `DOUGH_*`; the `JT_WIN_GLASS_ALPHA`
-  leak fixed). `jt*` objectName renames (`jtSelector`, `doughWindow` etc.) still open — cosmetic.
-- Docstring sweep: `PlayerBus`→`AppBus`, music examples → neutral.
-- Split `icons.py` into a chrome core vs a `dough.icons.media` extra.
-- Fix `docs/PHILOSOPHY.md`'s false "identity comes from `applicationName()`" claim
-  (it's now `dough.configure()` / `dough.identity`).
+- ~~Rename the `[JT.Lnk]` C# namespace~~ **DONE 2026-07-03** (→ `[Shortcut.Lnk]`, fork-neutral).
+- ~~`JT_*` env vars~~ **DONE 2026-07-01**. ~~`jt*` objectNames~~ **DONE 2026-07-03**
+  (`doughFrostedDialog`/`doughFrostedTitle`/`doughSelector`/`doughSelectorList`, plus the
+  `_jt_*` attrs). **X2 also DONE 2026-07-03**: `dough new` + `sync_loaf` now re-namespace
+  `DOUGH_*` env vars (the `\bDOUGH_` prefix pattern in both transforms, parity-tested).
+- ~~Docstring sweep~~ **DONE 2026-07-03** (`PlayerBus`→`AppBus` incl. the code aliases;
+  music examples neutralized; bus.py/window.py keep their genuinely historical mentions).
+- Split `icons.py` into a chrome core vs a `dough.icons.media` extra. **(open — deferred:
+  string-keyed dict, no functional gain until a loaf wants to drop the media glyphs)**
+- ~~`docs/PHILOSOPHY.md` false identity claim~~ — already fixed (it cites `identity.py` /
+  `dough.configure()`); the item was stale.
