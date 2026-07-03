@@ -7,6 +7,8 @@ to prove a real app can subclass dough.AppWindow without re-running the chrome.
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 from PySide6.QtWidgets import QLabel, QWidget
 
@@ -81,7 +83,10 @@ def test_backdrop_hook_fires_on_paint() -> None:
     win = _Win(title="x")
     win.set_content(QLabel("body"))
     win.grab()  # force a synchronous paintEvent
-    assert win.painted >= 1
+    # The backdrop hook only paints in the self-drawn chrome mode — Windows
+    # keeps the native frame, so there the hook (correctly) never fires.
+    if sys.platform != "win32":
+        assert win.painted >= 1
 
 
 @pytest.mark.usefixtures("qapp")
@@ -121,7 +126,8 @@ def test_jellytoast_shaped_window() -> None:
     assert win._root.count() == 3  # bar / content / footer
     assert isinstance(win._content_layout.itemAt(0).widget(), QStackedWidget)
     win.grab()
-    assert getattr(win, "frosted", 0) >= 1
+    if sys.platform != "win32":  # backdrop hook: self-drawn chrome mode only
+        assert getattr(win, "frosted", 0) >= 1
     # theme re-stamp reaches the custom bar via the duck-typed restyle() contract
     win._on_theme_changed()
     assert win.top_bar.restyled >= 1

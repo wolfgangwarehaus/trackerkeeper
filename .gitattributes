@@ -1,0 +1,5 @@
+# Build anywhere: every text file checks out LF on every OS. Windows git
+# defaults (core.autocrlf=true on the GitHub runners) would otherwise convert
+# the working tree to CRLF — breaking the byte-exact `dough bake --check`
+# drift gate and any rendered shell script.
+* text=auto eol=lf

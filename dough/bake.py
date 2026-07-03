@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import re
 import stat
 import sys
@@ -99,7 +100,9 @@ def write(packaging_dir: Path, ctx: dict | None = None) -> dict[str, str]:
         dest = packaging_dir / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(body, encoding="utf-8", newline="\n")  # never CRLF
-        if dest.suffix == ".sh":
+        # Exec bits are POSIX semantics — on Windows chmod can't grant X and
+        # the bit isn't meaningful; the scripts run on Linux/macOS anyway.
+        if dest.suffix == ".sh" and os.name == "posix":
             dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     return rendered
 
@@ -118,7 +121,11 @@ def check(packaging_dir: Path, ctx: dict | None = None) -> list[str]:
             continue
         if dest.read_bytes() != body.encode("utf-8"):
             drift.append(f"drift (re-run `dough bake`): {rel}")
-        elif dest.suffix == ".sh" and not (dest.stat().st_mode & stat.S_IXUSR):
+        elif (
+            dest.suffix == ".sh"
+            and os.name == "posix"  # exec bits don't exist on Windows
+            and not (dest.stat().st_mode & stat.S_IXUSR)
+        ):
             drift.append(f"not executable (re-run `dough bake`): {rel}")
     produced = set(rendered)
     for path in _committed_files(packaging_dir):
