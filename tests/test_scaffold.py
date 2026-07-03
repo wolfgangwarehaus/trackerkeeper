@@ -43,6 +43,19 @@ def test_replace_in_tree_is_whole_word(tmp_path: Path) -> None:
     assert "'butterpdf._version'" in out  # quoted: replaced
 
 
+def test_agents_loaf_template_substitutes_clean() -> None:
+    """The loaf AGENTS.md template fills every token and keeps 'dough' in prose
+    (it's written AFTER the whole-word replace, so references to the base must
+    arrive as the literal word, not the fork's slug)."""
+    tpl_path = Path(scaffold.__file__).resolve().parent.parent / "dev" / "AGENTS.loaf.md"
+    assert tpl_path.is_file(), "dev/AGENTS.loaf.md is the dough-new front-door template"
+    tpl = tpl_path.read_text(encoding="utf-8")
+    out = tpl.replace("{{slug}}", "butterpdf").replace("{{display}}", "butterPDF")
+    assert "{{" not in out, "unfilled template token"
+    assert "butterpdf/identity.py" in out
+    assert "baked from\n[dough]" in out  # the base keeps its own name post-fork
+
+
 def test_replace_in_tree_skips_binary_and_caches(tmp_path: Path) -> None:
     """Only text files in scope are touched; a __pycache__ entry is skipped."""
     (tmp_path / "__pycache__").mkdir()

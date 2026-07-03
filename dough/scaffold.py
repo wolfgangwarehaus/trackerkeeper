@@ -109,6 +109,12 @@ def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str,
     old_summary = sidecar["summary"]
     old_guid = sidecar["store_secrets_of_record"]["inno_appid_guid"]
 
+    # Read the loaf AGENTS.md template BEFORE the strip (it lives in dev/, which
+    # goes) — it's written to the root AFTER the identity replace, so its prose
+    # about dough-the-base survives the whole-word dough→slug rewrite.
+    agents_tpl_path = root / "dev" / "AGENTS.loaf.md"
+    agents_tpl = agents_tpl_path.read_text(encoding="utf-8") if agents_tpl_path.is_file() else None
+
     # 1. strip dough's own dev scaffolding.
     for rel in _STRIP:
         _remove(root, rel)
@@ -122,6 +128,16 @@ def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str,
     # 3. whole-word identity replace across the tree (owner first — it's a superstring
     #    of org when they coincide, but escaped \b keeps them distinct anyway).
     _replace_in_tree(root, [(old_owner, new_owner), (old_org, new_org), (old_slug, slug)])
+
+    # 3.5 the fork's AGENTS.md — the AI front door. dough's own copy talks about
+    #     building the BASE (and the replace above just mangled it anyway); the
+    #     loaf gets the app-oriented version from the template read in before
+    #     the strip.
+    if agents_tpl:
+        (root / "AGENTS.md").write_text(
+            agents_tpl.replace("{{slug}}", slug).replace("{{display}}", display),
+            encoding="utf-8",
+        )
 
     # 4. fix the fields the whole-word replace can't: the display name (it was set to
     #    the slug by the slug-replace), a freshly-minted immutable installer GUID, and
