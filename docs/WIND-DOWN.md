@@ -8,8 +8,11 @@ lives only in the conversation; the wind-down makes it durable + actionable.
 ## The checklist (in order)
 
 1. **Land it green.** Every repo you touched passes `ruff check`, `pytest`, and
-   `<app> bake --check`. Never wind down red — leave unfinished work behind a clear marker
-   (an `xfail`, or a `TODO` with the trigger condition), not broken.
+   `<app> bake --check` — and after pushing, **check ALL GitHub workflows** (`gh run list`),
+   not just the `CI` check: a workflow-file parse error (e.g. a `secrets` reference inside
+   an `if:`) fails as a separate 0-second run that a green `CI` badge hides. Never wind
+   down red — leave unfinished work behind a clear marker (an `xfail`, or a `TODO` with
+   the trigger condition), not broken.
 
 2. **Update the handoff doc** — `docs/TODO.md`, the single "pick up here next":
    - current state in 1–2 lines,
