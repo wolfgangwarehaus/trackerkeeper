@@ -9,10 +9,21 @@ read back ground truth instead of eyeballing.
     python -m dough.rig boot            # offscreen boot smoke (any machine, CI)
     python -m dough.rig probe           # live KDE probe: app_id / noborder / X11 class
     python -m dough.rig shot [-o f.png] # screenshot the live window (visual review)
+    python -m dough.rig baseline        # visual-bump gate: grabs vs the goldens
+    python -m dough.rig baseline --update   # (re)write the goldens
 
 ``boot`` runs everywhere (it's the CI smoke, callable locally). ``probe`` and
 ``shot`` need a real KDE Plasma session and decline cleanly elsewhere (exit
 2) — other desktops can grow their own probes behind the same verbs.
+
+``baseline`` grabs the window + the settings dialog OFFSCREEN at a fixed size
+under a scratch identity (so the maker's saved theme/accent can't skew them)
+and compares against the goldens in ``tests/baselines/``. The diff is
+AA-tolerant (exact-equal fast path, else a downscaled per-pixel compare).
+It's a LOCAL gate — goldens are machine-truthful (fonts differ across
+machines), so run it where they were baked; the wind-down ritual is the
+natural moment. A drift means a visual bump: eyeball it, then either fix the
+regression or bless it with ``--update``.
 
 All probes launch the app as a subprocess (``python -m <package>``), observe,
 then kill it — nothing here imports the app into the current process, so the
@@ -199,6 +210,97 @@ def cmd_shot(out: str | None) -> int:
     return 0
 
 
+# ── the visual-bump gate ────────────────────────────────────────────────────
+
+_BASELINE_SHOTS = ("window", "settings")
+_DRIFT_BUDGET = 0.005  # >0.5% of (downscaled) pixels changed = a visual bump
+
+
+def _grab_shots(out_dir: Path) -> int:
+    """Deterministic offscreen grabs: the main window + the settings dialog at
+    a fixed size, under a SCRATCH identity so the maker's persisted theme,
+    accent, and font scale can't leak into the pixels."""
+    code = (
+        "import sys\n"
+        f"import {_PKG}\n"
+        f"{_PKG}.configure(org={_PKG + '_rig'!r}, app={_PKG + '_rig_baseline'!r})\n"
+        "from PySide6.QtWidgets import QApplication\n"
+        "app = QApplication(sys.argv)\n"
+        f"import {_PKG}.app as A\n"
+        f"from {_PKG}.window import AppWindow\n"
+        f"w = AppWindow(title={_PKG!r}); w.resize(1100, 760)\n"
+        "w.set_content(A._placeholder()); w.show(); app.processEvents()\n"
+        f"w.grab().save({str(out_dir)!r} + '/window.png')\n"
+        f"from {_PKG}.settings_dialog import SettingsDialog\n"
+        "d = SettingsDialog(w); d.show(); app.processEvents()\n"
+        f"d.grab().save({str(out_dir)!r} + '/settings.png')\n"
+        "print('grabbed')\n"
+    )
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    return subprocess.run([sys.executable, "-c", code], env=env).returncode
+
+
+def _image_drift(a_path: Path, b_path: Path, *, tol: int = 8) -> float:
+    """Fraction of pixels that changed. Byte-identical → 0.0 fast. Otherwise
+    both images are smooth-scaled to 200×200 and compared per pixel with a
+    per-channel tolerance — antialiasing wobble doesn't count, real layout,
+    colour, or chrome changes do. Size mismatch = total drift (1.0)."""
+    from PySide6.QtCore import Qt as _Qt
+    from PySide6.QtGui import QImage
+
+    a, b = QImage(str(a_path)), QImage(str(b_path))
+    if a.isNull() or b.isNull() or a.size() != b.size():
+        return 1.0
+    fmt = QImage.Format.Format_RGBA8888
+    a, b = a.convertToFormat(fmt), b.convertToFormat(fmt)
+    if bytes(a.constBits()) == bytes(b.constBits()):
+        return 0.0
+    small = (
+        img.scaled(200, 200, _Qt.AspectRatioMode.IgnoreAspectRatio,
+                   _Qt.TransformationMode.SmoothTransformation)
+        for img in (a, b)
+    )
+    ba, bb = (bytes(i.constBits()) for i in small)
+    total = len(ba) // 4
+    differing = sum(
+        1
+        for i in range(0, len(ba), 4)
+        if max(abs(ba[i + c] - bb[i + c]) for c in range(3)) > tol
+    )
+    return differing / total
+
+
+def cmd_baseline(update: bool, base_dir: str | None) -> int:
+    baselines = Path(base_dir) if base_dir else Path("tests") / "baselines"
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        if _grab_shots(tmp) != 0:
+            print("baseline: the grab boot failed")
+            return 1
+        if update:
+            baselines.mkdir(parents=True, exist_ok=True)
+            for shot in _BASELINE_SHOTS:
+                (baselines / f"{shot}.png").write_bytes((tmp / f"{shot}.png").read_bytes())
+            print(f"baseline: goldens written to {baselines}/")
+            return 0
+        failures = 0
+        for shot in _BASELINE_SHOTS:
+            golden = baselines / f"{shot}.png"
+            if not golden.is_file():
+                print(f"  ? {shot}: no golden — run `baseline --update` once to bake them")
+                failures += 1
+                continue
+            drift = _image_drift(golden, tmp / f"{shot}.png")
+            ok = drift <= _DRIFT_BUDGET
+            print(f"  {'✓' if ok else '✗'} {shot}: drift {drift:.2%}"
+                  + ("" if ok else "  ← a visual bump: eyeball it, fix or --update"))
+            failures += 0 if ok else 1
+    print("baseline: PASS" if not failures else "baseline: FAIL")
+    return 0 if not failures else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog=f"{_PKG}-rig", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -206,11 +308,16 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("probe", help="live KDE probe: app_id / noborder / X11 class")
     shot = sub.add_parser("shot", help="screenshot the live window")
     shot.add_argument("-o", "--out", default=None, help="output PNG path")
+    base = sub.add_parser("baseline", help="visual-bump gate: offscreen grabs vs the goldens")
+    base.add_argument("--update", action="store_true", help="(re)write the goldens")
+    base.add_argument("--dir", default=None, help="goldens dir (default: tests/baselines)")
     args = ap.parse_args(argv)
     if args.cmd == "boot":
         return cmd_boot()
     if args.cmd == "probe":
         return cmd_probe()
+    if args.cmd == "baseline":
+        return cmd_baseline(args.update, args.dir)
     return cmd_shot(args.out)
 
 
