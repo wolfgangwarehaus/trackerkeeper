@@ -38,10 +38,14 @@ run_app autostart/notifications wiring, `setDesktopFileName(desktop_id())` (live
 `rig.py` (boot/probe/shot — the RIGGING direction seeded), `deliver.py` (C1 v1 + the
 NAME-CONFLICT finding: PyPI `dough` is TAKEN), PR #1 merged. butterPDF: the whole
 walkthrough refinement set landed live (smooth ink, baked ✕, grey-on-dark fills, CLI
-front, editable install). **Resume: (1) finish the walkthrough's in-person tail
-(cross-viewer PDFs + feel verdicts), (2) the C2 naming decision (PyPI `dough` taken;
-`butterpdf` free) → tag → `deliver` walks the rest, (3) rigging build-out (visual
-baselines) per the tracker.**
+front, editable install). **LATE ADDITIONS (same day): R5 fixed
+(pypdf flatten left widgets editable → true pikepdf flatten, cross-viewer-proven),
+`rig baseline` built (goldens in both repos), and the C2 NAMING DECIDED — dough
+publishes as `dough-base` on PyPI (import/scripts/AUR keep `dough`; `dough new`
+pins forks to their slug; deliver.py is dist-aware). Resume: (1) the walkthrough's
+FEEL verdicts (5 min in the app — the checklist is in the session notes/#6), (2)
+pick the tag order and `git tag v0.1.0` (the last C2 act), (3) C3 via
+`butterpdf-deliver`, (4) rigging build-out (chrome invariants, GNOME legs).**
 
 ## ▶ Audit 2026-07-03 — CI truth-check + workflow fixes
 
