@@ -7,7 +7,7 @@ it propagates. See `docs/RELEASING.md`.
 - [ ] **GitHub release** drafted by `release.yml` — `.deb`, AppImage + `.zsync`, sdist/wheel, `SHA256SUMS`, Sigstore attestations
 - [ ] Cross-distro **smoke tests** green (deb + AppImage self-containment)
 - [ ] **Review the draft** and click **Publish** ← the one human gate
-- [ ] **PyPI** — `pypi-publish.yml` uploaded `${V}`: https://pypi.org/project/dough/${V}/
+- [ ] **PyPI** — `pypi-publish.yml` uploaded `${V}`: https://pypi.org/project/dough-base/${V}/
 - [ ] Provenance verifies: `gh attestation verify <asset> --repo wolfgangwarehaus/dough`
 
 ## Dormant / deferred — light up when configured (docs/TODO.md)

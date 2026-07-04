@@ -11,7 +11,11 @@ requires = ["setuptools>=68", "wheel", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dough"
+# The PyPI DISTRIBUTION name — "dough" is squatted on PyPI (a 2015 third-party
+# package), so pip's name is dough-base while the import package stays `dough`
+# (distribution name ≠ import name, like beautifulsoup4/bs4). `dough new` pins
+# a fork's name back to its slug.
+name = "dough-base"
 # version is DYNAMIC — the tag is the version (docs/BAKING.md §2 principle 4).
 # setuptools-scm derives it from the latest `git tag vX.Y.Z`; there is nothing
 # to stamp in N files and therefore no version-drift class to gate against.

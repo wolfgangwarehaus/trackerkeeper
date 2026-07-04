@@ -34,7 +34,7 @@ uploads workflow artifacts but creates no release.
 
 - **PyPI Trusted Publishing** — add a pending publisher at
   <https://pypi.org/manage/account/publishing/> matching `pypi-publish.yml`
-  (project `dough`, owner `wolfgangwarehaus`, repo `dough`, workflow
+  (project `dough-base`, owner `wolfgangwarehaus`, repo `dough`, workflow
   `pypi-publish.yml`, environment `pypi`). See the header of that workflow.
 - **AUR** *(dormant)* — `aur.yml` publishes the PKGBUILD on `release: released`,
   but skips until you add an `AUR_SSH_PRIVATE_KEY` secret (a dedicated AUR deploy

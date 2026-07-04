@@ -152,6 +152,10 @@ def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str,
     #    (if given) the summary — which lives in two synced places ([project] +sidecar).
     pyproject = root / "pyproject.toml"
     fixes: list[tuple[str, str]] = []
+    # The PyPI distribution name: dough publishes as "dough-base" (the bare name
+    # is squatted on PyPI), and the whole-word replace above just turned it into
+    # "{slug}-base" — a fork's distribution IS its slug, so pin it back.
+    fixes.append((f'name = "{slug}-base"', f'name = "{slug}"'))
     if display != slug:
         fixes.append((f'display_name = "{slug}"', f'display_name = "{display}"'))
         _sub_in_file(root / slug / "identity.py", [(f'_display_name = "{slug}"', f'_display_name = "{display}"')])

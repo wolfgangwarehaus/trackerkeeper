@@ -10,7 +10,7 @@ name: Publish to PyPI
 # One-time PyPI setup — create a pending publisher (the project doesn't exist on
 # PyPI yet, so use the "pending publisher" form):
 #   https://pypi.org/manage/account/publishing/  → Add a new pending publisher:
-#     PyPI Project Name: dough
+#     PyPI Project Name: dough-base
 #     Owner:             wolfgangwarehaus
 #     Repository name:   dough
 #     Workflow name:     pypi-publish.yml
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/dough/
+      url: https://pypi.org/project/dough-base/
     permissions:
       contents: read # gh release download
       id-token: write # mint the short-lived OIDC token Trusted Publishing needs

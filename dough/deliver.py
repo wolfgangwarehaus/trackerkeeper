@@ -86,6 +86,13 @@ class Ctx:
     slug: str
     repo: str  # owner/name
     display_name: str
+    # The PyPI DISTRIBUTION name ([project].name) — distinct from the slug when
+    # the bare name is squatted (dough publishes as dough-base; the import and
+    # every other channel keep the slug).
+    dist: str = ""
+
+    def __post_init__(self) -> None:
+        self.dist = self.dist or self.slug
 
     @cached_property
     def tag(self) -> str | None:
@@ -116,7 +123,7 @@ class Ctx:
         project's URLs points at our repo; without that check a squatted name
         reads as LIVE (found live: PyPI 'dough' is a 2015-era third-party
         package)."""
-        data = _http_json(f"https://pypi.org/pypi/{self.slug}/json")
+        data = _http_json(f"https://pypi.org/pypi/{self.dist}/json")
         if data is _NOT_FOUND:
             return "free"
         if data is None:
@@ -213,19 +220,19 @@ def _channels() -> list[Channel]:
                 Step("the PyPI name is ours (or free)", "account",
                      lambda c: {None: None, "free": True, "ours": True,
                                 "conflict": False}[c.pypi_state],
-                     lambda c: f"⚠ NAME CONFLICT: pypi.org/project/{c.slug} is a FOREIGN "
+                     lambda c: f"⚠ NAME CONFLICT: pypi.org/project/{c.dist} is a FOREIGN "
                                "project — publishing under this name is impossible.\n"
                                "Pick a different [project].name (the import package can "
                                "keep its slug), or skip PyPI for this app."
                      if c.pypi_state == "conflict"
                      else f"the name is unclaimed — it becomes yours on first publish "
-                          f"(https://pypi.org/project/{c.slug}/ is free)"),
+                          f"(https://pypi.org/project/{c.dist}/ is free)"),
                 Step("pending publisher configured on pypi.org", "account",
                      # Only provable after the first publish succeeds.
                      lambda c: True if c.pypi_state == "ours" else None,
                      lambda c: "one-time, at https://pypi.org/manage/account/publishing/ "
                                "(see docs/RELEASING.md):\n"
-                               f"    PyPI project name:  {c.slug}\n"
+                               f"    PyPI project name:  {c.dist}\n"
                                f"    Owner / repository: {c.repo}\n"
                                "    Workflow name:      pypi-publish.yml\n"
                                "    Environment name:   pypi"),
@@ -235,7 +242,7 @@ def _channels() -> list[Channel]:
                                "pypi-publish.yml fires on release:published"),
                 Step("package live on pypi.org", "local",
                      lambda c: None if c.pypi_state is None else c.pypi_state == "ours",
-                     lambda c: f"verify: https://pypi.org/project/{c.slug}/"),
+                     lambda c: f"verify: https://pypi.org/project/{c.dist}/"),
             ],
         ),
         Channel(
@@ -366,13 +373,19 @@ def release_lap(ctx: Ctx) -> tuple[str, int]:
 
 
 def _ctx() -> Ctx:
+    import tomllib
+
     from dough import metadata
 
     meta = metadata.load()
+    project = tomllib.loads(
+        metadata._find_pyproject().read_text(encoding="utf-8")
+    ).get("project", {})
     return Ctx(
         slug=meta["app_slug"],
         repo=f"{meta['github_owner']}/{meta['repo_name']}",
         display_name=meta["display_name"],
+        dist=str(project.get("name") or meta["app_slug"]),
     )
 
 
