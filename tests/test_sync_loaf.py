@@ -113,3 +113,44 @@ def test_transform_matches_scaffold_on_env_vars(sl):
         f.write_text(src, encoding="utf-8")
         scaffold._replace_in_tree(_P(td), [("o", "o"), ("dough", "butterpdf")])
         assert f.read_text(encoding="utf-8") == transform(src)
+
+
+def test_transform_degenerate_org_owner_split(sl):
+    """dough's org == owner ("wolfgangwarehaus"), so a fork that SEPARATES them
+    is ambiguous to the whole-word replace (owner runs first and claims every
+    occurrence). The org-semantic identity.py lines must be re-stamped — and
+    _owner pinned explicitly, since its default tracks the (now different) org."""
+    transform = sl._make_transform(
+        ("dough", "wolfgangwarehaus", "wolfgangwarehaus"),
+        ("myapp", "acmeorg", "octocat"),
+    )
+    src = (
+        '_org = "wolfgangwarehaus"\n'
+        "_owner: str | None = None  # None ⇒ track `org` (see owner())\n"
+        'homepage = "github.com/wolfgangwarehaus/dough"\n'
+    )
+    out = transform(src)
+    assert '_org = "acmeorg"' in out  # org-semantic, NOT the owner
+    assert '_owner: str | None = "octocat"' in out  # pinned — must not track org
+    assert "github.com/octocat/myapp" in out  # owner-semantic sites stay owner
+
+
+def test_transform_degenerate_repair_matches_scaffold(sl):
+    """Parity: the sync transform's org repair must equal scaffold's step-4b
+    repair pairs, so a synced identity.py reproduces the fork byte-for-byte."""
+    from dough import scaffold
+
+    pairs = scaffold._identity_org_repairs(
+        "wolfgangwarehaus", "wolfgangwarehaus", "acmeorg", "octocat"
+    )
+    src = '_org = "wolfgangwarehaus"\n_owner: str | None = None\n'
+    transform = sl._make_transform(
+        ("dough", "wolfgangwarehaus", "wolfgangwarehaus"), ("myapp", "acmeorg", "octocat")
+    )
+    # scaffold = whole-word replace (all → owner), then the step-4b repair
+    scaffolded = src.replace("wolfgangwarehaus", "octocat")
+    for old, new in pairs:
+        scaffolded = scaffolded.replace(old, new)
+    assert transform(src) == scaffolded
+    # …and the repair is a no-op when the fork keeps org == owner
+    assert scaffold._identity_org_repairs("w", "w", "same", "same") == []

@@ -57,6 +57,16 @@ def _git(repo: Path, *args: str) -> str:
     ).stdout
 
 
+def _git_ok(repo: Path, *args: str) -> bool:
+    """True iff git exits 0 — for probes where empty stdout is ambiguous
+    (a failed `git diff bad-rev..HEAD` is empty too, which would read as
+    'no upstream changes ✓' — exactly the silent blind spot this tool exists
+    to prevent)."""
+    return (
+        subprocess.run(["git", "-C", str(repo), *args], capture_output=True).returncode == 0
+    )
+
+
 def _identity(pyproject: Path) -> tuple[str, str, str]:
     """(slug, org, owner) from a checkout's ``[tool.<pkg>.metadata]`` sidecar.
     ``dough new`` renames the tool-table key to the fork's slug, so scan
@@ -86,10 +96,22 @@ def _make_transform(old: tuple[str, str, str], new: tuple[str, str, str]):
         for o, n in pairs
         if o != n and o.upper() != n.upper()
     ]
+    # The degenerate-identity org repair (mirrors scaffold._identity_org_repairs):
+    # when dough's org == owner but the loaf's differ, the generic replace stamps
+    # the OWNER into identity.py's org-semantic lines — re-stamp them so the
+    # transform reproduces what `dough new` + its step-4b repair produced.
+    repairs: list[tuple[str, str]] = []
+    if old_org == old_owner and new_org != new_owner:
+        repairs = [
+            (f'_org = "{new_owner}"', f'_org = "{new_org}"'),
+            ("_owner: str | None = None", f'_owner: str | None = "{new_owner}"'),
+        ]
 
     def transform(text: str) -> str:
         for pattern, repl in patterns:
             text = pattern.sub(repl, text)
+        for old_lit, new_lit in repairs:
+            text = text.replace(old_lit, new_lit)
         return text
 
     return transform
@@ -167,6 +189,18 @@ def main() -> int:
     authored = set(m.get("authored", []))
     manual = set(m.get("manual", []))
 
+    # A stale/garbage synced_from makes every `git diff synced_from..HEAD` exit
+    # 128 with EMPTY output — indistinguishable from "no upstream changes" if
+    # trusted blind. Fail loud instead.
+    if synced_from and not _git_ok(DOUGH_ROOT, "cat-file", "-e", f"{synced_from}^{{commit}}"):
+        print(
+            f"error: synced_from = {synced_from!r} does not resolve to a commit in "
+            f"{DOUGH_ROOT} — fix the loaf's dough-sync.toml (MANUAL reports would "
+            "silently read as clean).",
+            file=sys.stderr,
+        )
+        return 2
+
     transform = _make_transform(_identity(DOUGH_ROOT / "pyproject.toml"), (slug, org, owner))
     head = _git(DOUGH_ROOT, "rev-parse", "--short", "HEAD").strip()
 
@@ -192,11 +226,30 @@ def main() -> int:
             new_mods.append((rel, cand, dest))
             continue
         if cand != dest.read_text(encoding="utf-8"):
-            auto_drift.append((rel, _diff(dest.read_text(encoding="utf-8"), cand, rel, slug)))
-            if args.apply:
-                dest.write_text(cand, encoding="utf-8")
+            auto_drift.append((rel, _diff(dest.read_text(encoding="utf-8"), cand, rel, slug), cand, dest))
 
-    if args.apply:
+    if args.apply and (auto_drift or new_mods):
+        # Never clobber uncommitted loaf work: an edit to a shared module not
+        # yet promoted to `manual` would be overwritten UNRECOVERABLY (git can
+        # restore committed clobbers; it can't restore these).
+        targets = [dest for _rel, _d, _cand, dest in auto_drift] + [
+            dest for _rel, _cand, dest in new_mods
+        ]
+        if _git_ok(loaf, "rev-parse", "--is-inside-work-tree"):
+            dirty = _git(
+                loaf, "status", "--porcelain", "--", *[str(t) for t in targets]
+            ).strip()
+            if dirty:
+                print(
+                    "error: --apply refused — these sync targets have uncommitted "
+                    f"changes in the loaf:\n{dirty}\n"
+                    "Commit/stash them (or promote the files to `manual` in "
+                    "dough-sync.toml) and re-run.",
+                    file=sys.stderr,
+                )
+                return 2
+        for _rel, _d, cand, dest in auto_drift:
+            dest.write_text(cand, encoding="utf-8")
         for _rel, cand, dest in new_mods:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(cand, encoding="utf-8")
@@ -205,7 +258,7 @@ def main() -> int:
 
     if auto_drift:
         print(f"== AUTO modules drifted ({len(auto_drift)}) ==")
-        for rel, d in auto_drift:
+        for rel, d, _cand, _dest in auto_drift:
             print(f"\n--- {rel} ---\n{d or '(differs)'}")
         print(f"\n{'[applied — review + commit in the loaf]' if args.apply else '(run with --apply to update)'}")
     else:

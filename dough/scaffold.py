@@ -109,6 +109,24 @@ def _sub_in_file(path: Path, replacements: list[tuple[str, str]]) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _identity_org_repairs(
+    old_org: str, old_owner: str, new_org: str, new_owner: str
+) -> list[tuple[str, str]]:
+    """Repairs for identity.py after the whole-word replace, for the DEGENERATE
+    case: dough's own org and owner coincide ("wolfgangwarehaus"), so the
+    replace cannot tell org-sites from owner-sites — owner runs first, so every
+    coincident literal became the OWNER. When a fork separates the two, re-stamp
+    the org-semantic ``_org`` and pin ``_owner`` explicitly (it defaults to
+    tracking ``org``, which would now be wrong). Mirrored by
+    dev/sync_loaf.py ``_make_transform``; keep the two in step."""
+    if old_org != old_owner or new_org == new_owner:
+        return []
+    return [
+        (f'_org = "{new_owner}"', f'_org = "{new_org}"'),
+        ("_owner: str | None = None", f'_owner: str | None = "{new_owner}"'),
+    ]
+
+
 def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str, summary: str | None) -> None:
     sidecar = metadata.load()
     old_slug = sidecar["app_slug"]
@@ -168,6 +186,16 @@ def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str,
     if summary:
         fixes.append((f'description = "{old_summary}"', f'description = "{summary}"'))
         fixes.append((f'summary = "{old_summary}"', f'summary = "{summary}"'))
+    # 4b. the degenerate-identity org repair (see _identity_org_repairs): the
+    #     sidecar's org_slug and identity.py's _org/_owner got the OWNER stamped
+    #     into them when org ≠ owner — re-stamp the org-semantic sites. The
+    #     projections gate (tests/test_metadata.py) holds the two sides equal.
+    if old_org == old_owner and new_org != new_owner:
+        fixes.append((f'org_slug = "{new_owner}"', f'org_slug = "{new_org}"'))
+        _sub_in_file(
+            root / slug / "identity.py",
+            _identity_org_repairs(old_org, old_owner, new_org, new_owner),
+        )
     if fixes:
         _sub_in_file(pyproject, fixes)
 
