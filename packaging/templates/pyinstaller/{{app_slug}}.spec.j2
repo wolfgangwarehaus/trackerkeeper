@@ -16,8 +16,11 @@ from PyInstaller.utils.hooks import collect_data_files
 HERE = SPECPATH
 ROOT = os.path.dirname(os.path.dirname(HERE))
 
-# Ship the brand SVG (resolved at runtime via importlib.resources) + the license.
-datas = collect_data_files("{{ app_slug }}", includes=["assets/*.svg"])
+# Ship the brand SVG (resolved at runtime via importlib.resources) + the license
+# + the KWin drag_repaint effect payload (metadata.json + main.js) —
+# drag_repaint/_kwin.py resolves it relative to __file__, which holds in a
+# frozen bundle only if the files are collected at the same relative path.
+datas = collect_data_files("{{ app_slug }}", includes=["assets/*.svg", "drag_repaint/effect/*"])
 datas += [(os.path.join(ROOT, "LICENSE"), ".")]
 
 a = Analysis(
