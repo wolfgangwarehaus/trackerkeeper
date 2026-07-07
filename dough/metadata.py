@@ -72,6 +72,14 @@ def load() -> dict:
     from dough import __version__
 
     meta.setdefault("version", __version__)
+    # The PyPI DISTRIBUTION name ([project].name) — distinct from app_slug when
+    # the slug is taken on PyPI (dough publishes as `dough-base`). Folded in from
+    # pyproject so templates that address the dist (setuptools-scm's
+    # …_FOR_<DIST> env var, pip specs) can't silently assume the slug.
+    try:
+        meta.setdefault("dist_name", data["project"]["name"])
+    except KeyError as exc:
+        raise MetadataError(f"[project] has no name in {pyproject}") from exc
     return meta
 
 

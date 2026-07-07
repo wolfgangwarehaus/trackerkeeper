@@ -37,8 +37,10 @@ build() {
   # A git-archive tarball carries no .git, so setuptools-scm can't read the tag —
   # tell it the version explicitly (== pkgver, stamped from the release tag). The
   # dist-scoped form (…_FOR_<DIST>) is setuptools-scm v8's recommended pattern so
-  # it can't bleed into another scm package built in the same environment.
-  SETUPTOOLS_SCM_PRETEND_VERSION_FOR_{{ app_slug | upper | replace('-', '_') | replace('.', '_') }}="$pkgver" \
+  # it can't bleed into another scm package built in the same environment. The
+  # suffix is the DISTRIBUTION name ([project].name), not the app slug — they
+  # differ when the slug is taken on PyPI (dough-base → …_FOR_DOUGH_BASE).
+  SETUPTOOLS_SCM_PRETEND_VERSION_FOR_{{ dist_name | upper | replace('-', '_') | replace('.', '_') }}="$pkgver" \
     python -m build --wheel --no-isolation
 }
 
