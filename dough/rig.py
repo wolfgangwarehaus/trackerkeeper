@@ -216,10 +216,22 @@ _BASELINE_SHOTS = ("window", "settings")
 _DRIFT_BUDGET = 0.005  # >0.5% of (downscaled) pixels changed = a visual bump
 
 
+def _repo_root() -> Path:
+    """The checkout root (nearest pyproject.toml above this file) — the gate's
+    goldens belong to the REPO, never to whatever directory the maker happens
+    to run the ritual from."""
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "pyproject.toml").is_file():
+            return parent
+    return Path.cwd()  # installed-wheel fallback; baseline is a checkout ritual
+
+
 def _grab_shots(out_dir: Path) -> int:
     """Deterministic offscreen grabs: the main window + the settings dialog at
     a fixed size, under a SCRATCH identity so the maker's persisted theme,
-    accent, and font scale can't leak into the pixels."""
+    accent, and font scale can't leak into the pixels — and a SCRUBBED Qt
+    environment (QT_SCALE_FACTOR, QT_FONT_DPI, …) so a stray shell export
+    can't double the grab size or poison a --update."""
     code = (
         "import sys\n"
         f"import {_PKG}\n"
@@ -236,7 +248,8 @@ def _grab_shots(out_dir: Path) -> int:
         f"d.grab().save({str(out_dir)!r} + '/settings.png')\n"
         "print('grabbed')\n"
     )
-    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("QT_")}
+    env["QT_QPA_PLATFORM"] = "offscreen"
     return subprocess.run([sys.executable, "-c", code], env=env).returncode
 
 
@@ -271,7 +284,7 @@ def _image_drift(a_path: Path, b_path: Path, *, tol: int = 8) -> float:
 
 
 def cmd_baseline(update: bool, base_dir: str | None) -> int:
-    baselines = Path(base_dir) if base_dir else Path("tests") / "baselines"
+    baselines = Path(base_dir) if base_dir else _repo_root() / "tests" / "baselines"
     import tempfile
 
     with tempfile.TemporaryDirectory() as td:

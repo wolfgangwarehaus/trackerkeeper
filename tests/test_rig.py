@@ -86,3 +86,39 @@ def test_drift_tolerates_subtle_noise(tmp_path) -> None:
     a = _img(tmp_path, "a")
     b = _img(tmp_path, "b", tweak=lambda p: p.fillRect(8, 8, 20, 20, QColor(203, 122, 62)))
     assert rig._image_drift(a, b) <= rig._DRIFT_BUDGET
+
+
+def test_baseline_goldens_anchor_to_the_repo_not_the_cwd(tmp_path, monkeypatch):
+    """The visual-bump gate's goldens belong to the checkout — running the
+    ritual from anywhere else must still find tests/baselines/ (a wrong-CWD
+    --update used to bake goldens into $CWD, silently splitting truth)."""
+    from dough import rig
+
+    monkeypatch.chdir(tmp_path)
+    root = rig._repo_root()
+    assert (root / "pyproject.toml").is_file()
+    assert (root / "tests" / "baselines").is_dir()
+
+
+def test_grab_env_scrubs_stray_qt_vars(tmp_path, monkeypatch):
+    """A shell's QT_SCALE_FACTOR=2 used to double the grab size → 100% false
+    drift (or poisoned goldens via --update). Grabs run with QT_* scrubbed."""
+    from dough import rig
+
+    seen: dict = {}
+
+    def fake_run(cmd, env=None, **kw):
+        seen["env"] = env
+
+        class R:
+            returncode = 0
+
+        return R()
+
+    monkeypatch.setattr(rig.subprocess, "run", fake_run)
+    monkeypatch.setenv("QT_SCALE_FACTOR", "2")
+    monkeypatch.setenv("QT_FONT_DPI", "144")
+    rig._grab_shots(tmp_path)
+    assert "QT_SCALE_FACTOR" not in seen["env"]
+    assert "QT_FONT_DPI" not in seen["env"]
+    assert seen["env"]["QT_QPA_PLATFORM"] == "offscreen"
