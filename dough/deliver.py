@@ -46,6 +46,15 @@ def _run(cmd: list[str]) -> str | None:
     return r.stdout if r.returncode == 0 else None
 
 
+def _git(*args: str) -> str | None:
+    """git against THIS checkout (the repo the board reports on) — never the
+    caller's CWD, which may be a different repo with its own tags."""
+    from dough import metadata
+
+    root = metadata._find_pyproject().parent
+    return _run(["git", "-C", str(root), *args])
+
+
 def _gh_json(args: list[str]):
     """Parsed JSON from a ``gh`` call, or None (gh missing / unauthed / 404)."""
     out = _run(["gh", *args])
@@ -96,8 +105,15 @@ class Ctx:
 
     @cached_property
     def tag(self) -> str | None:
-        out = _run(["git", "tag", "--list", "v*", "--sort=-v:refname"])
+        out = _git("tag", "--list", "v*", "--sort=-v:refname")
         return out.splitlines()[0].strip() if out and out.strip() else None
+
+    @cached_property
+    def gh_ok(self) -> bool:
+        """Can gh answer at all (installed + authed)? Steps that would read a
+        gh None as a real absence must consult this first — unauthed/offline is
+        UNKNOWN (?), not 'doesn't exist'."""
+        return _run(["gh", "auth", "status"]) is not None
 
     @cached_property
     def release(self) -> dict | None:
@@ -204,7 +220,10 @@ def _channels() -> list[Channel]:
                 Step("a v* tag exists", "local",
                      lambda c: c.tag is not None, tagcmd),
                 Step("release.yml drafted the release", "local",
-                     lambda c: None if c.tag is None else (c.release is not None),
+                     # release None means ABSENT only when gh could answer;
+                     # unauthed/offline stays ? rather than asserting "not drafted".
+                     lambda c: None if c.tag is None
+                     else (True if c.release is not None else (False if c.gh_ok else None)),
                      lambda c: f"watch it: gh run list --repo {c.repo} --workflow release.yml"),
                 Step("the draft is PUBLISHED (human click)", "publish",
                      lambda c: None if c.release is None else (not c.release.get("isDraft", True)),
@@ -353,7 +372,7 @@ def release_lap(ctx: Ctx) -> tuple[str, int]:
     lines = [f"update lap — {ctx.display_name} ({ctx.repo})"]
     nxt = _next_version(ctx.tag)
     if ctx.tag:
-        moved = _run(["git", "diff", "--stat", f"{ctx.tag}..HEAD", "--", "docs/CHANGELOG.md"])
+        moved = _git("diff", "--stat", f"{ctx.tag}..HEAD", "--", "docs/CHANGELOG.md")
         if moved is not None and not moved.strip():
             lines += [f"  ✗ docs/CHANGELOG.md has not moved since {ctx.tag} — write the",
                       "    release notes first; an empty lap ships nothing describable."]

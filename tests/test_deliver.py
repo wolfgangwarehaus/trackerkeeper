@@ -37,15 +37,21 @@ def test_github_release_progression(ctx, monkeypatch):
     monkeypatch.setattr(deliver, "_http_json", lambda url: None)
 
     # no tag at all
-    monkeypatch.setattr(deliver, "_run", lambda cmd: "" if cmd[:2] == ["git", "tag"] else None)
+    monkeypatch.setattr(
+        deliver, "_run", lambda cmd: "" if cmd[0] == "git" and "tag" in cmd else None
+    )
     monkeypatch.setattr(deliver, "_gh_json", lambda args: None)
     states = deliver._channels()[0].states(Ctx(slug="x", repo="o/x", display_name="x"))
     assert states[0] is False  # tag: pending
     assert "git tag v0.1.0" in deliver.walkthrough(
         Ctx(slug="x", repo="o/x", display_name="x"), "github-release")
 
-    # tag exists, release still a draft
-    monkeypatch.setattr(deliver, "_run", lambda cmd: "v0.1.0\n" if cmd[:2] == ["git", "tag"] else None)
+    # tag exists, release still a draft (gh authed so absence would be definitive)
+    monkeypatch.setattr(
+        deliver, "_run",
+        lambda cmd: "v0.1.0\n" if cmd[0] == "git" and "tag" in cmd
+        else ("" if cmd[:2] == ["gh", "auth"] else None),
+    )
     monkeypatch.setattr(
         deliver, "_gh_json",
         lambda args: {"isDraft": True} if args[:2] == ["release", "view"] else None,
@@ -116,9 +122,9 @@ def test_unknown_channel_lists_the_known(ctx, offline):
 
 def test_release_lap_refuses_an_empty_changelog(ctx, monkeypatch):
     def fake_run(cmd):
-        if cmd[:2] == ["git", "tag"]:
+        if cmd[0] == "git" and "tag" in cmd:
             return "v0.1.0\n"
-        if cmd[:2] == ["git", "diff"]:
+        if cmd[0] == "git" and "diff" in cmd:
             return ""  # changelog untouched since the tag
         return None
 
@@ -131,9 +137,9 @@ def test_release_lap_refuses_an_empty_changelog(ctx, monkeypatch):
 
 def test_release_lap_suggests_the_next_patch(ctx, monkeypatch):
     def fake_run(cmd):
-        if cmd[:2] == ["git", "tag"]:
+        if cmd[0] == "git" and "tag" in cmd:
             return "v0.3.2\n"
-        if cmd[:2] == ["git", "diff"]:
+        if cmd[0] == "git" and "diff" in cmd:
             return " docs/CHANGELOG.md | 12 ++++\n"
         return None
 
@@ -202,3 +208,30 @@ def test_pypi_probes_use_the_distribution_name(monkeypatch):
 def test_ctx_dist_defaults_to_slug():
     c = Ctx(slug="butterpdf", repo="o/r", display_name="b")
     assert c.dist == "butterpdf"
+
+
+def test_git_probes_are_anchored_to_the_checkout(monkeypatch):
+    """`deliver` reports on THIS checkout — git must run with -C <repo root>,
+    never in the caller's CWD (which may be a different repo with its own tags)."""
+    seen: list[list[str]] = []
+    monkeypatch.setattr(deliver, "_run", lambda cmd: seen.append(cmd) or None)
+    _ = Ctx(slug="x", repo="o/x", display_name="x").tag
+    (git_call,) = [c for c in seen if c[0] == "git"]
+    assert git_call[1] == "-C"
+    from dough import metadata
+
+    assert git_call[2] == str(metadata._find_pyproject().parent)
+
+
+def test_unauthed_gh_reads_unknown_not_undrafted(monkeypatch):
+    """A tag exists but gh can't answer (unauthed/offline): the drafted-step is
+    UNKNOWN (None → '?'), never a false 'release.yml has not drafted'."""
+    monkeypatch.setattr(
+        deliver, "_run",
+        lambda cmd: "v0.1.0\n" if cmd[0] == "git" and "tag" in cmd else None,
+    )
+    monkeypatch.setattr(deliver, "_gh_json", lambda args: None)
+    monkeypatch.setattr(deliver, "_http_json", lambda url: None)
+    states = deliver._channels()[0].states(Ctx(slug="x", repo="o/x", display_name="x"))
+    assert states[0] is True  # the tag is a local fact
+    assert states[1] is None  # drafted? unknowable without gh
