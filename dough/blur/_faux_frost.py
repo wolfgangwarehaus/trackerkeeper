@@ -56,10 +56,12 @@ class FauxFrost:
     )
     # Faint monochrome film grain, tiled. Fixed seed → deterministic so the
     # cached texture is stable across rebuilds. Sparse + low-alpha = fine film
-    # grain rather than a haze.
+    # grain rather than a haze. Tuned DOWN 2026-07-08 (walkthrough verdict:
+    # the grain read as noise once you'd seen real blur next to it) — barely
+    # there, just enough to break the flat fill.
     _GRAIN_TILE = 64
-    _GRAIN_ALPHA_MAX = 9
-    _GRAIN_DENSITY = 0.20  # fraction of pixels that get any speck
+    _GRAIN_ALPHA_MAX = 5
+    _GRAIN_DENSITY = 0.11  # fraction of pixels that get any speck
     _GRAIN_SEED = 0xF0057
     _grain: Optional[QPixmap] = None
 
