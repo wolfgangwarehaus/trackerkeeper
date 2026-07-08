@@ -13,8 +13,10 @@ Orient in this order (the session **opening** — the mirror of
    Ingredients/Baking/Delivery/Improvements checklists). **Maker edits are
    DIRECTIVES**: an unchecked item is work, a check you didn't make is a
    decision, and every `note` is the maker steering you — re-ingest them
-   before continuing. Update item states as you land work, and at wind-down.
-   `{{slug}} breadboard` opens the window; `{{slug}}-breadboard --init` seeds a fresh one.
+   before continuing. If **`agent_request`** is set (the window's Wind down…
+   button writes it), FULFIL it (wind down = run `docs/WIND-DOWN.md`) and clear
+   the field in the same commit. Update item states as you land work, and at
+   wind-down. `{{slug}}-breadboard` opens the window (`--init` seeds a fresh one).
 3. Read the top block of **`docs/TODO.md`** — the handoff that leads with
    "pick up here". If it doesn't exist yet, create it at your first wind-down.
 4. Check the session task tracker (if your harness has one) and any memory /

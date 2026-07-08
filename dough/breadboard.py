@@ -82,10 +82,31 @@ def load(path: Path) -> dict:
     data.setdefault("product", _PKG)
     data.setdefault("goal", "")
     data.setdefault("purpose", "")
+    data.setdefault("agent_request", "")
     for item in data["baking"]:
         if item.get("priority") not in PRIORITIES:
             item["priority"] = "next"
     return data
+
+
+def discover_projects(home: Path | None = None) -> list[tuple[str, Path]]:
+    """(product, board-file) for this checkout AND its sibling checkouts that
+    carry a breadboard — the maker's project switcher. The home project is
+    always first."""
+    home = home or repo_root()
+    out: list[tuple[str, Path]] = []
+    for d in [home] + sorted(
+        p for p in home.parent.iterdir() if p.is_dir() and p != home
+    ):
+        boards = sorted(d.glob("*-breadboard.toml"))
+        if not boards or not (d / "pyproject.toml").is_file():
+            continue
+        try:
+            product = load(boards[0]).get("product", d.name)
+        except Exception:
+            continue  # malformed board — skip, don't break the switcher
+        out.append((product, boards[0]))
+    return out
 
 
 def _toml_str(s: str) -> str:
@@ -109,6 +130,8 @@ def save(path: Path, board: dict) -> None:
         f"product = {_toml_str(board.get('product', _PKG))}",
         f"goal = {_toml_str(board.get('goal', ''))}",
         f"purpose = {_toml_str(board.get('purpose', ''))}",
+        # the maker's direct line: "wind down" etc. — the agent fulfils + clears
+        f"agent_request = {_toml_str(board.get('agent_request', ''))}",
     ]
     for phase in PHASES:
         for item in board.get(phase, []):
@@ -176,22 +199,28 @@ def default_board(product: str) -> dict:
     }
 
 
-def _sidecar() -> dict:
-    """The metadata sidecar (display name, summary, feature cards, icon path)
-    for the Ingredients summary card — degrades to package-name basics when
-    unavailable (installed wheel, malformed pyproject)."""
+def _project_info(root: Path) -> dict:
+    """Summary-card facts (slug, display name, summary, feature cards, icon)
+    for ANY checkout root — a generic ``[tool.<slug>.metadata]`` scan (the
+    sidecar key is renamed per fork, same lesson as sync_loaf._identity), so
+    the switcher can show a sibling loaf's card, not just this checkout's.
+    Degrades to directory-name basics on anything malformed."""
     try:
-        from dough import metadata
-
-        meta = metadata.load()
-        return {
-            "display_name": meta.get("display_name", _PKG),
-            "summary": meta.get("summary", ""),
-            "feature_cards": meta.get("feature_cards", []),
-            "icon": str(repo_root() / meta.get("icon_svg_source", "")),
-        }
+        data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+        for section in data.get("tool", {}).values():
+            meta = section.get("metadata") if isinstance(section, dict) else None
+            if isinstance(meta, dict) and "app_slug" in meta:
+                return {
+                    "slug": meta["app_slug"],
+                    "display_name": meta.get("display_name", meta["app_slug"]),
+                    "summary": meta.get("summary", ""),
+                    "feature_cards": meta.get("feature_cards", []),
+                    "icon": str(root / meta.get("icon_svg_source", "")),
+                }
     except Exception:
-        return {"display_name": _PKG, "summary": "", "feature_cards": [], "icon": ""}
+        pass
+    return {"slug": root.name, "display_name": root.name, "summary": "",
+            "feature_cards": [], "icon": ""}
 
 
 # ── the window half ──────────────────────────────────────────────────────────
@@ -278,6 +307,8 @@ def _make_view(path: Path):
         def __init__(self) -> None:
             super().__init__()
             self._path = Path(path)
+            self._root = self._path.parent
+            self._home_path = board_path()
             self._board = load(self._path)
             self._writing = False
             self._probe: _ChannelProbe | None = None
@@ -286,6 +317,44 @@ def _make_view(path: Path):
             root = QVBoxLayout(self)
             root.setContentsMargins(16, 10, 16, 12)
             root.setSpacing(10)
+
+            # ── the project bar: which loaf is on the bench + wind-down ──
+            projbar = QHBoxLayout()
+            projbar.setSpacing(8)
+            plabel = QLabel("Project")
+            plabel.setStyleSheet("color:#888;")
+            projbar.addWidget(plabel)
+            from dough.selector import Selector, selector_qss
+
+            self._project_sel = Selector()
+            self._project_sel.setStyleSheet(selector_qss())
+            self._projects = discover_projects()
+            for product, bpath in self._projects:
+                label = product + ("  (here)" if bpath == self._home_path else "")
+                self._project_sel.addItem(label, str(bpath))
+            idx = self._project_sel.findData(str(self._path))
+            if idx >= 0:
+                self._project_sel.setCurrentIndex(idx)
+            self._project_sel.setFixedWidth(240)
+            self._project_sel.currentIndexChanged.connect(self._on_project_pick)
+            projbar.addWidget(self._project_sel)
+            projbar.addStretch(1)
+            self._winddown_note = QLabel("")
+            self._winddown_note.setStyleSheet("color:#8f8;font-size:11px;")
+            projbar.addWidget(self._winddown_note)
+            wind = QPushButton("Wind down…")
+            wind.setToolTip(
+                "Ask the agent to run the wind-down ritual for this project\n"
+                "(land green → update the handoff → commit + push). Written into\n"
+                "the board as agent_request — the agent fulfils it and clears it.")
+            wind.setCursor(Qt.CursorShape.PointingHandCursor)
+            wind.setStyleSheet(
+                "QPushButton{border:1px solid rgba(255,255,255,0.2);border-radius:8px;"
+                "padding:5px 14px;background:transparent;color:#ccc;}"
+                f"QPushButton:hover{{border-color:{accent};color:#fff;}}")
+            wind.clicked.connect(self._request_wind_down)
+            projbar.addWidget(wind)
+            root.addLayout(projbar)
 
             # ── the tabs, ACROSS THE TOP, sharing the full width ─────────
             pills = QHBoxLayout()
@@ -326,6 +395,38 @@ def _make_view(path: Path):
             self._rewatch = QTimer(self)
             self._rewatch.setSingleShot(True)
             self._rewatch.timeout.connect(self._ensure_watched)
+
+        # ── project switching + the wind-down request ─────────────────────
+        def _on_project_pick(self, _idx: int) -> None:
+            data = self._project_sel.currentData()
+            if data and Path(data) != self._path:
+                self.set_project(Path(data))
+
+        def set_project(self, new_path: Path) -> None:
+            """Put another checkout's board on the bench: reload state, re-anchor
+            the summary card + watcher; live channel detection stays home-only
+            (deliver probes THIS checkout — a sibling's truth needs its own
+            `<slug>-breadboard`)."""
+            self._watcher.removePath(str(self._path))
+            self._path = Path(new_path)
+            self._root = self._path.parent
+            self._board = load(self._path)
+            self._channel_rows = None
+            self._winddown_note.setText("")
+            self._watcher.addPath(str(self._path))
+            self._goal.setText(self._board.get("goal", ""))
+            self._rebuild_pages()
+            self._show_phase(self._first_open_phase())
+
+        def _is_home(self) -> bool:
+            return self._path == self._home_path
+
+        def _request_wind_down(self) -> None:
+            self._board["agent_request"] = (
+                f"wind down — requested by the maker {date.today().isoformat()}"
+            )
+            self._write()
+            self._winddown_note.setText("wind-down requested — the agent will land it")
 
         # ── phases ────────────────────────────────────────────────────────
         def _first_open_phase(self) -> str:
@@ -371,7 +472,8 @@ def _make_view(path: Path):
 
         # ── Ingredients: the app summary page ─────────────────────────────
         def _build_ingredients(self) -> QWidget:
-            side = _sidecar()
+            side = _project_info(self._root)
+            self._slug = side["slug"]
             inner = QWidget()
             vbox = QVBoxLayout(inner)
             vbox.setContentsMargins(2, 4, 2, 4)
@@ -447,7 +549,7 @@ def _make_view(path: Path):
         def _open_brand_assets(self) -> None:
             from PySide6.QtCore import QUrl
 
-            assets = repo_root() / _PKG / "assets"
+            assets = self._root / getattr(self, "_slug", _PKG) / "assets"
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(assets)))
 
         def _purpose_changed(self) -> None:
@@ -559,6 +661,19 @@ def _make_view(path: Path):
             v = QVBoxLayout(inner)
             v.setContentsMargins(2, 4, 2, 4)
             v.setSpacing(10)
+            if not self._is_home():
+                away = QLabel(
+                    "Live channel detection runs in the project's own checkout — "
+                    f"open it with `{_project_info(self._root)['slug']}-breadboard`. "
+                    "The board's own delivery items are below.")
+                away.setWordWrap(True)
+                away.setStyleSheet("color:#888;")
+                v.addWidget(away)
+                for item in self._board.get("delivery", []):
+                    v.addLayout(self._build_check_row(item))
+                v.addWidget(self._build_adder("delivery"))
+                v.addStretch(1)
+                return self._scroll(inner)
             bar = QHBoxLayout()
             self._delivery_status = QLabel("")
             self._delivery_status.setStyleSheet("color:#888;")

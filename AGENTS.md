@@ -7,8 +7,11 @@ You are an AI agent in a **dough** checkout. Orient in this order (the session
 2. Read **`dough-breadboard.toml`** — the live maker board (goals + phase
    checklists). **Maker edits are DIRECTIVES**: an unchecked item is work, a
    check you didn't make is a decision, and every `note` is the maker steering
-   you — re-ingest them before continuing. Update item states (`done`/`by`/
-   `date`) as you land work, and at wind-down. `dough breadboard` opens the window.
+   you — re-ingest them before continuing. If **`agent_request`** is set
+   (e.g. "wind down" — the window's Wind down… button writes it), FULFIL it
+   (wind down = run `docs/WIND-DOWN.md`) and clear the field in the same
+   commit. Update item states (`done`/`by`/`date`) as you land work, and at
+   wind-down. `dough breadboard` opens the window.
 3. Read the top block of **`docs/TODO.md`** — the handoff. It always leads with
    "pick up here": current state in a couple of lines, then the exact next steps.
 4. Check the session task tracker (if your harness has one) and any memory /

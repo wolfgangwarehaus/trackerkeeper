@@ -155,3 +155,70 @@ def test_purpose_edits_write_the_file(tmp_path: Path) -> None:
     view = board._make_view(p)
     view._purpose.setPlainText("boiled down")
     assert board.load(p)["purpose"] == "boiled down"
+
+
+# ── the project switcher + the wind-down request ─────────────────────────────
+
+
+def test_discover_projects_finds_home_and_siblings(tmp_path: Path) -> None:
+    home = tmp_path / "dough"
+    sib = tmp_path / "butterpdf"
+    plain = tmp_path / "not-a-loaf"
+    for d in (home, sib, plain):
+        d.mkdir()
+    (home / "pyproject.toml").write_text("")
+    (sib / "pyproject.toml").write_text("")
+    board.save(home / "dough-breadboard.toml", board.default_board("dough"))
+    board.save(sib / "butterpdf-breadboard.toml", board.default_board("butterPDF"))
+    (plain / "readme.txt").write_text("no pyproject, no board")
+
+    found = board.discover_projects(home)
+    assert [name for name, _ in found] == ["dough", "butterPDF"]  # home first
+    assert found[0][1].parent == home
+
+
+def test_agent_request_round_trips(tmp_path: Path) -> None:
+    p = tmp_path / board.FILENAME
+    b = board.default_board("x")
+    b["agent_request"] = "wind down — requested by the maker 2026-07-08"
+    board.save(p, b)
+    assert board.load(p)["agent_request"].startswith("wind down")
+    b["agent_request"] = ""  # the agent clears it after fulfilment
+    board.save(p, b)
+    assert board.load(p)["agent_request"] == ""
+
+
+@pytest.mark.usefixtures("qapp")
+def test_wind_down_button_writes_the_request(tmp_path: Path, monkeypatch) -> None:
+    p = tmp_path / board.FILENAME
+    board.save(p, board.default_board("x"))
+    view = board._make_view(p)
+    view._request_wind_down()
+    assert "wind down" in board.load(p)["agent_request"]
+
+
+@pytest.mark.usefixtures("qapp")
+def test_set_project_switches_the_bench(tmp_path: Path) -> None:
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    for d in (a, b):
+        d.mkdir()
+        (d / "pyproject.toml").write_text("")
+    pa = a / "a-breadboard.toml"
+    pb = b / "b-breadboard.toml"
+    ba = board.default_board("appA")
+    ba["goal"] = "goal A"
+    board.save(pa, ba)
+    bb = board.default_board("appB")
+    bb["goal"] = "goal B"
+    board.save(pb, bb)
+
+    view = board._make_view(pa)
+    assert view._goal.text() == "goal A"
+    view.set_project(pb)
+    assert view._goal.text() == "goal B"
+    assert view._board["product"] == "appB"
+    # edits after the switch land in the NEW project's file
+    view._set_done(view._board["ingredients"][0], True)
+    assert board.load(pb)["ingredients"][0]["done"] is True
+    assert board.load(pa)["ingredients"][0]["done"] is False
