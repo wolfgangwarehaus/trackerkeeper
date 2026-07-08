@@ -1,4 +1,4 @@
-# The breadboard — the live maker surface. The WINDOW (`dough breadboard`) and
+# The breadboard — the live maker surface. The WINDOW (`dough-breadboard`) and
 # the AI AGENT both read and write this file; your edits here are directives
 # the agent re-ingests (see AGENTS.md). Git-tracked on purpose.
 
@@ -57,6 +57,13 @@ note = ""
 
 [[baking]]
 text = "venv blur fix (KWindowSystem plugin shim) — walkthrough catch"
+done = true
+by = "AI"
+date = "2026-07-08"
+note = ""
+
+[[baking]]
+text = "THE BREADBOARD built + named (the maker surface, v1)"
 done = true
 by = "AI"
 date = "2026-07-08"
