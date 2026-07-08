@@ -30,6 +30,40 @@ moved: `dev/shared.toml` `synced_from` is now `7357dad` and most shared modules 
     "live" (artifact + account + secret + submission). The machinery exists; the
     guided activation doesn't.
 
+## ▶ Wind-down 2026-07-07 — new-machine setup + the autonomous audit day
+
+**Fresh Linux install (CachyOS) fully stood up and both repos audited hard; all
+green + pushed + 3-OS CI verified** (dough `main` @ `c3438c1`, butterPDF @ `c5f2575`;
+local `.venv` in each, Python 3.14 / PySide6 6.11; dough 204 passed, butterPDF 180).
+A 3-agent autonomous pass (release dry-run, code review, PDF-engine stress test)
+found and FIXED 9 dough bugs pre-tag: the AUR pretend-version was slug-keyed
+(gitless builds silently shipped 0.0.0 → `dist_name` in the bake context,
+`…_FOR_DOUGH_BASE`), frozen builds omitted the drag_repaint effect payload,
+deliver.py probed git in the CWD not the checkout + read unauthed gh as
+"not drafted" (now `?`), rig baseline's goldens were CWD-relative + grabs
+inherited stray `QT_*` (both could poison/split goldens), `dough new` corrupted
+`org_slug` when a fork separates org from owner (the degenerate-identity repair,
+mirrored in sync_loaf), and sync_loaf trusted a garbage `synced_from` (false
+"no upstream changes ✓") + `--apply` could clobber uncommitted loaf edits.
+butterPDF: `cryptography` declared (AES owner-password PDFs used to silently
+lose the form), and the stress test's S1/S2/S3 engine findings are recorded in
+`../butterPDF/docs/TODO.md` (S1 hierarchical-field save DATA LOSS + S2
+rotated-page misplacement are HIGH — fix before or right after C3).
+Walkthrough artifacts regenerated on this machine: `/tmp/butterpdf_sample_form.pdf`,
+`/tmp/walk_filled_v2.pdf`, `/tmp/walk_flattened_v2.pdf` (flatten verified
+programmatically: 0 fields left, baked ✕ from the R1 repair renders in QtPdf).
+
+**Resume sequence:**
+1. **Loaf sync** — butterPDF has pending AUTO drift from the rig/deliver fixes:
+   `python dev/sync_loaf.py --loaf ../butterPDF --apply` → test → commit → `--record`.
+2. **August's in-person tail** (10 min): open `/tmp/walk_flattened_v2.pdf` in
+   Okular/Firefox (name baked, ✕ visible, nothing editable) + drag/zoom/scroll/ink
+   feel verdicts in the live app + eyeball dough's Settings autostart toggle and a
+   real notification.
+3. **S1 + S2 engine fixes** in butterPDF (session chips exist), then **tag dough
+   `v0.1.0`** (changelog: roll an `[0.1.0]` section first or accept generated
+   notes) → **C3** via `butterpdf-deliver`.
+
 ## ▶ Wind-down 2026-07-03 — the audit + autonomous batch + C1 + rigging + walkthrough day
 
 **Everything green + pushed; both repos on the 3-OS CI matrix.** dough highlights: the CI
