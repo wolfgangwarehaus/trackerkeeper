@@ -83,8 +83,8 @@ dough-new = "dough.scaffold:main"
 # and the update lap (docs/DELIVERY.md).
 dough-deliver = "dough.deliver:main"
 # The live maker surface: goals + phase checklists, shared with the AI agent
-# via dough-board.toml (docs/TODO.md §THE DOUGH BOARD).
-dough-board = "dough.board:main"
+# via dough-breadboard.toml (docs/TODO.md §THE BREADBOARD).
+dough-breadboard = "dough.breadboard:main"
 
 [project.urls]
 Homepage = "https://github.com/wolfgangwarehaus/dough"

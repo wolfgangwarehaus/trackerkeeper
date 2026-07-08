@@ -30,7 +30,7 @@ moved: `dev/shared.toml` `synced_from` is now `7357dad` and most shared modules 
     "live" (artifact + account + secret + submission). The machinery exists; the
     guided activation doesn't.
 
-## ★ NEW product direction 2026-07-08 (user): THE DOUGH BOARD — a live maker surface
+## ★ NEW product direction 2026-07-08 (user): THE BREADBOARD — a live maker surface (named by August: a breadboard is where you prototype)
 
 **The insight:** dough needs something the maker INTERACTS WITH during each step
 of the process — not just docs the AI reads. An **active checklist window** that

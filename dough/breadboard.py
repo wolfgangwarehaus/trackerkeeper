@@ -1,4 +1,4 @@
-"""``dough board`` — the live maker surface (docs/TODO.md §THE DOUGH BOARD).
+"""``dough breadboard`` — the live maker surface (docs/TODO.md §THE BREADBOARD).
 
 The board is the thing the maker INTERACTS WITH during each step of building
 with dough: one frosted window, one tab per phase (Ingredients → Baking →
@@ -8,7 +8,7 @@ channels. The AI agent fills and updates it; the maker checks, unchecks, and
 leaves notes — and the agent RE-INGESTS those as directives (the protocol
 lives in AGENTS.md).
 
-**State is a file; the window is a view.** ``dough-board.toml`` sits in the
+**State is a file; the window is a view.** ``dough-breadboard.toml`` sits in the
 checkout root, git-tracked, human-editable, AI-writable — the file is the API
 between maker, window, and agent (the same two-way-door philosophy as the sync
 manifest). The window file-watches and live-reloads on outside edits; its own
@@ -38,10 +38,10 @@ _PHASE_TITLES = {
 # The package this tool ships in — a fork's whole-word rename keeps it correct.
 _PKG = (__package__ or "dough").split(".")[0]
 
-# The board file is named after the APP (dough-board.toml here, myapp-board.toml
+# The board file is named after the APP (dough-breadboard.toml here, myapp-breadboard.toml
 # in a fork) — derived from the package, not a literal, so the fork rename can't
-# half-apply it (module docstrings say "dough-board.toml" but mean this).
-FILENAME = f"{_PKG}-board.toml"
+# half-apply it (module docstrings say "dough-breadboard.toml" but mean this).
+FILENAME = f"{_PKG}-breadboard.toml"
 
 
 # ── the file half ────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ def save(path: Path, board: dict) -> None:
     """Deterministic emit of the v1 schema — same input, same bytes, so git
     diffs stay honest and the agent/window never fight over formatting."""
     lines = [
-        "# The dough board — the live maker surface. The WINDOW (`dough board`) and",
+        "# The breadboard — the live maker surface. The WINDOW (`{0}-breadboard`) and".format(_PKG),
         "# the AI AGENT both read and write this file; your edits here are directives",
         "# the agent re-ingests (see AGENTS.md). Git-tracked on purpose.",
         "",
@@ -361,11 +361,11 @@ def _make_view(path: Path):
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog=f"{_PKG}-board",
+        prog=f"{_PKG}-breadboard",
         description="The live maker board: goals + phase checklists, shared with the AI agent.",
     )
     parser.add_argument("--init", action="store_true",
-                        help="seed a fresh dough-board.toml (refuses to overwrite)")
+                        help="seed a fresh dough-breadboard.toml (refuses to overwrite)")
     args = parser.parse_args(argv)
 
     path = board_path()
@@ -374,7 +374,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{path} already exists — not overwriting.", file=sys.stderr)
             return 1
         save(path, default_board(_PKG))
-        print(f"seeded {path}. Open it with `{_PKG}-board`.")
+        print(f"seeded {path}. Open it with `{_PKG}-breadboard`.")
         return 0
     if not path.is_file():
         save(path, default_board(_PKG))

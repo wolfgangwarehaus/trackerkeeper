@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /home/august/Projects/ && ls -la /home/august/Projects/dough)"
+    ]
+  }
+}

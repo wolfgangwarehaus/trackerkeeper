@@ -1,4 +1,4 @@
-# The dough board — the live maker surface. The WINDOW (`dough board`) and
+# The breadboard — the live maker surface. The WINDOW (`dough breadboard`) and
 # the AI AGENT both read and write this file; your edits here are directives
 # the agent re-ingests (see AGENTS.md). Git-tracked on purpose.
 

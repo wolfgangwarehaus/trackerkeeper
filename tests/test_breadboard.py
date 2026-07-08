@@ -1,4 +1,4 @@
-"""The dough board (dough/board.py) — the live maker surface. The FILE is the
+"""The dough board (dough/breadboard.py) — the live maker surface. The FILE is the
 API between maker, window, and agent, so the file half gets the real coverage:
 deterministic round-trips, the seed template, and the window's write-backs.
 """
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from dough import board
+from dough import breadboard as board
 
 
 def test_default_board_round_trips_byte_stable(tmp_path: Path) -> None:

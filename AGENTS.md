@@ -4,11 +4,11 @@ You are an AI agent in a **dough** checkout. Orient in this order (the session
 **opening** — the mirror of `docs/WIND-DOWN.md`, the closing):
 
 1. Read this file (2 minutes).
-2. Read **`dough-board.toml`** — the live maker board (goals + phase
+2. Read **`dough-breadboard.toml`** — the live maker board (goals + phase
    checklists). **Maker edits are DIRECTIVES**: an unchecked item is work, a
    check you didn't make is a decision, and every `note` is the maker steering
    you — re-ingest them before continuing. Update item states (`done`/`by`/
-   `date`) as you land work, and at wind-down. `dough board` opens the window.
+   `date`) as you land work, and at wind-down. `dough breadboard` opens the window.
 3. Read the top block of **`docs/TODO.md`** — the handoff. It always leads with
    "pick up here": current state in a couple of lines, then the exact next steps.
 4. Check the session task tracker (if your harness has one) and any memory /
