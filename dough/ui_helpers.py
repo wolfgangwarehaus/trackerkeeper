@@ -1533,6 +1533,75 @@ def apply_elevated_blur(widget, corner_radius: int = 0) -> bool:
         return False
 
 
+class CircleSwatch(QPushButton):
+    """A true painted circle button (colour swatch, dot, ring).
+
+    QSS circles (``border-radius: half-the-size``) are stroked as four arcs by
+    Qt's stylesheet renderer, and the quadrant seams leave tiny antialiasing
+    DOTS along the path (found live 2026-07-08 on the accent swatches in both
+    dough and butterPDF). This paints with QPainter instead: the fill is one
+    ellipse and the ring is a FILLED path (outer − inner ellipse), so nothing
+    is ever stroked and there are no seams.
+
+    ``ring`` (a QColor-parsable string — ``#rgb``/``#aarrggbb``/named, NOT css
+    ``rgba()``) draws a selection ring; ``hover_ring`` shows on mouse-over.
+    Either may be None."""
+
+    def __init__(self, fill: str, *, diameter: int = 28, ring: str | None = None,
+                 hover_ring: str | None = None, ring_width: float = 2.0,
+                 parent=None) -> None:
+        super().__init__(parent)
+        self._fill = fill
+        self._ring = ring
+        self._hover_ring = hover_ring
+        self._ring_width = ring_width
+        self._hovered = False
+        self.setFixedSize(diameter, diameter)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFlat(True)
+        self.setStyleSheet("QPushButton{background:transparent;border:none;}")
+
+    def set_fill(self, fill: str) -> None:
+        self._fill = fill
+        self.update()
+
+    def set_ring(self, ring: str | None) -> None:
+        self._ring = ring
+        self.update()
+
+    def enterEvent(self, e) -> None:  # noqa: N802 (Qt override)
+        self._hovered = True
+        self.update()
+        super().enterEvent(e)
+
+    def leaveEvent(self, e) -> None:  # noqa: N802 (Qt override)
+        self._hovered = False
+        self.update()
+        super().leaveEvent(e)
+
+    def paintEvent(self, e) -> None:  # noqa: N802 (Qt override)
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QPainter, QPainterPath
+
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        w = self._ring_width
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        ring = (self._hover_ring if (self._hovered and self._hover_ring)
+                else self._ring)
+        if ring:
+            outer = QPainterPath()
+            outer.addEllipse(r)
+            inner = QPainterPath()
+            inner.addEllipse(r.adjusted(w, w, -w, -w))
+            p.fillPath(outer - inner, QColor(ring))
+        p.setBrush(QColor(self._fill))
+        inset = w + 1.0
+        p.drawEllipse(r.adjusted(inset, inset, -inset, -inset))
+        p.end()
+
+
 def opaque_menu(parent=None, *, menu_cls=None, blur_corner_radius: int = 4) -> "QMenu":
     """``QMenu`` that's guaranteed opaque even when the parent window
     has ``WA_TranslucentBackground`` set. On Wayland a popup-class

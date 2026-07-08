@@ -93,3 +93,65 @@ def test_cli_init_seeds_and_refuses_overwrite(tmp_path, monkeypatch, capsys) -> 
     assert board.main(["--init"]) == 0
     assert p.is_file()
     assert board.main(["--init"]) == 1  # never clobbers a real board
+
+
+# ── v2: priorities (the kanban), purpose (the summary page) ──────────────────
+
+
+def test_priority_and_purpose_round_trip(tmp_path: Path) -> None:
+    p = tmp_path / board.FILENAME
+    b = board.default_board("myapp")
+    b["purpose"] = "a PDF tool for humans\nno AGPL"
+    b["baking"][0]["priority"] = "now"
+    board.save(p, b)
+    loaded = board.load(p)
+    assert loaded["purpose"] == "a PDF tool for humans\nno AGPL"
+    assert loaded["baking"][0]["priority"] == "now"
+    # every baking item normalizes to a valid priority; other phases carry none
+    assert all(i["priority"] in board.PRIORITIES for i in loaded["baking"])
+    assert all("priority" not in i for i in loaded["delivery"])
+
+
+def test_bogus_priority_normalizes_to_next(tmp_path: Path) -> None:
+    p = tmp_path / board.FILENAME
+    p.write_text(
+        'goal = "g"\n[[baking]]\ntext = "x"\ndone = false\npriority = "urgent!!"\n',
+        encoding="utf-8",
+    )
+    assert board.load(p)["baking"][0]["priority"] == "next"
+
+
+@pytest.mark.usefixtures("qapp")
+def test_kanban_move_updates_priority_and_done(tmp_path: Path) -> None:
+    p = tmp_path / board.FILENAME
+    board.save(p, board.default_board("myapp"))
+    view = board._make_view(p)
+    item = view._board["baking"][0]
+    assert (item["priority"], item["done"]) == ("now", False)
+    view._move_card(item, "later")
+    assert board.load(p)["baking"][0]["priority"] == "later"
+    view._move_card(view._board["baking"][0], "done")
+    on_disk = board.load(p)["baking"][0]
+    assert on_disk["done"] is True
+    view._move_card(view._board["baking"][0], "now")  # out of Done reopens it
+    on_disk = board.load(p)["baking"][0]
+    assert (on_disk["priority"], on_disk["done"]) == ("now", False)
+
+
+@pytest.mark.usefixtures("qapp")
+def test_kanban_remove_deletes_from_the_file(tmp_path: Path) -> None:
+    p = tmp_path / board.FILENAME
+    board.save(p, board.default_board("myapp"))
+    view = board._make_view(p)
+    before = len(view._board["baking"])
+    view._remove_item("baking", view._board["baking"][0])
+    assert len(board.load(p)["baking"]) == before - 1
+
+
+@pytest.mark.usefixtures("qapp")
+def test_purpose_edits_write_the_file(tmp_path: Path) -> None:
+    p = tmp_path / board.FILENAME
+    board.save(p, board.default_board("myapp"))
+    view = board._make_view(p)
+    view._purpose.setPlainText("boiled down")
+    assert board.load(p)["purpose"] == "boiled down"
