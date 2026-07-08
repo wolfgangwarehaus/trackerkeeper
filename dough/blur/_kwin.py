@@ -39,6 +39,55 @@ _resolved = False  # resolution attempted yet?
 _avail_fn = None  # resolved isEffectAvailable callable, or None
 _avail_resolved = False
 
+# KWindowSystem's real work happens in its per-platform integration plugin
+# (kf6/kwindowsystem/ — the Wayland one speaks the blur protocols). It's discovered through the RUNNING Qt's library paths — and a
+# pip-installed PySide6 bundles its own Qt, which searches only the venv's
+# plugin dir, so the distro's plugin is invisible: KWindowSystem logs "Could
+# not find any platform plugin", isEffectAvailable() reports False on a
+# blur-capable KWin, and enableBlurBehind() no-ops. (Distro PySide6 shares the
+# system Qt prefix, which is why this never showed there.)
+_KF_PLUGIN_SUBDIR = "kf6/kwindowsystem"
+_SYSTEM_PLUGIN_ROOTS = (
+    "/usr/lib/qt6/plugins",  # Arch and family
+    "/usr/lib/x86_64-linux-gnu/qt6/plugins",  # Debian/Ubuntu
+    "/usr/lib64/qt6/plugins",  # Fedora/openSUSE
+)
+_plugin_path_ensured = False
+
+
+def _ensure_platform_plugin() -> None:
+    """Make the KF6WindowSystem platform plugin discoverable to the running Qt.
+
+    Exposes ONLY the kwindowsystem plugin family: a throwaway shim dir holding
+    a single kf6/… symlink is added to the library paths — never the whole
+    system plugin tree, which would let a second Qt build's platform/image
+    plugins shadow PySide6's own. Best-effort and cached; never raises."""
+    global _plugin_path_ensured
+    if _plugin_path_ensured:
+        return
+    _plugin_path_ensured = True
+    try:
+        from pathlib import Path
+
+        from PySide6.QtCore import QCoreApplication
+
+        for p in QCoreApplication.libraryPaths():
+            if (Path(p) / _KF_PLUGIN_SUBDIR).is_dir():
+                return  # already discoverable (distro PySide6, or a prior shim)
+        for root in _SYSTEM_PLUGIN_ROOTS:
+            src = Path(root) / _KF_PLUGIN_SUBDIR
+            if src.is_dir():
+                import tempfile
+
+                shim = Path(tempfile.mkdtemp(prefix="kf6-windowsystem-shim-"))
+                link = shim / _KF_PLUGIN_SUBDIR
+                link.parent.mkdir(parents=True)
+                link.symlink_to(src, target_is_directory=True)
+                QCoreApplication.addLibraryPath(str(shim))
+                return
+    except Exception:
+        pass  # progressive enhancement — worst case blur stays a no-op
+
 
 def _resolve():
     """Load libKF6WindowSystem and bind the enableBlurBehind symbol.
@@ -204,6 +253,7 @@ def probe():
 
     if _resolve() is None:
         return BlurStatus.UNSUPPORTED
+    _ensure_platform_plugin()
     avail = _resolve_avail()
     if avail is None:
         return BlurStatus.REQUESTED_UNVERIFIABLE
@@ -298,6 +348,7 @@ def apply(
     fn = _resolve()
     if fn is None:
         return False
+    _ensure_platform_plugin()
     try:
         import shiboken6
         from PySide6.QtGui import QRegion
