@@ -30,6 +30,42 @@ moved: `dev/shared.toml` `synced_from` is now `7357dad` and most shared modules 
     "live" (artifact + account + secret + submission). The machinery exists; the
     guided activation doesn't.
 
+## ★ NEW product direction 2026-07-08 (user): THE DOUGH BOARD — a live maker surface
+
+**The insight:** dough needs something the maker INTERACTS WITH during each step
+of the process — not just docs the AI reads. An **active checklist window** that
+pops up alongside the work: the main goals, the per-phase checklists, the current
+session's items — **filled and updated by the AI agent**, **adjustable by the
+maker** (checking/unchecking/rewording items steers the product), and
+**re-ingestable**: the agent reads the maker's edits and notes back from the
+board and changes course. The board is the interaction surface for the whole
+Ingredients → Baking ⇄ Delivery loop.
+
+**Design sketch (settle at build time):**
+- **State is a file, the window is a view.** A structured, git-tracked file in
+  the loaf (e.g. `dough-board.toml`: goals, phases, items w/ checked/by/date,
+  a freeform notes block per item). Human-editable, AI-writable — the same
+  two-way-door philosophy as the sync manifest. The window file-watches and
+  live-reloads; edits in the window write back. No daemon, no IPC — the FILE is
+  the API between maker, window, and agent.
+- **`dough board` verb** (ships in the package like rig/deliver → every loaf
+  has it): opens a frosted AppWindow — goals up top, phase sections
+  (Ingredients / Baking / Delivery / Improvements) with checkable items, a
+  notes pane per item. Checking an item stamps who/when; a "note to the agent"
+  field is the maker's steering wheel.
+- **Agent protocol** (goes in AGENTS.md): read the board at session OPEN
+  (with the TODO handoff); before acting on a phase, reconcile its checklist;
+  at wind-down, update item states + add next-session items. Maker notes are
+  DIRECTIVES — reingest them before continuing. This formalizes the
+  session-open/close SYSTEMS item (2026-07-02) into something visible.
+- **Relationship to existing pieces:** deliver.py's detected channel board
+  stays the Delivery section's ground truth (the board can embed/launch it);
+  docs/TODO.md stays the deep handoff log; the BOARD is the active surface.
+- **MVP cut:** board file schema + `dough board` window (view/check/note) +
+  AGENTS.md protocol + `dough new` seeds a fresh board from the Ingredients
+  template. Detection-backed auto-checking (tests green? tag exists?) comes
+  later — hand-checked first, wired to rig/deliver probes as they prove out.
+
 ## ▶ Wind-down 2026-07-07 — new-machine setup + the autonomous audit day
 
 **Fresh Linux install (CachyOS) fully stood up and both repos audited hard; all
