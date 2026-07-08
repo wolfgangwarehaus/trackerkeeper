@@ -66,6 +66,53 @@ Ingredients → Baking ⇄ Delivery loop.
   template. Detection-backed auto-checking (tests green? tag exists?) comes
   later — hand-checked first, wired to rig/deliver probes as they prove out.
 
+## ▶ Wind-down 2026-07-08 — the walkthrough day: blur, breadboard, and the app grows
+
+**All green + pushed, 3-OS CI verified** (dough 225 passed, butterPDF 192; both
+`main` even with origin). August's guided walkthrough drove the whole day —
+every item below started as his eyes or his direction:
+
+- **The venv blur bug** (his catch: "is this fallback blur? it has the grain"):
+  pip PySide6's bundled Qt can't see the distro's KWindowSystem platform plugin
+  → blur read UNSUPPORTED on a blur-capable KWin → grainy faux-frost. Fixed
+  with a targeted shim library path (blur/_kwin.py `_ensure_platform_plugin`,
+  live-proven UNSUPPORTED→ACTIVE in both apps). Faux-frost grain also halved
+  on his verdict.
+- **THE BREADBOARD shipped and grew up in one day** (his direction + naming):
+  `dough breadboard` / `<slug>-breadboard` — the live maker surface. State is
+  `<slug>-breadboard.toml` (git-tracked; the FILE is the API between maker,
+  window, and agent; deterministic emit; live file-watch reload). v2: tabs
+  across the top; Ingredients = app summary page (sidecar logo/name/summary,
+  Brand assets…, editable `purpose`, feature cards); Baking = a kanban
+  (Now/Next/Later/Done, per-item `priority`); Delivery = deliver.py's REAL
+  channel detections with linkified guides (probed off-thread, home-only);
+  plus the PROJECT BAR: a switcher across sibling checkouts' boards and
+  "Wind down…" → `agent_request` (the AGENTS.md protocol: fulfil + clear).
+  AGENTS.md session-open step 2 in both repos + the loaf template.
+- **CircleSwatch** (his catch: dots along circle paths): QSS circles stroke
+  four arcs, quadrant seams leave AA dots — painted fill+ring widget in
+  ui_helpers, converted dough settings + butterPDF settings/ink swatches;
+  settings goldens re-baked (eyeballed) in both repos.
+- **butterPDF walkthrough features** (his asks): frosted field context menus
+  (the default black QLineEdit popup was the one un-themed surface) with
+  "Insert today's date" + "Sign document here…"; a bare-page context menu;
+  IN-PLACE text boxes (type on the page, click to re-edit, drag to move,
+  empty self-removes — makes NON-interactive PDFs fillable); the walkthrough's
+  R5 cross-viewer check PASSED (flatten verified in Okular/Firefox).
+
+**Resume sequence:**
+1. **August's remaining feel verdicts** (the last pre-tag human item):
+   drag/zoom/scroll, dark document backgrounds, and the wide-placed-signature
+   resolution judgment (place one ~half page width, zoom the save; if soft →
+   supersample the ink canvas 2-3×). Plus the notification + autostart eyeball.
+2. **S1 + S2 engine fixes** in butterPDF (HIGH; session chips exist —
+   hierarchical-field save data loss, rotated-page coordinates).
+3. **Roll a `[0.1.0]` CHANGELOG section → `git tag v0.1.0`** (first
+   Windows/macOS release runs — watch them) → PyPI pending-publisher setup
+   (`dough-base`) → **C3** via `butterpdf-deliver`.
+4. Breadboard fast-follows when wanted: drag-and-drop kanban cards,
+   detection-backed auto-checking, an editable goal field.
+
 ## ▶ Wind-down 2026-07-07 — new-machine setup + the autonomous audit day
 
 **Fresh Linux install (CachyOS) fully stood up and both repos audited hard; all

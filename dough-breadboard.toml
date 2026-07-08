@@ -5,6 +5,8 @@
 schema = 1
 product = "dough"
 goal = "Make building WITH dough real: butterPDF v1 ships to real users through the Delivery matrix, and every gap it hits gets fixed in the base."
+purpose = ""
+agent_request = ""
 
 [[ingredients]]
 text = "Thesis + vocabulary settled (fork-and-own; loaves; host/target)"
@@ -30,6 +32,7 @@ note = ""
 [[baking]]
 text = "Channel matrix complete (freedesktop/deb/AppImage/PyPI/AUR/winget/MSIX/macOS)"
 done = true
+priority = "next"
 by = "AI"
 date = "2026-06-30"
 note = ""
@@ -37,6 +40,7 @@ note = ""
 [[baking]]
 text = "dough new + the dough→loaf sync door (butterPDF reconnected)"
 done = true
+priority = "next"
 by = "AI"
 date = "2026-07-02"
 note = ""
@@ -44,6 +48,7 @@ note = ""
 [[baking]]
 text = "Rigging seeded: rig boot / probe / shot / baseline"
 done = true
+priority = "next"
 by = "AI"
 date = "2026-07-03"
 note = ""
@@ -51,6 +56,7 @@ note = ""
 [[baking]]
 text = "Pre-tag audit: release dry-run + code review, 9 bugs fixed, 3-OS CI green"
 done = true
+priority = "next"
 by = "AI"
 date = "2026-07-07"
 note = ""
@@ -58,6 +64,7 @@ note = ""
 [[baking]]
 text = "venv blur fix (KWindowSystem plugin shim) — walkthrough catch"
 done = true
+priority = "next"
 by = "AI"
 date = "2026-07-08"
 note = ""
@@ -65,6 +72,31 @@ note = ""
 [[baking]]
 text = "THE BREADBOARD built + named (the maker surface, v1)"
 done = true
+priority = "next"
+by = "AI"
+date = "2026-07-08"
+note = ""
+
+[[baking]]
+text = "breadboard v2: top tabs, Ingredients summary page, Baking kanban, Delivery detections"
+done = true
+priority = "next"
+by = "AI"
+date = "2026-07-08"
+note = ""
+
+[[baking]]
+text = "breadboard project bar: switcher across loaves + Wind down… (agent_request)"
+done = true
+priority = "next"
+by = "AI"
+date = "2026-07-08"
+note = ""
+
+[[baking]]
+text = "CircleSwatch — the QSS-circle dot artifact fixed base-wide"
+done = true
+priority = "next"
 by = "AI"
 date = "2026-07-08"
 note = ""
