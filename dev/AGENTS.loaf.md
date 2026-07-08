@@ -9,9 +9,15 @@ Orient in this order (the session **opening** — the mirror of
 `docs/WIND-DOWN.md`, the closing):
 
 1. Read this file (2 minutes).
-2. Read the top block of **`docs/TODO.md`** — the handoff that leads with
+2. Read **`{{slug}}-board.toml`** — the live maker board (goals + the
+   Ingredients/Baking/Delivery/Improvements checklists). **Maker edits are
+   DIRECTIVES**: an unchecked item is work, a check you didn't make is a
+   decision, and every `note` is the maker steering you — re-ingest them
+   before continuing. Update item states as you land work, and at wind-down.
+   `{{slug}} board` opens the window; `{{slug}}-board --init` seeds a fresh one.
+3. Read the top block of **`docs/TODO.md`** — the handoff that leads with
    "pick up here". If it doesn't exist yet, create it at your first wind-down.
-3. Check the session task tracker (if your harness has one) and any memory /
+4. Check the session task tracker (if your harness has one) and any memory /
    resume pointer from the last wind-down. Then go.
 
 ## Where you are in the workflow

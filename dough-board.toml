@@ -1,0 +1,126 @@
+# The dough board — the live maker surface. The WINDOW (`dough board`) and
+# the AI AGENT both read and write this file; your edits here are directives
+# the agent re-ingests (see AGENTS.md). Git-tracked on purpose.
+
+schema = 1
+product = "dough"
+goal = "Make building WITH dough real: butterPDF v1 ships to real users through the Delivery matrix, and every gap it hits gets fixed in the base."
+
+[[ingredients]]
+text = "Thesis + vocabulary settled (fork-and-own; loaves; host/target)"
+done = true
+by = "AI"
+date = "2026-07-02"
+note = ""
+
+[[ingredients]]
+text = "Product direction: build anywhere, deliver everywhere"
+done = true
+by = "AI"
+date = "2026-07-02"
+note = ""
+
+[[ingredients]]
+text = "PyPI naming: dough publishes as dough-base (bare name squatted)"
+done = true
+by = "AI"
+date = "2026-07-03"
+note = ""
+
+[[baking]]
+text = "Channel matrix complete (freedesktop/deb/AppImage/PyPI/AUR/winget/MSIX/macOS)"
+done = true
+by = "AI"
+date = "2026-06-30"
+note = ""
+
+[[baking]]
+text = "dough new + the dough→loaf sync door (butterPDF reconnected)"
+done = true
+by = "AI"
+date = "2026-07-02"
+note = ""
+
+[[baking]]
+text = "Rigging seeded: rig boot / probe / shot / baseline"
+done = true
+by = "AI"
+date = "2026-07-03"
+note = ""
+
+[[baking]]
+text = "Pre-tag audit: release dry-run + code review, 9 bugs fixed, 3-OS CI green"
+done = true
+by = "AI"
+date = "2026-07-07"
+note = ""
+
+[[baking]]
+text = "venv blur fix (KWindowSystem plugin shim) — walkthrough catch"
+done = true
+by = "AI"
+date = "2026-07-08"
+note = ""
+
+[[delivery]]
+text = "August's in-person tail: feel verdicts + notification + autostart toggle"
+done = false
+by = ""
+date = ""
+note = ""
+
+[[delivery]]
+text = "Roll a [0.1.0] CHANGELOG section (or accept generated notes)"
+done = false
+by = ""
+date = ""
+note = ""
+
+[[delivery]]
+text = "git tag v0.1.0 — watch the first Windows/macOS release jobs"
+done = false
+by = ""
+date = ""
+note = ""
+
+[[delivery]]
+text = "PyPI pending-publisher one-time setup for dough-base"
+done = false
+by = ""
+date = ""
+note = ""
+
+[[delivery]]
+text = "C3: butterPDF's first real release via butterpdf-deliver"
+done = false
+by = ""
+date = ""
+note = ""
+
+[[improvements]]
+text = "butterPDF S1: hierarchical field save data loss (HIGH)"
+done = false
+by = ""
+date = ""
+note = ""
+
+[[improvements]]
+text = "butterPDF S2: rotated-page coordinate mapping (HIGH)"
+done = false
+by = ""
+date = ""
+note = ""
+
+[[improvements]]
+text = "Rigging build-out: chrome invariants (blur active), GNOME probe legs"
+done = false
+by = ""
+date = ""
+note = ""
+
+[[improvements]]
+text = "THE DOUGH BOARD: detection-backed auto-checking (rig/deliver probes)"
+done = false
+by = ""
+date = ""
+note = ""

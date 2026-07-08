@@ -82,6 +82,9 @@ dough-new = "dough.scaffold:main"
 # The Delivery-phase walkthroughs: the channel board, per-channel activation,
 # and the update lap (docs/DELIVERY.md).
 dough-deliver = "dough.deliver:main"
+# The live maker surface: goals + phase checklists, shared with the AI agent
+# via dough-board.toml (docs/TODO.md §THE DOUGH BOARD).
+dough-board = "dough.board:main"
 
 [project.urls]
 Homepage = "https://github.com/wolfgangwarehaus/dough"
