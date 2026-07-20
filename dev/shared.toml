@@ -18,6 +18,8 @@ authored = [
     "app.py",
     "__init__.py",
     "__main__.py",
+    "log.py",          # structured rotating file log (DOUGH_LOG env) — no jellytoast counterpart
+    "diagnostics.py",  # the one-click support report — no jellytoast counterpart
 ]
 
 # Modules genericized BEYOND a pure rename — a blind overwrite would re-add the
@@ -47,7 +49,7 @@ manual = [
     "selector.py",               # authored AutoFadeScrollBar slim-accent-pill polish
     "theme.py",                  # DOUGH_ env + authored Windows/macOS glass-alpha arms
     "windows_shortcut.py",       # identity-routed exe/ico/lnk slugs + DOUGH_ env
-    "single_instance.py",        # identity-seam socket/shm name
+    "single_instance.py",        # identity-seam socket/shm name + dough-authored second-launch file forwarding (JSON argv payload, files_received)
     "smooth_scroll.py",          # omits jellytoast's uncommitted jt_native_scroll opt-out
     "icons.py",                  # dough omits the music_note glyph
     "power/__init__.py",         # dough's generic inhibit()/release() (jellytoast re-coupled it to PlayerBus)
@@ -74,6 +76,11 @@ manual = [
     "noborder/__init__.py",      # genericized+renamed from jellytoast/keep_above: dropped keep-above + dialog rules, matches wmclass not exact title (so the window title stays free)
     "noborder/_kwin.py",         # main-window noborder only; identity.app() wmclass; QSettings(identity.org(), identity.app())
     "noborder/_unsupported.py",
+    # ── Lifted 2026-07 (the foundations bundle) as genericized descendants.
+    "credentials.py",            # generic save/load/delete_secret(name) API (upstream is access-token-specific); identity-routed keyring service + entropy; QSettings blobs under credentials/<name>
+    "settings_migration.py",     # generic versioned runner (meta/schema_version + MIGRATIONS table); jellytoast's org-rename/theme-axes one-shots stripped
+    "updates.py",                # AppBus (not PlayerBus); repo from the metadata sidecar/identity (not a literal); DOUGH_CHANNEL env stamp instead of _channel.py
+    "update_chip.py",            # doughUpdateChip objectName; identity.display_name() tooltip; module-attr accent reads; a11y name while hidden
 ]
 
 # Modules extracted from a differently-named jellytoast file.
@@ -85,6 +92,9 @@ manual = [
 "noborder/__init__.py" = "keep_above/__init__.py"
 "noborder/_kwin.py" = "keep_above/_kwin.py"
 "noborder/_unsupported.py" = "keep_above/_unsupported.py"
+# dough/update_chip.py is the genericized descendant of jellytoast's top-bar
+# update banner.
+"update_chip.py" = "update_banner.py"
 
 # String substitutions (applied in order) that reproduce a dough AUTO module
 # from its jellytoast source. These mirror exactly how the base was lifted.
