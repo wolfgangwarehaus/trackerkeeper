@@ -96,3 +96,19 @@ Two rules, both verified against pyside6 6.x (see
 - **Translators fill every `<numerusform>`** lupdate scaffolds (it emits the
   right count for the catalog's language) — an empty form falls back to the
   English source for that plural class only.
+
+## Right-to-left languages
+
+Qt mirrors layouts automatically when the locale is RTL (Arabic, Hebrew):
+`layoutDirection()` flips and every box/grid layout reverses, margins
+included. The kit stays mirror-safe by convention — no absolute
+left/right-of-widget maths in layouts; `Selector` flips its chevron paint
+and QSS padding reserve itself — and `tests/test_rtl_smoke.py` boots the
+window in forced-RTL to keep it that way. When adding UI:
+
+- Prefer layout order over coordinates; use `Qt.AlignLeading`/`AlignTrailing`
+  when you mean "start/end of text flow" (`AlignLeft` in Qt does already
+  mean leading inside a mirrored layout, but be explicit in new code).
+- QSS `padding`/`text-align` and custom `paintEvent` positioning do NOT
+  auto-mirror — branch on `self.layoutDirection()` (see
+  `Selector.paintEvent`).

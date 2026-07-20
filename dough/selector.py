@@ -131,15 +131,23 @@ def selector_qss(host_selector: str = "") -> str:
     except Exception:
         _ar, _ag, _ab = (255, 255, 255)
     prefix = f"{host_selector} " if host_selector else ""
+    # RTL: QSS padding / text-align don't auto-mirror the way layouts do, so
+    # flip them here (the 32px chevron reserve swaps edges, matching the
+    # mirrored chevron paint in Selector.paintEvent). Direction is fixed at
+    # boot — it follows the installed language — so the theme-change
+    # re-apply hosts already do keeps this correct.
+    rtl = QApplication.instance() is not None and QApplication.isRightToLeft()
+    padding = "6px 12px 6px 32px" if rtl else "6px 32px 6px 12px"
+    text_align = "right" if rtl else "left"
     return f"""
         {prefix}QPushButton#doughSelector {{
             background: {ink_alpha(0.06)};
             color: {TEXT};
             border: 1px solid rgba({_ar},{_ag},{_ab},0.45);
             border-radius: {rad(6)}px;
-            padding: 6px 32px 6px 12px;
+            padding: {padding};
             {type_qss(TYPE_BODY)}
-            text-align: left;
+            text-align: {text_align};
             outline: 0;
         }}
         {prefix}QPushButton#doughSelector:hover {{
@@ -299,8 +307,12 @@ class Selector(QPushButton):
         renderer = QSvgRenderer(svg_bytes)
         if not renderer.isValid():
             return
-        # Right edge of the widget minus the inset; vertically centred.
-        x = self.width() - _CHEVRON_RIGHT_PAD - _CHEVRON_SIZE
+        # Trailing edge of the widget minus the inset (mirrors under RTL,
+        # matching selector_qss's flipped padding reserve); vertically centred.
+        if self.layoutDirection() == Qt.LayoutDirection.RightToLeft:
+            x = _CHEVRON_RIGHT_PAD
+        else:
+            x = self.width() - _CHEVRON_RIGHT_PAD - _CHEVRON_SIZE
         y = (self.height() - _CHEVRON_SIZE) / 2.0
         p = QPainter(self)
         try:
