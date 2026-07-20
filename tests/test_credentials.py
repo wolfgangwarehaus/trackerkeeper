@@ -108,7 +108,16 @@ def test_entropy_is_identity_routed(monkeypatch):
 # On Windows the resilience cipher is DPAPI ("d1:") and cryptography is
 # absent, so "v1:" AES-GCM blobs are undecryptable there. These simulate that
 # runtime on the Linux box (patch IS_WINDOWS + a fake DPAPI layer + the
-# platform prefix) to lock the migration behavior.
+# platform prefix) to lock the migration behavior. Skipped on REAL Windows:
+# the premise ("mint a v1: blob, then flip to Windows") needs the AES-GCM arm,
+# which a Windows box deliberately doesn't have — the real DPAPI path is
+# exercised there by the plain round-trip tests instead.
+
+from dough.platform_compat import IS_WINDOWS as _REAL_WINDOWS
+
+_needs_aesgcm = pytest.mark.skipif(
+    _REAL_WINDOWS, reason="simulates Windows from a non-Windows box (needs the v1: AES-GCM arm)"
+)
 
 
 def _fake_dpapi():
@@ -130,6 +139,7 @@ def _simulate_windows(monkeypatch):
     monkeypatch.setattr(cred, "_ENC_PREFIX", "d1:")
 
 
+@_needs_aesgcm
 def test_windows_secret_self_heals_via_keyring(qs, fake_keyring, monkeypatch):
     # Existing Windows install: a real v1 AES-GCM blob in QSettings + the
     # secret in Credential Locker. The v1 blob is unreadable there, but
@@ -149,6 +159,7 @@ def test_windows_secret_self_heals_via_keyring(qs, fake_keyring, monkeypatch):
     assert _decrypt(stored) == "server-token"  # d1 decrypts under sim
 
 
+@_needs_aesgcm
 def test_windows_keyringless_secret_degrades_without_corruption(
     qs, fake_keyring, monkeypatch
 ):

@@ -243,22 +243,39 @@ class SingleInstance(QObject):
             return
         # ANY connection means "another launch happened, please come
         # forward" — the raise must never depend on the payload parsing.
-        # Drain the socket (briefly re-waiting so a payload split across
-        # writes still arrives whole), then look for forwarded files.
-        data = b""
-        try:
-            sock.waitForReadyRead(200)
-            data = bytes(sock.readAll())
-            while sock.waitForReadyRead(50):
-                data += bytes(sock.readAll())
-        finally:
-            sock.disconnectFromServer()
-            sock.deleteLater()
         self.raise_requested.emit()
-        try:
-            payload = json.loads(data.decode("utf-8"))
-            args = [str(a) for a in payload.get("args") or []]
-        except Exception:
-            args = []  # legacy bare "raise" ping, or line noise — just raise
-        if args:
-            self.files_received.emit(args)
+
+        # Drain the payload ASYNCHRONOUSLY via readyRead/disconnected rather
+        # than blocking waitForReadyRead loops: on Windows named pipes the
+        # blocking waits inside the newConnection slot miss data that the
+        # event loop delivers fine (the Qt-documented "may fail randomly on
+        # Windows" caveat — seen live on the win CI runner: the raise landed,
+        # the forwarded files didn't).
+        buf = bytearray()
+        done = {"v": False}
+
+        def _read():
+            buf.extend(bytes(sock.readAll()))
+
+        def _finish():
+            if done["v"]:
+                return
+            done["v"] = True
+            _read()  # anything still buffered at disconnect
+            sock.deleteLater()
+            try:
+                payload = json.loads(bytes(buf).decode("utf-8"))
+                args = [str(a) for a in payload.get("args") or []]
+            except Exception:
+                args = []  # legacy bare "raise" ping, or line noise — raise only
+            if args:
+                self.files_received.emit(args)
+
+        sock.readyRead.connect(_read)
+        sock.disconnected.connect(_finish)
+        # The peer may have written AND disconnected before these connections
+        # existed — drain what's buffered, and finish now if it's already gone
+        # (the disconnected signal would otherwise never fire).
+        _read()
+        if sock.state() == QLocalSocket.LocalSocketState.UnconnectedState:
+            _finish()
