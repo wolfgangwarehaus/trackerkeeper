@@ -52,3 +52,47 @@ dropdown builds itself from that list and appears once it's non-empty.
 - After adding or changing strings, run `dev/update_translations.sh` so every
   catalog picks up the new sources (existing translations are preserved;
   changed strings show as "unfinished" until retranslated).
+
+## Numbers, dates, sizes — route through `dough.i18n.fmt`
+
+Never f-string a number/date/size into a user-visible string — `f"{n}"` bakes
+English separators ("1,234.5") that read wrong in most locales (German:
+"1.234,5"). Use the helpers in `dough/i18n/fmt.py` (`fmt_int`, `fmt_decimal`,
+`fmt_percent`, `fmt_datetime`, `fmt_duration`, `fmt_file_size`) and drop the
+result into a translated template:
+
+```python
+label.setText(self.tr("{0} items · {1}").format(fmt_int(count),
+                                                fmt_duration(secs)))
+```
+
+Everything there is a thin `QLocale` veneer except `fmt_duration` — Qt has no
+native duration formatter, so it's hand-rolled from translated unit strings
+with plural forms (below).
+
+## Plurals (numerus forms)
+
+Languages disagree on how many plural classes exist (Spanish 2, Arabic 6…),
+so a count-bearing string can't be an `if n == 1` in code. The idiom:
+
+```python
+self.tr("%n file(s)", "", n)          # on a QObject subclass
+```
+
+`%n` is replaced with the count at runtime; the catalog carries one
+`<numerusform>` per plural class of the language and `QTranslator` picks the
+right one from CLDR rules. Untranslated, the English source falls through
+with `%n` substituted.
+
+Two rules, both verified against pyside6 6.x (see
+`tests/test_i18n_plurals.py`, which compiles a live Spanish catalog):
+
+- **The string must go through `self.tr(source, disambiguation, n)` on a
+  QObject.** pyside6-lupdate's Python parser only emits
+  `<message numerus="yes">` for that exact shape — the free-function
+  `QCoreApplication.translate(ctx, source, disamb, n)` extracts as a plain
+  (non-plural) message, even though it *resolves* numerus fine at runtime.
+  That's why `fmt.py` wraps its unit strings in the `_DurationUnits` QObject.
+- **Translators fill every `<numerusform>`** lupdate scaffolds (it emits the
+  right count for the catalog's language) — an empty form falls back to the
+  English source for that plural class only.
