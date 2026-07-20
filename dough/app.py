@@ -288,9 +288,15 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
         from dough.single_instance import SingleInstance
 
         si = SingleInstance(ident.app())
-        if not si.acquire():
+        # Forward this launch's argv (file paths / URLs) so the running copy
+        # opens them — the "double-click a document while the app is open" path.
+        if not si.acquire(sys.argv[1:]):
             return 0  # another instance was found and signalled to come forward
         app._dough_single_instance = si
+        # Re-emit forwarded files on the bus so app code binds with zero refs.
+        si.files_received.connect(
+            lambda paths: AppBus.get().files_received.emit(list(paths))
+        )
 
     # Persisted accent / colour overrides must load BEFORE the first widget, so
     # every surface stamps from the saved palette rather than the defaults.

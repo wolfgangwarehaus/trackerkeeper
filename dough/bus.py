@@ -27,6 +27,9 @@ class AppBus(QObject):
     open_main_window = Signal()       # single-instance re-activate, tray, autostart
     show_settings = Signal()          # open the settings dialog
     navigate = Signal(object)         # generic navigation intent; app defines the payload
+    files_received = Signal(list)     # paths/URLs forwarded by a second launch (the
+    #                                   "double-click a document while the app is open"
+    #                                   case); run_app bridges it from SingleInstance
 
     # ── System ────────────────────────────────────────────────────────
     hotkeys_changed = Signal()        # global hotkeys reconfigured

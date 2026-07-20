@@ -18,14 +18,48 @@ Stale-segment recovery: if the previous instance was SIGKILL'd, the
 shared-memory segment may persist on Linux. We detect this by trying
 to *connect* to the local server when attach() succeeds — if no one's
 listening, the holder is dead and we force-recover.
+
+File forwarding: the second launch doesn't just say "raise me" — it
+forwards its argv (file paths / URLs, the "double-click a document
+while the app is already open" case) over the same socket as a small
+JSON payload. The primary raises its window and emits
+``files_received`` with the normalized list; ``run_app`` re-emits it
+on ``AppBus.files_received`` so app code binds with zero references.
+A legacy/bare connection (no parseable payload) still means "come
+forward" — the raise never depends on the payload.
 """
 
+import json
 import logging
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QSharedMemory, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_args(args) -> list:
+    """Normalize a second launch's argv for forwarding: relative file paths
+    resolve against the SECOND launch's cwd (the primary's cwd is unrelated —
+    ``open doc.pdf`` from a shell must reach it absolute); URLs and
+    option-looking tokens (``-…``) pass through untouched."""
+    out = []
+    for a in args or []:
+        s = str(a)
+        if not s or s.startswith("-"):
+            continue
+        # A real URL scheme (file:// http:// myapp://…) — not a Windows drive
+        # letter, whose "C:" also contains a colon but is length 1.
+        scheme = s.split(":", 1)[0] if ":" in s else ""
+        if len(scheme) > 1 and (s[len(scheme) : len(scheme) + 3] == "://"):
+            out.append(s)
+            continue
+        try:
+            out.append(str(Path(s).expanduser().resolve()))
+        except OSError:
+            out.append(s)
+    return out
 
 
 def force_foreground(window) -> None:
@@ -89,6 +123,11 @@ class SingleInstance(QObject):
     # activateWindow trio.
     raise_requested = Signal()
 
+    # Emitted (after raise_requested) with the second launch's forwarded
+    # file paths / URLs — absolute paths, normalized by _normalize_args on
+    # the sending side. Only fires when there's actually something to open.
+    files_received = Signal(list)
+
     # Per-key timeouts. Sub-second so a stale-segment retry doesn't
     # noticeably delay launch, but generous enough to absorb a busy
     # system's scheduler hiccups on a real running instance.
@@ -117,18 +156,23 @@ class SingleInstance(QObject):
         self._mem: "QSharedMemory | None" = None
         self._server: "QLocalServer | None" = None
 
-    def acquire(self) -> bool:
+    def acquire(self, forward_args=None) -> bool:
         """Try to acquire the lock. Returns True if we're the first
         instance (caller should proceed to build + show the window) or
         False if another instance was found and signaled (caller should
         exit cleanly). On True, also installs the QLocalServer listener
-        so future launch attempts can ping us."""
+        so future launch attempts can ping us.
+
+        ``forward_args`` (optional, typically ``sys.argv[1:]``) are the
+        paths/URLs this launch was asked to open; when another instance is
+        found they're normalized and forwarded to it alongside the raise."""
+        args = _normalize_args(forward_args)
         mem = QSharedMemory(self._mem_key)
         if mem.attach():
             # Segment exists. Probe the holder via QLocalSocket — if
             # it's reachable, it's a real running instance; if not,
             # it's a stale segment from a crashed previous run.
-            if self._signal_existing():
+            if self._signal_existing(args):
                 mem.detach()
                 return False
             # Stale. Detach so the OS releases the segment, then fall
@@ -147,7 +191,7 @@ class SingleInstance(QObject):
             # unavailable here — fall through and let the QLocalServer
             # listener below be the authoritative single-instance gate
             # (its socket lives in the sandbox-allowed container tmp).
-            if self._signal_existing():
+            if self._signal_existing(args):
                 return False
             logger.warning(
                 "shared-memory lock unavailable (%s); using the local "
@@ -172,15 +216,20 @@ class SingleInstance(QObject):
             )
         return True
 
-    def _signal_existing(self) -> bool:
-        """Try to ping the running instance. Returns True on success
-        (real instance reachable), False if the socket is unreachable
-        (likely a stale shared-memory segment)."""
+    def _signal_existing(self, args=None) -> bool:
+        """Try to ping the running instance, forwarding this launch's argv
+        (``args``, already normalized). Returns True on success (real
+        instance reachable), False if the socket is unreachable (likely a
+        stale shared-memory segment)."""
         sock = QLocalSocket()
         sock.connectToServer(self._socket_name)
         if not sock.waitForConnected(self._CONNECT_TIMEOUT_MS):
             return False
-        sock.write(b"raise")
+        # A JSON payload rather than the old bare b"raise": the connection
+        # itself still means "come forward"; "args" carries the second
+        # launch's files/URLs. Kept one-line-tiny — well under any local
+        # socket buffering threshold.
+        sock.write(json.dumps({"raise": True, "args": args or []}).encode("utf-8"))
         sock.flush()
         sock.waitForBytesWritten(self._WRITE_TIMEOUT_MS)
         sock.disconnectFromServer()
@@ -192,13 +241,24 @@ class SingleInstance(QObject):
         sock = self._server.nextPendingConnection()
         if sock is None:
             return
-        # We don't actually need the message contents — any connection
-        # means "another launch happened, please come forward". Drain
-        # whatever was sent so the socket closes cleanly.
+        # ANY connection means "another launch happened, please come
+        # forward" — the raise must never depend on the payload parsing.
+        # Drain the socket (briefly re-waiting so a payload split across
+        # writes still arrives whole), then look for forwarded files.
+        data = b""
         try:
             sock.waitForReadyRead(200)
-            sock.readAll()
+            data = bytes(sock.readAll())
+            while sock.waitForReadyRead(50):
+                data += bytes(sock.readAll())
         finally:
             sock.disconnectFromServer()
             sock.deleteLater()
         self.raise_requested.emit()
+        try:
+            payload = json.loads(data.decode("utf-8"))
+            args = [str(a) for a in payload.get("args") or []]
+        except Exception:
+            args = []  # legacy bare "raise" ping, or line noise — just raise
+        if args:
+            self.files_received.emit(args)
