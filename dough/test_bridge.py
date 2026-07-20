@@ -391,7 +391,12 @@ class TestBridge(QObject):
             # and let the drain tail sweep it once the stack is clear.
             self._doomed.append(sock)
             return
-        sock.deleteLater()
+        try:
+            sock.deleteLater()
+        except RuntimeError:
+            # quit-through-the-bridge teardown: Qt can have destroyed the
+            # C++ socket before this queued disconnect fires — benign.
+            pass
 
     def _on_ready_read(self, sock):
         buf = self._buffers.get(id(sock))
