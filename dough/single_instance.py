@@ -133,6 +133,10 @@ class SingleInstance(QObject):
     # system's scheduler hiccups on a real running instance.
     _CONNECT_TIMEOUT_MS = 500
     _WRITE_TIMEOUT_MS = 500
+    # How long a forwarding second launch waits for the primary's "ok" ACK
+    # before closing. Generous: the primary may be mid-boot/busy, and the only
+    # cost of the wait is a slightly slower second-launch exit.
+    _ACK_TIMEOUT_MS = 2000
 
     def __init__(self, key: str, parent=None):
         super().__init__(parent)
@@ -231,16 +235,20 @@ class SingleInstance(QObject):
         # socket buffering threshold.
         sock.write(json.dumps({"raise": True, "args": args or []}).encode("utf-8"))
         sock.flush()
-        # Drain COMPLETELY before the socket object dies. On Windows the
-        # payload goes through an overlapped pipe writer on a pool thread — a
-        # single waitForBytesWritten can return with bytes still queued, and
-        # destroying the local socket then CANCELS the in-flight write, so the
-        # primary saw the connection (raise fired) but never the files (seen
-        # live on the win CI runner). Wait out bytesToWrite, close, and wait
-        # for the close to finish; the timeouts bound a hung server.
+        # Drain COMPLETELY before closing: on Windows the payload rides an
+        # overlapped pipe writer on a pool thread — a single waitForBytesWritten
+        # can return with bytes still queued, and a dying socket cancels the
+        # in-flight write (the primary saw the connection, never the files;
+        # win CI, 2026-07). Then, when we actually forwarded something, wait
+        # briefly for the primary's "ok" ACK before closing — a handle closed
+        # before the server READS can still drop buffered pipe data on
+        # Windows. No ACK (legacy primary / timeout) degrades to the old
+        # behavior: the raise is connection-triggered and never at risk.
         while sock.bytesToWrite() > 0:
             if not sock.waitForBytesWritten(self._WRITE_TIMEOUT_MS):
                 break
+        if args:
+            sock.waitForReadyRead(self._ACK_TIMEOUT_MS)
         sock.disconnectFromServer()
         if sock.state() != QLocalSocket.LocalSocketState.UnconnectedState:
             sock.waitForDisconnected(self._WRITE_TIMEOUT_MS)
@@ -261,26 +269,53 @@ class SingleInstance(QObject):
         # blocking waits inside the newConnection slot miss data that the
         # event loop delivers fine (the Qt-documented "may fail randomly on
         # Windows" caveat — seen live on the win CI runner: the raise landed,
-        # the forwarded files didn't).
+        # the forwarded files didn't). Once the JSON parses whole, send the
+        # "ok" ACK and close from OUR side — the sender holds its handle open
+        # until the ACK, which is what keeps Windows from dropping buffered
+        # pipe data behind a closed client handle.
         buf = bytearray()
         done = {"v": False}
 
+        def _emit(args) -> None:
+            if args:
+                self.files_received.emit(args)
+
+        def _try_parse() -> bool:
+            try:
+                payload = json.loads(bytes(buf).decode("utf-8"))
+            except Exception:
+                return False  # incomplete (or legacy) — keep accumulating
+            done["v"] = True
+            try:
+                sock.write(b"ok")
+                sock.flush()
+            except Exception:
+                pass
+            sock.disconnectFromServer()
+            sock.deleteLater()
+            _emit([str(a) for a in payload.get("args") or []])
+            return True
+
         def _read():
             buf.extend(bytes(sock.readAll()))
+            if not done["v"]:
+                _try_parse()
 
         def _finish():
+            # Peer closed without a parsed payload — a legacy bare "raise"
+            # ping (or line noise). One last parse over whatever arrived,
+            # then let it be a plain raise.
             if done["v"]:
                 return
             done["v"] = True
-            _read()  # anything still buffered at disconnect
+            buf.extend(bytes(sock.readAll()))
             sock.deleteLater()
             try:
                 payload = json.loads(bytes(buf).decode("utf-8"))
                 args = [str(a) for a in payload.get("args") or []]
             except Exception:
-                args = []  # legacy bare "raise" ping, or line noise — raise only
-            if args:
-                self.files_received.emit(args)
+                args = []
+            _emit(args)
 
         sock.readyRead.connect(_read)
         sock.disconnected.connect(_finish)
@@ -288,5 +323,8 @@ class SingleInstance(QObject):
         # existed — drain what's buffered, and finish now if it's already gone
         # (the disconnected signal would otherwise never fire).
         _read()
-        if sock.state() == QLocalSocket.LocalSocketState.UnconnectedState:
+        if (
+            not done["v"]
+            and sock.state() == QLocalSocket.LocalSocketState.UnconnectedState
+        ):
             _finish()

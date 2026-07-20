@@ -1,18 +1,45 @@
 """Second-launch file forwarding over the single-instance socket.
 
-A real socket round-trip: the "primary" acquires the lock + listener in-process,
-a fake "second launch" (another SingleInstance on the same key) acquires and is
-refused — forwarding its argv — and the primary's signals fire once the event
-loop spins. Keys are uuid-suffixed so parallel test runs can't collide.
+A real round-trip: the "primary" acquires the lock + listener in-process; the
+second launch runs as an actual SUBPROCESS (like production) that acquires the
+same key, is refused, and forwards its argv — the primary's signals fire once
+the event loop spins. A subprocess rather than an in-process fake because the
+forwarding protocol is a blocking-client ↔ event-loop-server ACK handshake:
+same-thread both-ends would deadlock the ACK by construction. Keys are
+uuid-suffixed so parallel test runs can't collide.
 """
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import uuid
 
 import pytest
 
 from dough.single_instance import SingleInstance, _normalize_args
+
+_SECOND_LAUNCH = """
+import sys
+from PySide6.QtCore import QCoreApplication
+app = QCoreApplication([])
+from dough.single_instance import SingleInstance
+si = SingleInstance(sys.argv[1])
+# acquire() must be REFUSED (the test process holds the lock); exit 0 then.
+sys.exit(0 if not si.acquire(sys.argv[2:]) else 3)
+"""
+
+
+def _second_launch(key: str, args: list[str]) -> subprocess.Popen:
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env["PYTHONPATH"] = repo_root + os.pathsep + env.get("PYTHONPATH", "")
+    return subprocess.Popen(
+        [sys.executable, "-c", _SECOND_LAUNCH, key, *args],
+        env=env,
+        cwd=repo_root,
+    )
 
 
 @pytest.fixture()
@@ -55,9 +82,9 @@ def test_second_launch_forwards_files_and_raises(qapp, primary, tmp_path):
     primary.raise_requested.connect(lambda: raised.append(True))
     primary.files_received.connect(lambda paths: received.append(paths))
 
-    second = SingleInstance(primary._key)
-    assert second.acquire([str(doc)]) is False  # deferred to the primary
-    _spin(qapp, lambda: received)
+    proc = _second_launch(primary._key, [str(doc)])
+    _spin(qapp, lambda: received, timeout_ms=15000)
+    assert proc.wait(timeout=15) == 0  # the second launch deferred + exited
 
     assert raised == [True]
     assert received == [[str(doc)]]
@@ -68,9 +95,9 @@ def test_second_launch_without_args_only_raises(qapp, primary):
     primary.raise_requested.connect(lambda: raised.append(True))
     primary.files_received.connect(lambda paths: received.append(paths))
 
-    second = SingleInstance(primary._key)
-    assert second.acquire() is False
-    _spin(qapp, lambda: raised, timeout_ms=1000)
+    proc = _second_launch(primary._key, [])
+    _spin(qapp, lambda: raised, timeout_ms=15000)
+    assert proc.wait(timeout=15) == 0
     _spin(qapp)  # one extra settle pass — files_received must NOT trail in
 
     assert raised == [True]
@@ -104,9 +131,9 @@ def test_urls_pass_through_forwarding(qapp, primary):
     received = []
     primary.files_received.connect(lambda paths: received.append(paths))
 
-    second = SingleInstance(primary._key)
-    assert second.acquire(["https://example.com/doc.pdf"]) is False
-    _spin(qapp, lambda: received)
+    proc = _second_launch(primary._key, ["https://example.com/doc.pdf"])
+    _spin(qapp, lambda: received, timeout_ms=15000)
+    assert proc.wait(timeout=15) == 0
 
     assert received == [["https://example.com/doc.pdf"]]
 
