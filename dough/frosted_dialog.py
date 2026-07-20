@@ -74,6 +74,13 @@ class FrostedDialog(QDialog):
         self.setObjectName("doughFrostedDialog")
         self.setModal(True)
         self.setMinimumWidth(min_width)
+        if title:
+            # The custom titlebar paints the visible title; mirror it into the
+            # window title (taskbar/switcher on platforms that show one for a
+            # frameless dialog) and the accessible name, so a screen reader
+            # announces the dialog as something better than "dialog".
+            self.setWindowTitle(title)
+            self.setAccessibleName(title)
         # Status-aware body: glass when blur is verified, near-opaque frosted
         # panel otherwise — never see-through. Shared with the main window +
         # the cast/settings dialogs via ui_helpers.body_color_tuple.
@@ -128,6 +135,10 @@ class FrostedDialog(QDialog):
 
         close_btn = QPushButton("✕")
         close_btn.setFixedSize(36, 28)
+        # "✕" is a glyph, not a word — name it for screen readers. Kept
+        # NoFocus deliberately (Esc is the keyboard path; a Tab stop on the
+        # dismiss glyph would put the ring on chrome before content).
+        close_btn.setAccessibleName(self.tr("Close"))
         close_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         close_btn.setStyleSheet(
             f"QPushButton {{ background: transparent; color: {TEXT_DIM}; "
@@ -157,6 +168,12 @@ class FrostedDialog(QDialog):
     def showEvent(self, e):
         super().showEvent(e)
         QTimer.singleShot(0, self._apply_blur)
+        # Focus discipline: keyboard/screen-reader users must land ON a
+        # control when the dialog opens, not on the dialog frame. Qt usually
+        # focuses the default button / first tab stop itself; this covers the
+        # content layouts where it doesn't (the ✕ is NoFocus by design).
+        if self.focusWidget() is None:
+            self.focusNextChild()
 
     def _apply_blur(self):
         from dough import blur

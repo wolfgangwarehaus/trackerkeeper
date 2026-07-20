@@ -29,6 +29,12 @@ a blank canvas with the hard parts already done. See
   per-platform backend pattern (autostart / notifications / power), a minimal
   `AppBus` signal bus, slim persistent `Settings`, single-instance.
 - **HiDPI done right** — PassThrough fractional scaling + device-pixel snapping.
+- **Languages for free** — Qt translation catalogs wired at boot, plural-aware
+  strings, locale-safe number/date/duration formatting (`dough.i18n.fmt`),
+  RTL-mirrored chrome. See `docs/TRANSLATING.md`.
+- **Accessible by default** — every kit control announces to screen readers
+  (a test fails the build on unnamed ones), visible keyboard-focus states, a
+  keyboard path for every mouse path. See `docs/ACCESSIBILITY.md`.
 
 ## Quick start
 

@@ -394,6 +394,21 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
 
     drag_repaint.sync()
 
+    # Daily update check — deferred a few seconds off the first-paint path.
+    # Gated inside maybe_check(): the Settings toggle, the once-a-day throttle,
+    # and the channel rule (Store / MAS / AUR builds never nag). Best-effort.
+    def _check_updates():
+        try:
+            from dough import updates
+
+            updates.maybe_check()
+        except Exception:
+            pass
+
+    from PySide6.QtCore import QTimer
+
+    QTimer.singleShot(3000, _check_updates)
+
     return app.exec()
 
 

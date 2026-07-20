@@ -145,6 +145,38 @@ class Settings:
         self._set("app/autostart", bool(v))
 
     @property
+    def check_for_updates(self) -> bool:
+        # Daily GitHub latest-release check (dough.updates) — the chip in the
+        # top bar. On by default; auto-updating channels (Store / MAS / AUR)
+        # are suppressed regardless of this toggle.
+        return _as_bool(self._s.value("app/check_for_updates"), True)
+
+    @check_for_updates.setter
+    def check_for_updates(self, v: bool) -> None:
+        self._set("app/check_for_updates", bool(v))
+
+    @property
+    def update_last_check_time(self) -> int:
+        # Unix timestamp of the last update check — the daily throttle.
+        try:
+            return int(self._s.value("app/update_last_check_time", 0))
+        except (TypeError, ValueError):
+            return 0
+
+    @update_last_check_time.setter
+    def update_last_check_time(self, v: int) -> None:
+        self._set("app/update_last_check_time", int(v))
+
+    @property
+    def update_dismissed_version(self) -> str:
+        # The release tag the user dismissed — that version never re-nags.
+        return self._s.value("app/update_dismissed_version", "", type=str)
+
+    @update_dismissed_version.setter
+    def update_dismissed_version(self, v: str) -> None:
+        self._set("app/update_dismissed_version", str(v or ""))
+
+    @property
     def notify_on_track_change(self) -> bool:
         # Generic "show notifications" toggle (name kept for the lifted
         # notifications backend); rename freely in a fork.

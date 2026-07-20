@@ -1548,6 +1548,16 @@ class CircleSwatch(QPushButton):
         self.setFlat(True)
         self.setStyleSheet("QPushButton{background:transparent;border:none;}")
 
+    def setToolTip(self, text: str) -> None:  # noqa: N802 (Qt override)
+        # A swatch is a text-free button; its tooltip ("Purple") is the only
+        # label it has, so mirror it into the accessible name (same fallback
+        # contract as IconButton — an explicit setAccessibleName wins because
+        # this only fills the name while it's empty or tooltip-derived).
+        prev = self.toolTip()
+        super().setToolTip(text)
+        if not self.accessibleName() or self.accessibleName() == prev:
+            self.setAccessibleName(text)
+
     def set_fill(self, fill: str) -> None:
         self._fill = fill
         self.update()

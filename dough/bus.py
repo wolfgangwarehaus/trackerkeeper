@@ -31,6 +31,11 @@ class AppBus(QObject):
     #                                   "double-click a document while the app is open"
     #                                   case); run_app bridges it from SingleInstance
 
+    # ── App lifecycle ─────────────────────────────────────────────────
+    update_available = Signal(str, str, str)  # (version, download_url, notes_url) —
+    #                                   dough.updates found a newer release; the
+    #                                   top-bar UpdateChip listens
+
     # ── System ────────────────────────────────────────────────────────
     hotkeys_changed = Signal()        # global hotkeys reconfigured
     dpr_changed = Signal()            # device-pixel-ratio changed → re-rasterize cached art

@@ -134,12 +134,20 @@ class SettingsDialog(FrostedDialog):
         # box reads is_enabled() and writes enable()/disable() directly.
         from dough import autostart
 
+        self.content_layout.addWidget(self._label(self.tr("SYSTEM")))
         if autostart.is_supported():
-            self.content_layout.addWidget(self._label("SYSTEM"))
-            self.autostart_check = QCheckBox("Launch on login")
+            self.autostart_check = QCheckBox(self.tr("Launch on login"))
             self.autostart_check.setChecked(autostart.is_enabled())
             self.autostart_check.toggled.connect(self._on_autostart)
             self.content_layout.addWidget(self.autostart_check)
+
+        # Daily update check (dough.updates) — the top-bar chip. The toggle is
+        # honoured by maybe_check(); auto-updating channels (Store / MAS / AUR)
+        # stay silent regardless, so leaving this visible there is harmless.
+        self.updates_check = QCheckBox(self.tr("Check for updates"))
+        self.updates_check.setChecked(self.s.check_for_updates)
+        self.updates_check.toggled.connect(self._on_check_updates)
+        self.content_layout.addWidget(self.updates_check)
 
         self._restart_note = QLabel("")
         self._restart_note.setStyleSheet(
@@ -160,6 +168,7 @@ class SettingsDialog(FrostedDialog):
         for name, hex_ in ACCENT_PRESETS:
             sw = ui_helpers.CircleSwatch(hex_, diameter=28, hover_ring="#99ffffff")
             sw.setToolTip(name)
+            sw.setAccessibleName(name)  # a swatch has no text — announce the color
             sw.clicked.connect(lambda _=False, h=hex_: self._on_accent(h))
             self._swatches.append((sw, hex_))
             row.addWidget(sw)
@@ -237,6 +246,9 @@ class SettingsDialog(FrostedDialog):
         # i18n.install before any widget exists), so show the restart notice.
         self.s.language = self.language_sel.currentData() or ""
         self._restart_note.setText("Language applies after a restart.")
+
+    def _on_check_updates(self, on: bool) -> None:
+        self.s.check_for_updates = bool(on)
 
     def _on_autostart(self, on: bool) -> None:
         from dough import autostart

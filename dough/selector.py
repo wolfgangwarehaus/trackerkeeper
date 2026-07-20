@@ -172,9 +172,16 @@ class Selector(QPushButton):
     # trips this; every other selector (theme, quality, ~<10) stays a menu.
     _LONG_LIST_THRESHOLD = 40
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, accessible_name: str = ""):
         super().__init__(parent)
         self.setObjectName("doughSelector")
+        # A Selector reads as its current VALUE ("Frosted dark"), which tells
+        # a screen reader nothing about what the control chooses — pass the
+        # row label ("Theme") as accessible_name so it announces as
+        # "Theme, Frosted dark". Hosts that build a caption QLabel above the
+        # control should pass the same string here.
+        if accessible_name:
+            self.setAccessibleName(accessible_name)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         # autoDefault off so the selector doesn't get the Qt-default
         # "default action" outline when its dialog is shown — matches
@@ -448,6 +455,10 @@ class Selector(QPushButton):
 
         lw = QListWidget()
         lw.setObjectName("doughSelectorList")
+        # The popup list announces under the selector's own name (the QMenu
+        # host is chrome; the list is what the reader traverses). Arrow keys /
+        # Enter already work — _focus_list drops keyboard focus on it at show.
+        lw.setAccessibleName(self.accessibleName() or self.text())
         lw.setFrameShape(QFrame.Shape.NoFrame)
         lw.setUniformItemSizes(True)
         lw.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)

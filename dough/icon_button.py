@@ -19,15 +19,34 @@ just call setIcon again) keep working with zero call-site churn.
 
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QIcon, QPainter
 from PySide6.QtWidgets import QPushButton
 
+logger = logging.getLogger(__name__)
+
 
 class IconButton(QPushButton):
-    def __init__(self, *args, **kwargs):
+    """An icon-only button has no visible text, so a screen reader has
+    nothing to announce unless we name it. Pass ``accessible_name`` (a short
+    translated action label — "Settings", "Close") at construction; when
+    omitted, the tooltip doubles as the accessible name (every existing
+    ``setToolTip`` call site keeps working). A button that ends up shown
+    with neither logs a debug warning — and fails ``tests/test_a11y.py``
+    when reachable from the demo window — unless it opts out with
+    ``setProperty("a11y_exempt", True)`` (decorative controls only)."""
+
+    def __init__(self, *args, accessible_name: str = "", **kwargs):
         super().__init__(*args, **kwargs)
         self._own_qicon: QIcon | None = None
+        # Whether the accessible name was set explicitly (ctor or
+        # setAccessibleName) vs mirrored from the tooltip — an explicit name
+        # is never clobbered by a later tooltip change.
+        self._explicit_a11y_name = bool(accessible_name)
+        if accessible_name:
+            super().setAccessibleName(accessible_name)
         # Icon buttons are mouse-driven chrome: they keep the default arrow
         # cursor (no pointing-hand — that affordance is reserved for text CTAs
         # and clickable cards) and take NO keyboard focus, so a focus snap
@@ -37,6 +56,37 @@ class IconButton(QPushButton):
         # transport buttons) and the top/footer bars — is uniform; a styled focus ring belongs with a real
         # keyboard-nav pass, not on these.
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+    def setAccessibleName(self, name: str) -> None:  # noqa: N802 — Qt override
+        # An explicit name wins over the tooltip mirror from here on.
+        self._explicit_a11y_name = bool(name)
+        super().setAccessibleName(name)
+
+    def setToolTip(self, text: str) -> None:  # noqa: N802 — Qt override
+        super().setToolTip(text)
+        if not self._explicit_a11y_name:
+            # Tooltip doubles as the accessible name — the fallback that
+            # keeps every pre-a11y call site announced.
+            super().setAccessibleName(text)
+        elif text and text != self.accessibleName():
+            # With an explicit name, a DIFFERENT tooltip adds detail — expose
+            # it as the description (identical text would just be announced
+            # twice, so skip that case).
+            self.setAccessibleDescription(text)
+
+    def showEvent(self, e):  # noqa: N802 — Qt override
+        super().showEvent(e)
+        if (
+            not self.accessibleName()
+            and not self.text()
+            and not self.property("a11y_exempt")
+        ):
+            logger.debug(
+                "IconButton shown without an accessible name — pass "
+                "accessible_name= or setToolTip() so screen readers can "
+                "announce it (objectName=%r)",
+                self.objectName(),
+            )
 
     def setIcon(self, icon: QIcon) -> None:  # noqa: N802 — Qt override
         # Capture the icon and paint it ourselves (snapped). Deliberately NOT
