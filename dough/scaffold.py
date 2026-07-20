@@ -87,6 +87,13 @@ def _replace_in_tree(root: Path, pairs: list[tuple[str, str]]) -> None:
         for old, new in pairs
         if old != new and old.upper() != new.upper()
     ]
+    # …and the lowercase_snake prefix (``dough_<code>.qm`` i18n catalog
+    # basenames). Mirrored in dev/sync_loaf.py — keep in step.
+    patterns += [
+        (re.compile(rf"\b{re.escape(old.lower())}_"), f"{new.lower()}_")
+        for old, new in pairs
+        if old != new and old.lower() != new.lower()
+    ]
     if not patterns:
         return
     for path in _text_files(root):

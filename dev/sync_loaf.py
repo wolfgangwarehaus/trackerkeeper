@@ -96,6 +96,15 @@ def _make_transform(old: tuple[str, str, str], new: tuple[str, str, str]):
         for o, n in pairs
         if o != n and o.upper() != n.upper()
     ]
+    # …and the lowercase_snake prefix (``dough_<code>.qm`` i18n catalog
+    # basenames → ``butterpdf_<code>.qm``) — found the hard way on the
+    # 2026-07-20 butterPDF sync, where the i18n module shipped looking
+    # for dough_*.qm inside butterpdf.i18n.
+    patterns += [
+        (re.compile(rf"\b{re.escape(o.lower())}_"), f"{n.lower()}_")
+        for o, n in pairs
+        if o != n and o.lower() != n.lower()
+    ]
     # The degenerate-identity org repair (mirrors scaffold._identity_org_repairs):
     # when dough's org == owner but the loaf's differ, the generic replace stamps
     # the OWNER into identity.py's org-semantic lines — re-stamp them so the
