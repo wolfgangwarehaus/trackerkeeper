@@ -57,7 +57,19 @@ dependencies = [
 # shipped app never imports it. dev includes it so the generate-then-verify gate
 # (tests/test_bake.py) runs in the default test pass.
 bake = ["jinja2>=3"]
-dev = ["ruff", "pytest", "pytest-xdist", "setuptools-scm>=8", "jinja2>=3"]
+dev = [
+    "ruff", "pytest", "pytest-xdist", "setuptools-scm>=8", "jinja2>=3",
+    # the credentials-store test surface (keyring is mocked; AES-GCM is real)
+    "keyring>=24",
+    "cryptography>=42 ; sys_platform != 'win32'",
+]
+# Named-secret store (dough/credentials.py): OS keyring primary + an encrypted
+# QSettings resilience blob. cryptography is the AES-GCM arm — Linux/macOS only
+# (no win_arm64 wheel; Windows uses ctypes DPAPI instead, zero extra deps).
+credentials = [
+    "keyring>=24",
+    "cryptography>=42 ; sys_platform != 'win32'",
+]
 # macOS-native integration (pyobjc). darwin-only via env markers; the base stays
 # PySide6-only, so these are OPT-IN — the lazy, guarded platform imports
 # (notifications, autostart via ServiceManagement, Cocoa) degrade to UNSUPPORTED
