@@ -394,6 +394,19 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
 
     drag_repaint.sync()
 
+    # Agent test bridge — dev-only remote control for live end-to-end testing.
+    # OFF unless DOUGH_TEST_BRIDGE=1 is set at launch. Stands up a per-user
+    # local socket whose JSON commands (click / tree / screenshot / settings /
+    # eval …) run on the GUI thread, so an agent can drive the real app
+    # deterministically — including on Wayland, where synthetic OS input is
+    # unreliable. Never enabled in a shipped build. See dough/test_bridge.py
+    # + docs/TEST_BRIDGE.md.
+    if os.environ.get("DOUGH_TEST_BRIDGE") == "1":
+        from dough.test_bridge import TestBridge
+
+        app._dough_test_bridge = TestBridge(app, win)
+        app._dough_test_bridge.start()
+
     # Daily update check — deferred a few seconds off the first-paint path.
     # Gated inside maybe_check(): the Settings toggle, the once-a-day throttle,
     # and the channel rule (Store / MAS / AUR builds never nag). Best-effort.

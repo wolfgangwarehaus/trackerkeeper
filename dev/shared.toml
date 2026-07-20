@@ -81,6 +81,7 @@ manual = [
     "settings_migration.py",     # generic versioned runner (meta/schema_version + MIGRATIONS table); jellytoast's org-rename/theme-axes one-shots stripped
     "updates.py",                # AppBus (not PlayerBus); repo from the metadata sidecar/identity (not a literal); DOUGH_CHANNEL env stamp instead of _channel.py
     "update_chip.py",            # doughUpdateChip objectName; identity.display_name() tooltip; module-attr accent reads; a11y name while hidden
+    "test_bridge.py",            # genericized far past upstream: named-command set + register_command registry + identity-seam socket + DOUGH_ env (upstream is eval/exec-only with a literal socket name); transport lessons (re-entrancy guard, doomed-socket parking) lifted intact — hand-merge upstream transport fixes only
 ]
 
 # Modules extracted from a differently-named jellytoast file.
