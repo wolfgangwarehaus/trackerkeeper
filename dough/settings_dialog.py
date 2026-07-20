@@ -46,7 +46,7 @@ class SettingsDialog(FrostedDialog):
         self.setStyleSheet(self.styleSheet() + selector_qss())
 
         self.content_layout.addWidget(self._label("THEME"))
-        self.theme_sel = Selector()
+        self.theme_sel = Selector(accessible_name=self.tr("Theme"))
         for lbl, val in _THEME_MODES:
             self.theme_sel.addItem(lbl, val)
         self._select(self.theme_sel, self.s.theme_mode)
@@ -65,7 +65,7 @@ class SettingsDialog(FrostedDialog):
         self.content_layout.addWidget(self.follow_accent_check)
 
         self.content_layout.addWidget(self._label("FONT SIZE"))
-        self.font_sel = Selector()
+        self.font_sel = Selector(accessible_name=self.tr("Font size"))
         for lbl, val in _FONT_SIZES:
             self.font_sel.addItem(lbl, val)
         self._select(self.font_sel, self.s.font_scale)
@@ -79,7 +79,7 @@ class SettingsDialog(FrostedDialog):
         # built-in Inter stack. Applies LIVE (no restart) via the global QSS
         # font stack + app.setFont; SVG icons are never touched.
         self.content_layout.addWidget(self._label("FONT FAMILY"))
-        self.family_sel = Selector()
+        self.family_sel = Selector(accessible_name=self.tr("Font family"))
         self.family_sel.addItem("System default", "")
         from PySide6.QtGui import QFont, QFontDatabase
 
@@ -118,7 +118,7 @@ class SettingsDialog(FrostedDialog):
 
         if SHIPPED_LANGUAGES:
             self.content_layout.addWidget(self._label("LANGUAGE"))
-            self.language_sel = Selector()
+            self.language_sel = Selector(accessible_name=self.tr("Language"))
             self.language_sel.addItem(self.tr("System default"), "")
             self.language_sel.addItem("English", "en")
             for _code, _en_name, _native in SHIPPED_LANGUAGES:
