@@ -178,11 +178,19 @@ class Selector(QPushButton):
         # Optional per-row font (QFont), keyed by index — used by the font
         # picker so each family renders its menu row in its own typeface.
         self._fonts: dict[int, "QFont"] = {}
+        # Optional per-row QIcon, keyed by index — a richer alternative to
+        # dot_color (e.g. a theme picker showing each scheme's colour
+        # palette). Shown BOTH in the popup rows and on the closed button.
+        self._icons: dict[int, "QIcon"] = {}
+        # Optional per-row tooltip, keyed by index — set via the QComboBox-
+        # compatible setItemData(i, text, ToolTipRole) (a host can annotate
+        # unavailable rows this way).
+        self._tooltips: dict[int, str] = {}
         self._current_index = -1
         self.clicked.connect(self._show_menu)
 
     # ── QComboBox-compatible API ─────────────────────────────────────
-    def addItem(self, label: str, data=None, dot_color: str = "", font=None) -> None:
+    def addItem(self, label: str, data=None, dot_color: str = "", font=None, icon=None) -> None:
         """``dot_color`` (``#rrggbb``) paints a small filled circle as
         the row's menu icon — a family/category tag (e.g. the audio
         output picker color-codes PipeWire vs ALSA devices).
@@ -190,22 +198,46 @@ class Selector(QPushButton):
         ``font`` (``QFont``) renders THIS row's menu label in its own
         typeface — the font picker passes ``QFont(family)`` so the list
         previews each font in itself. Ignored for the closed-state text
-        (the button keeps the UI font)."""
+        (the button keeps the UI font).
+
+        ``icon`` (``QIcon``) is a full custom icon for the row AND the closed
+        button (e.g. a theme picker's colour-palette strip); takes
+        precedence over ``dot_color``."""
         idx = len(self._items)
         self._items.append((label, data))
         self._dot_colors[idx] = dot_color
         if font is not None:
             self._fonts[idx] = font
+        if icon is not None:
+            self._icons[idx] = icon
         if self._current_index < 0:
             self.setCurrentIndex(0)
 
     def count(self) -> int:
         return len(self._items)
 
-    def itemData(self, i: int):
+    def itemData(self, i: int, role=None):
+        """``role`` mirrors QComboBox.itemData: UserRole/None returns the
+        item's data value, ToolTipRole the tooltip set via setItemData."""
+        if role == Qt.ItemDataRole.ToolTipRole:
+            return self._tooltips.get(i)
         if 0 <= i < len(self._items):
             return self._items[i][1]
         return None
+
+    def setItemData(self, i: int, value, role=None) -> None:
+        """QComboBox-compatible per-item data write. UserRole/None replaces
+        the item's data value; ToolTipRole sets the row's popup tooltip.
+        Other roles are ignored (nothing stores them). Exists because call
+        sites that treat a Selector as a QComboBox reach for this API —
+        a missing method here is an AttributeError only on the code path
+        that happens to call it, so it fails rarely and late."""
+        if not 0 <= i < len(self._items):
+            return
+        if role == Qt.ItemDataRole.ToolTipRole:
+            self._tooltips[i] = str(value)
+        elif role is None or role == Qt.ItemDataRole.UserRole:
+            self._items[i] = (self._items[i][0], value)
 
     def itemText(self, i: int) -> str:
         if 0 <= i < len(self._items):
@@ -235,14 +267,20 @@ class Selector(QPushButton):
             changed = i != self._current_index
             self._current_index = i
             self.setText(self._items[i][0])
+            ic = self._icons.get(i)
+            if ic is not None:
+                self.setIcon(ic)  # closed button previews the current row's icon
             if changed:
                 self.currentIndexChanged.emit(i)
 
     def clear(self) -> None:
         self._items.clear()
         self._dot_colors.clear()
+        self._fonts.clear()
+        self._icons.clear()
         self._current_index = -1
         self.setText("")
+        self.setIcon(QIcon())
 
     # ── Chevron paint ─────────────────────────────────────────────────
     def paintEvent(self, e):  # noqa: N802 — Qt naming
@@ -307,10 +345,19 @@ class Selector(QPushButton):
         if not long_list:
             # No checkmark on the current item — the selector button shows the
             # current value already, so a left check just shoves labels right.
+            if self._tooltips:
+                # QMenu suppresses action tooltips unless asked.
+                menu.setToolTipsVisible(True)
             for i, (label, _data) in enumerate(self._items):
                 action = menu.addAction(label)
+                tip = self._tooltips.get(i)
+                if tip:
+                    action.setToolTip(tip)
+                custom_icon = self._icons.get(i)
                 dot = self._dot_colors.get(i)
-                if dot:
+                if custom_icon is not None:
+                    action.setIcon(custom_icon)
+                elif dot:
                     action.setIcon(_dot_icon(dot))
                 row_font = self._fonts.get(i)
                 if row_font is not None:
@@ -415,13 +462,19 @@ class Selector(QPushButton):
         )
         for i, (label, _data) in enumerate(self._items):
             it = QListWidgetItem(label)
+            tip = self._tooltips.get(i)
+            if tip:
+                it.setToolTip(tip)
             row_font = self._fonts.get(i)
             if row_font is not None:
                 f = QFont(row_font)
                 f.setPixelSize(TYPE_BODY.size_px)
                 it.setFont(f)
+            custom_icon = self._icons.get(i)
             dot = self._dot_colors.get(i)
-            if dot:
+            if custom_icon is not None:
+                it.setIcon(custom_icon)
+            elif dot:
                 it.setIcon(_dot_icon(dot))
             lw.addItem(it)
         if 0 <= self._current_index < lw.count():

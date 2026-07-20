@@ -6,7 +6,7 @@
 
 # The jellytoast commit dough was last reconciled against.
 # `python dev/sync.py --jellytoast PATH --record` stamps this to jellytoast HEAD.
-synced_from = "7357dad"
+synced_from = "7897101"
 
 # dough modules authored fresh (no jellytoast upstream) — sync skips them.
 authored = [
@@ -25,6 +25,18 @@ authored = [
 # upstream diff to port by hand. The macOS-absorption pass (de045ad→c4a9496)
 # diverged most shared modules; only true pure-lifts stay AUTO below.
 manual = [
+    # ── Formerly AUTO; reclassified 2026-07 (the 7357dad→18e1ca8 sync) after a
+    # provenance audit showed every one carries dough-AUTHORED code a blind
+    # --apply would delete (d20562c the kwin plugin shim; b164802 the P3
+    # polish sweep). Hand-merge upstream diffs from now on.
+    "blur/_kwin.py",             # dough-authored _ensure_platform_plugin shim (venv PySide6 can't see the distro KF6 plugin); delivery self-test hand-merged 2026-07
+    "color_tokens.py",           # AppBus-direct naming + plain QSettings (dough has no settings_migration); coalesced-emit + platform-readjust hand-merged 2026-07
+    "icon_button.py",            # dough's _own_qicon naming + de-musicked comments (upstream still _jt_qicon, transform doesn't catch _jt_)
+    "keyboard_focus.py",         # de-musicked comment (upstream names the Music dropdown)
+    "power/_linux.py",           # identity.app() + generic inhibit reason (upstream re-coupled wording to music playback)
+    # ── Lifted 2026-07 as genericized descendants — never a pure transform.
+    "i18n/__init__.py",          # SHIPPED_LANGUAGES starts empty; catalog basename literal "dough" (renamed by the fork transform); settings path differs
+    "system_accent.py",          # no theme_family gate; inlined _rgb01_to_hex (dough has no color_picker); QSettings()/icons/AppBus paths
     "ui_helpers.py",             # the music image-loader was carved out
     "window.py",                 # AppWindow chrome extracted from jellytoast/app.py (+ frameless decision, faux-frost, macOS inset/observer)
     "async_io.py",               # de-cast docstring + generic cold_import_lock (blind lift re-adds cast rationale)

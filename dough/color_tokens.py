@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import importlib
 import json
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -444,6 +445,22 @@ def _cascade_accent_family(accent_value: Any, *, persist: bool) -> None:
             )
 
 
+def _reapply_platform_adjustments() -> None:
+    """Re-run ``ui_helpers.refresh_theme`` so tokens with platform post-
+    processing (e.g. the macOS ``POPUP_OPAQUE_FILL`` opacity bump) recompute
+    their *applied* value after a reset — the raw ``token.default`` set above is
+    the pre-adjustment value, so without this a reset briefly under-opaques
+    popups on macOS until the next theme event. refresh_theme reads the theme +
+    re-overlays any REMAINING overrides, so it can't clobber other tokens.
+    Best-effort: a no-op before the app/theme is up."""
+    try:
+        from dough import ui_helpers
+
+        ui_helpers.refresh_theme()
+    except Exception:
+        pass
+
+
 def reset(name: str) -> None:
     """Remove the override; restore the shipped default."""
     from PySide6.QtCore import QSettings
@@ -452,6 +469,7 @@ def reset(name: str) -> None:
     QSettings().remove(_qs_key(name))
     module = importlib.import_module(token.module)
     setattr(module, name, token.default)
+    _reapply_platform_adjustments()
     _emit_theme_changed()
 
 
@@ -464,6 +482,7 @@ def reset_all() -> None:
         s.remove(_qs_key(name))
         module = importlib.import_module(token.module)
         setattr(module, name, token.default)
+    _reapply_platform_adjustments()
     _emit_theme_changed()
 
 
@@ -527,34 +546,41 @@ def import_palette(palette: dict) -> int:
     if not isinstance(tokens, dict):
         raise ValueError("palette['tokens'] must be a dict")
     applied = 0
-    for name, value in tokens.items():
-        if name not in TOKENS:
-            continue
-        token = TOKENS[name]
-        # JSON serialises tuples as lists — convert back.
-        if token.kind == "tuple_rgba" and isinstance(value, list):
-            value = tuple(value)
-        try:
-            apply_override(name, value)
-            applied += 1
-        except Exception:
-            continue
-    # The ACCENT cascade (apply_override -> _cascade_accent_family) derives
-    # ACCENT_DEEP/BORDER_ACCENT from ACCENT. If the palette supplies those
-    # explicitly but keys them BEFORE ACCENT in the dict, the cascade
-    # clobbers them. Re-apply any explicit followers last so user-authored
-    # values win regardless of key order (the convenience cascade still
-    # fills them in for ACCENT-only palettes).
-    for follower in ("ACCENT_DEEP", "BORDER_ACCENT"):
-        if "ACCENT" in tokens and follower in tokens and follower in TOKENS:
-            fval = tokens[follower]
-            ftok = TOKENS[follower]
-            if ftok.kind == "tuple_rgba" and isinstance(fval, list):
-                fval = tuple(fval)
+    # Suspend per-token emits: apply everything under ONE coalesced re-stamp
+    # instead of ~15 (one per apply_override). A whole palette swap then costs a
+    # single theme_changed, not a visibly-slow storm.
+    with _suspend_emit():
+        for name, value in tokens.items():
+            if name not in TOKENS:
+                continue
+            token = TOKENS[name]
+            # JSON serialises tuples as lists — convert back.
+            if token.kind == "tuple_rgba" and isinstance(value, list):
+                value = tuple(value)
             try:
-                apply_override(follower, fval)
+                apply_override(name, value)
+                applied += 1
             except Exception:
-                pass
+                continue
+        # The ACCENT cascade (apply_override -> _cascade_accent_family) derives
+        # ACCENT_DEEP/BORDER_ACCENT from ACCENT. If the palette supplies those
+        # explicitly but keys them BEFORE ACCENT in the dict, the cascade
+        # clobbers them. Re-apply any explicit followers last so user-authored
+        # values win regardless of key order (the convenience cascade still
+        # fills them in for ACCENT-only palettes).
+        for follower in ("ACCENT_DEEP", "BORDER_ACCENT"):
+            if "ACCENT" in tokens and follower in tokens and follower in TOKENS:
+                fval = tokens[follower]
+                ftok = TOKENS[follower]
+                if ftok.kind == "tuple_rgba" and isinstance(fval, list):
+                    fval = tuple(fval)
+                try:
+                    apply_override(follower, fval)
+                except Exception:
+                    pass
+    # One re-stamp for the whole palette.
+    if applied:
+        _emit_theme_changed()
     return applied
 
 
@@ -637,10 +663,29 @@ def _deserialize(raw: str, kind: str) -> Any:
     return parsed
 
 
+_emit_suspended = 0
+
+
+@contextmanager
+def _suspend_emit():
+    """Coalesce every ``theme_changed`` emit inside the block into ZERO (the
+    caller fires one afterwards). ``import_palette`` uses this so applying a
+    whole palette costs a SINGLE app-wide re-stamp instead of ~15 (one per
+    token) — the difference between a snappy and a visibly-slow theme swap."""
+    global _emit_suspended
+    _emit_suspended += 1
+    try:
+        yield
+    finally:
+        _emit_suspended -= 1
+
+
 def _emit_theme_changed() -> None:
     """Fire theme_changed so every subscriber re-stamps its styles.
     Wrapped because the bus may not be initialised in early-boot
     contexts (token overrides loaded before QApplication)."""
+    if _emit_suspended:
+        return
     try:
         from dough.bus import AppBus
 

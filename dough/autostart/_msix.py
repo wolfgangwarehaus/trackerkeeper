@@ -77,6 +77,8 @@ def _run_in_mta(fn):
             except Exception:  # pragma: no cover — Windows/MSIX-only
                 pass
 
+    # Sanctioned raw-thread exception: the WinRT call needs its own COM MTA
+    # apartment, so it gets a dedicated thread (start + join), not a pool slot.
     t = threading.Thread(target=_target, name="dough-startuptask", daemon=True)
     t.start()
     t.join()

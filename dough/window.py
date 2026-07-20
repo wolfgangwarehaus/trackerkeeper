@@ -437,6 +437,35 @@ class AppWindow(QMainWindow):
             return
         status = blur.status(force=True)
         self._refresh_body_color()
+        # DOUGH_BLUR_DIAG=1 dumps the full surface truth once the window is
+        # mapped — the ground truth for any "status says ACTIVE but the window
+        # looks off" report. Distinguishes a genuinely-opaque surface
+        # (translucent False / alphaBuffer 0) from a live blur that just reads
+        # neutral over a complementary wallpaper (jellytoast's #229 false
+        # alarm). Kept as a standing diagnostic for future compositor-
+        # integration questions.
+        import os
+
+        if os.environ.get("DOUGH_BLUR_DIAG") == "1":
+            try:
+                wh = self.windowHandle()
+                fmt = wh.format() if wh is not None else None
+                body = self._body_qcolor
+                logger.info(
+                    "BLUR-DIAG: status=%s reason=%r | platform=%s kde_wayland=%s "
+                    "| chrome borderless=%s linux_frameless=%s | "
+                    "WA_TranslucentBackground=%s alphaBufferSize=%s | "
+                    "body=rgba(%d,%d,%d,%d) faux_frost=%s",
+                    status.name, blur.reason(),
+                    QApplication.instance().platformName(),
+                    is_kde_wayland(), self._borderless, self._linux_frameless,
+                    self.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground),
+                    fmt.alphaBufferSize() if fmt is not None else "?",
+                    body.red(), body.green(), body.blue(), body.alpha(),
+                    self._faux_frost_active(),
+                )
+            except Exception:
+                logger.exception("BLUR-DIAG dump failed")
         if status is not blur.BlurStatus.ACTIVE:
             logger.info("Frosted theme: %s (%s).", blur.reason(), status.value)
         else:
