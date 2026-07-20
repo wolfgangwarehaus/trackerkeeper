@@ -100,6 +100,27 @@ class SettingsDialog(FrostedDialog):
         self.corners_check.toggled.connect(self._on_square_corners)
         self.content_layout.addWidget(self.corners_check)
 
+        # Language — the UI language override. "System default" ('') follows
+        # the OS locale; explicit picks are bare codes ("es"). Translators
+        # install in run_app() before any widget exists, so this is restart-
+        # required like Square corners. Options come from i18n.SHIPPED_LANGUAGES
+        # so adding a catalog auto-extends the menu; the row is hidden entirely
+        # while no catalog ships (bare dough) — a picker with only English in
+        # it is noise.
+        from dough.i18n import SHIPPED_LANGUAGES
+
+        if SHIPPED_LANGUAGES:
+            self.content_layout.addWidget(self._label("LANGUAGE"))
+            self.language_sel = Selector()
+            self.language_sel.addItem(self.tr("System default"), "")
+            self.language_sel.addItem("English", "en")
+            for _code, _en_name, _native in SHIPPED_LANGUAGES:
+                self.language_sel.addItem(_native, _code)
+            self._select(self.language_sel, self.s.language)
+            self.language_sel.setFixedWidth(256)
+            self.language_sel.currentIndexChanged.connect(self._on_language)
+            self.content_layout.addWidget(self.language_sel)
+
         # Launch on login — only offered when a platform backend can actually
         # fulfil it (XDG autostart / Run key / StartupTask / LaunchAgent). The
         # OS entry is the source of truth — no QSettings mirror to drift: the
@@ -186,6 +207,12 @@ class SettingsDialog(FrostedDialog):
         set_square_corners(bool(on))
         self._apply_live()
         self._restart_note.setText("Square corners fully applies after a restart.")
+
+    def _on_language(self, _idx: int) -> None:
+        # Persist the pick; translators only install at boot (run_app calls
+        # i18n.install before any widget exists), so show the restart notice.
+        self.s.language = self.language_sel.currentData() or ""
+        self._restart_note.setText("Language applies after a restart.")
 
     def _on_autostart(self, on: bool) -> None:
         from dough import autostart

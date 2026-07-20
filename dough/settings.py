@@ -55,6 +55,7 @@ class Settings:
     def accent_color(self, v: str) -> None:
         self._set("ui/accent_color", v)
 
+
     @property
     def font_scale(self) -> str:  # small | default | large | largest
         return str(self._s.value("ui/font_scale", "default"))
@@ -113,6 +114,17 @@ class Settings:
     @show_tooltips.setter
     def show_tooltips(self, v: bool) -> None:
         self._set("ui/show_tooltips", bool(v))
+
+    @property
+    def language(self) -> str:
+        # UI language override — a bare code like "es", or "" (default) to
+        # follow the system locale. "en" pins English (skips the system
+        # locale). Read by dough.i18n at boot; restart-applied.
+        return self._s.value("ui/language", "", type=str)
+
+    @language.setter
+    def language(self, v: str) -> None:
+        self._set("ui/language", (v or "").strip().lower())
 
     # ── Platform integration toggles ──────────────────────────────────
     @property

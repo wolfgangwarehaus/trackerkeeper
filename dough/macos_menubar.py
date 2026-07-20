@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import QEvent, QObject, Qt, QTimer, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import QApplication, QMenuBar, QMessageBox
 
@@ -90,25 +90,31 @@ def _install_menubar(window, help_url: str):
     # which menu they're attached to. We hang them on File (they vanish from
     # File on relocation) rather than create a dedicated menu, which would be
     # left empty + show a redundant app-named menu in the bar.
-    file_menu = mb.addMenu("File")
-    _act(file_menu, window, f"About {name}", role=MR.AboutRole, slot=lambda: _about(window))
-    _act(file_menu, window, "Settings…", role=MR.PreferencesRole, key=SK.Preferences,
+    file_menu = mb.addMenu(QCoreApplication.translate("MacMenuBar", "File"))
+    _act(file_menu, window,
+         QCoreApplication.translate("MacMenuBar", "About {0}").format(name),
+         role=MR.AboutRole, slot=lambda: _about(window))
+    _act(file_menu, window, QCoreApplication.translate("MacMenuBar", "Settings…"),
+         role=MR.PreferencesRole, key=SK.Preferences,
          slot=lambda: AppBus.get().show_settings.emit())
-    _act(file_menu, window, f"Quit {name}", role=MR.QuitRole, slot=lambda: _quit())
-    _act(file_menu, window, "Close Window", key=SK.Close,
+    _act(file_menu, window,
+         QCoreApplication.translate("MacMenuBar", "Quit {0}").format(name),
+         role=MR.QuitRole, slot=lambda: _quit())
+    _act(file_menu, window, QCoreApplication.translate("MacMenuBar", "Close Window"),
+         key=SK.Close,
          slot=lambda: (QApplication.activeWindow() or window).close())
 
     # Edit — present so system text shortcuts + the Services menu work; each
     # item dispatches to the focused widget's matching method.
-    edit_menu = mb.addMenu("Edit")
+    edit_menu = mb.addMenu(QCoreApplication.translate("MacMenuBar", "Edit"))
     for label, key, meth in (
-        ("Undo", SK.Undo, "undo"),
-        ("Redo", SK.Redo, "redo"),
+        (QCoreApplication.translate("MacMenuBar", "Undo"), SK.Undo, "undo"),
+        (QCoreApplication.translate("MacMenuBar", "Redo"), SK.Redo, "redo"),
         (None, None, None),
-        ("Cut", SK.Cut, "cut"),
-        ("Copy", SK.Copy, "copy"),
-        ("Paste", SK.Paste, "paste"),
-        ("Select All", SK.SelectAll, "selectAll"),
+        (QCoreApplication.translate("MacMenuBar", "Cut"), SK.Cut, "cut"),
+        (QCoreApplication.translate("MacMenuBar", "Copy"), SK.Copy, "copy"),
+        (QCoreApplication.translate("MacMenuBar", "Paste"), SK.Paste, "paste"),
+        (QCoreApplication.translate("MacMenuBar", "Select All"), SK.SelectAll, "selectAll"),
     ):
         if label is None:
             edit_menu.addSeparator()
@@ -117,19 +123,24 @@ def _install_menubar(window, help_url: str):
              slot=lambda _=False, m=meth: _dispatch_edit(m))
 
     # View
-    view_menu = mb.addMenu("View")
-    _act(view_menu, window, "Enter Full Screen", key=SK.FullScreen,
+    view_menu = mb.addMenu(QCoreApplication.translate("MacMenuBar", "View"))
+    _act(view_menu, window,
+         QCoreApplication.translate("MacMenuBar", "Enter Full Screen"),
+         key=SK.FullScreen,
          slot=lambda: _toggle_fullscreen(window))
 
     # Window
-    win_menu = mb.addMenu("Window")
-    _act(win_menu, window, "Minimize", key="Ctrl+M",
+    win_menu = mb.addMenu(QCoreApplication.translate("MacMenuBar", "Window"))
+    _act(win_menu, window, QCoreApplication.translate("MacMenuBar", "Minimize"),
+         key="Ctrl+M",
          slot=lambda: (QApplication.activeWindow() or window).showMinimized())
-    _act(win_menu, window, "Zoom", slot=lambda: _zoom(window))
+    _act(win_menu, window, QCoreApplication.translate("MacMenuBar", "Zoom"),
+         slot=lambda: _zoom(window))
 
     # Help
-    help_menu = mb.addMenu("Help")
-    _act(help_menu, window, f"{name} Help",
+    help_menu = mb.addMenu(QCoreApplication.translate("MacMenuBar", "Help"))
+    _act(help_menu, window,
+         QCoreApplication.translate("MacMenuBar", "{0} Help").format(name),
          slot=lambda: help_url and QDesktopServices.openUrl(QUrl(help_url)))
 
 
@@ -242,7 +253,9 @@ def _about(window):
         pass
     body = f"<b>{title}</b>"
     if __version__:
-        body += f"<br>Version {__version__}"
+        body += "<br>" + QCoreApplication.translate(
+            "MacMenuBar", "Version {0}"
+        ).format(__version__)
     if summary:
         body += f"<br><br>{summary}"
     QMessageBox.about(window, title, body)

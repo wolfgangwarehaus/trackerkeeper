@@ -194,6 +194,9 @@ exclude = ["tests*", "docs*", "packaging*"]
     "effect/dragrepaint/metadata.json",
     "effect/dragrepaint/contents/code/main.js",
 ]
+# Compiled translation catalogs (dough/i18n/dough_<code>.qm) ship as package
+# data so dough.i18n.install resolves them via importlib.resources.
+"dough.i18n" = ["*.qm"]
 
 [tool.pytest.ini_options]
 # GUI tests run headless — conftest.py forces QT_QPA_PLATFORM=offscreen before

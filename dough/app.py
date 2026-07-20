@@ -199,7 +199,9 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
       * **launch on login** — re-asserts a user-enabled autostart entry (the
         Settings toggle turns it on; dough never does);
       * **desktop notifications** — ``AppBus.notify.emit(title, body)`` reaches
-        the OS notification backend (silent no-op where unsupported).
+        the OS notification backend (silent no-op where unsupported);
+      * **translations** — ``dough.i18n`` installs the catalog for the user's
+        language (Settings override → system locale) before any widget exists.
 
     ``identity`` (optional) is a mapping forwarded to :func:`dough.configure`
     (``org`` / ``app`` / ``display_name``). NOTE: for the import-time font scale
@@ -250,6 +252,13 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     # design: the noborder rule and the drag_repaint effect both match the
     # bare slug as a SUBSTRING (proven: noBorder=true under the new app_id).
     app.setDesktopFileName(ident.desktop_id())
+
+    # Install translation catalogs (Settings override → system locale) before
+    # ANY widget is built — Qt translates at construction time. Never raises;
+    # a missing catalog just leaves the English source strings.
+    from dough import i18n as _i18n
+
+    _i18n.install(app)
 
     # Single instance: hand off to the already-running copy rather than opening
     # a second window. Keep the lock object alive for the process lifetime.
