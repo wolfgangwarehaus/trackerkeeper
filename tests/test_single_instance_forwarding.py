@@ -26,9 +26,26 @@ def primary(qapp):
         si._mem.detach()
 
 
-def _spin(qapp, times: int = 20) -> None:
-    for _ in range(times):
-        qapp.processEvents()
+def _spin(qapp, cond=None, timeout_ms: int = 3000) -> None:
+    """Run the REAL event loop until ``cond()`` holds (or the timeout).
+
+    Not processEvents() spins: on Windows the server-side named-pipe reader
+    completes via overlapped I/O that only delivers when the dispatcher
+    actually blocks in an alertable wait — bare processEvents() loops never
+    do, so the forwarded payload 'never arrives' there (seen on win CI)."""
+    from PySide6.QtCore import QEventLoop, QTimer
+
+    deadline = 0
+    step = 50
+    while deadline < timeout_ms:
+        if cond is not None and cond():
+            return
+        loop = QEventLoop()
+        QTimer.singleShot(step, loop.quit)
+        loop.exec()
+        deadline += step
+        if cond is None:
+            return  # one real-loop pass is the point when there's no condition
 
 
 def test_second_launch_forwards_files_and_raises(qapp, primary, tmp_path):
@@ -40,7 +57,7 @@ def test_second_launch_forwards_files_and_raises(qapp, primary, tmp_path):
 
     second = SingleInstance(primary._key)
     assert second.acquire([str(doc)]) is False  # deferred to the primary
-    _spin(qapp)
+    _spin(qapp, lambda: received)
 
     assert raised == [True]
     assert received == [[str(doc)]]
@@ -53,7 +70,8 @@ def test_second_launch_without_args_only_raises(qapp, primary):
 
     second = SingleInstance(primary._key)
     assert second.acquire() is False
-    _spin(qapp)
+    _spin(qapp, lambda: raised, timeout_ms=1000)
+    _spin(qapp)  # one extra settle pass — files_received must NOT trail in
 
     assert raised == [True]
     assert received == []  # no payload → no files_received, raise only
@@ -75,7 +93,8 @@ def test_legacy_bare_raise_ping_still_raises(qapp, primary):
     sock.flush()
     sock.waitForBytesWritten(500)
     sock.disconnectFromServer()
-    _spin(qapp)
+    _spin(qapp, lambda: raised, timeout_ms=1000)
+    _spin(qapp)  # settle — a bare ping must never turn into files_received
 
     assert raised == [True]
     assert received == []
@@ -87,7 +106,7 @@ def test_urls_pass_through_forwarding(qapp, primary):
 
     second = SingleInstance(primary._key)
     assert second.acquire(["https://example.com/doc.pdf"]) is False
-    _spin(qapp)
+    _spin(qapp, lambda: received)
 
     assert received == [["https://example.com/doc.pdf"]]
 
