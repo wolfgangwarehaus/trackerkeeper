@@ -253,6 +253,27 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     # bare slug as a SUBSTRING (proven: noBorder=true under the new app_id).
     app.setDesktopFileName(ident.desktop_id())
 
+    # Structured file logging (dough.log): rotating file under the app state
+    # dir + a WARNING console handler, level from DOUGH_LOG. Installed HERE —
+    # after the Qt identity names, so AppDataLocation resolves per-app; before
+    # everything else, so the whole boot is captured. Best-effort, never fatal.
+    try:
+        from dough import log as _log
+
+        _log.install()
+    except Exception:
+        pass
+
+    # Versioned settings migrations — run BEFORE Settings (or anything that
+    # reads the store: i18n's language override, the persisted theme) is first
+    # read, so every accessor sees the post-migration key layout.
+    try:
+        from dough import settings_migration
+
+        settings_migration.migrate()
+    except Exception:
+        pass
+
     # Install translation catalogs (Settings override → system locale) before
     # ANY widget is built — Qt translates at construction time. Never raises;
     # a missing catalog just leaves the English source strings.
