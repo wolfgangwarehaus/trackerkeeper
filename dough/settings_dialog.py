@@ -149,6 +149,25 @@ class SettingsDialog(FrostedDialog):
         self.updates_check.toggled.connect(self._on_check_updates)
         self.content_layout.addWidget(self.updates_check)
 
+        # Copy diagnostics — the one-click support report (dough.diagnostics):
+        # versions, platform/session, theme + verified blur status, a
+        # secrets-excluded settings dump, the log tail. Lands on the clipboard.
+        from PySide6.QtWidgets import QHBoxLayout as _QHBoxLayout
+        from PySide6.QtWidgets import QPushButton
+
+        from dough.design_tokens import BTN_SECONDARY, button_qss
+
+        self.diagnostics_btn = QPushButton(self.tr("Copy diagnostics"))
+        self.diagnostics_btn.setStyleSheet(button_qss(BTN_SECONDARY))
+        self.diagnostics_btn.setToolTip(
+            self.tr("Copy a support report (no credentials) to the clipboard")
+        )
+        self.diagnostics_btn.clicked.connect(self._on_copy_diagnostics)
+        _diag_row = _QHBoxLayout()
+        _diag_row.addWidget(self.diagnostics_btn)
+        _diag_row.addStretch(1)
+        self.content_layout.addLayout(_diag_row)
+
         self._restart_note = QLabel("")
         self._restart_note.setStyleSheet(
             f"color: {ui_helpers.WARN_FG}; {type_qss(TYPE_CAPTION)}"
@@ -249,6 +268,15 @@ class SettingsDialog(FrostedDialog):
 
     def _on_check_updates(self, on: bool) -> None:
         self.s.check_for_updates = bool(on)
+
+    def _on_copy_diagnostics(self) -> None:
+        from dough import diagnostics
+
+        if diagnostics.copy_to_clipboard():
+            # Acknowledge in the dialog's own notice line — no extra dialog.
+            self._restart_note.setText(self.tr("Diagnostics copied to clipboard."))
+        else:
+            self._restart_note.setText(self.tr("Could not copy diagnostics."))
 
     def _on_autostart(self, on: bool) -> None:
         from dough import autostart
