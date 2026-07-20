@@ -57,7 +57,7 @@ jobs:
           python -m pip install --upgrade pip twine
           python -m twine check dist/*
       - name: Publish to PyPI (Trusted Publishing / OIDC)
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1 (2026-07 tip)
         with:
           # Idempotent: a re-run won't fail on an already-uploaded version.
           skip-existing: true
