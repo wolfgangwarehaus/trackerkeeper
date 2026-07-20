@@ -231,8 +231,19 @@ class SingleInstance(QObject):
         # socket buffering threshold.
         sock.write(json.dumps({"raise": True, "args": args or []}).encode("utf-8"))
         sock.flush()
-        sock.waitForBytesWritten(self._WRITE_TIMEOUT_MS)
+        # Drain COMPLETELY before the socket object dies. On Windows the
+        # payload goes through an overlapped pipe writer on a pool thread — a
+        # single waitForBytesWritten can return with bytes still queued, and
+        # destroying the local socket then CANCELS the in-flight write, so the
+        # primary saw the connection (raise fired) but never the files (seen
+        # live on the win CI runner). Wait out bytesToWrite, close, and wait
+        # for the close to finish; the timeouts bound a hung server.
+        while sock.bytesToWrite() > 0:
+            if not sock.waitForBytesWritten(self._WRITE_TIMEOUT_MS):
+                break
         sock.disconnectFromServer()
+        if sock.state() != QLocalSocket.LocalSocketState.UnconnectedState:
+            sock.waitForDisconnected(self._WRITE_TIMEOUT_MS)
         return True
 
     def _on_new_connection(self):
