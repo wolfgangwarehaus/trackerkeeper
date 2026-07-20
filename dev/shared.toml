@@ -11,6 +11,7 @@ synced_from = "7897101"
 # dough modules authored fresh (no jellytoast upstream) — sync skips them.
 authored = [
     "bus.py",
+    "i18n/fmt.py",
     "settings.py",
     "top_bar.py",
     "settings_dialog.py",

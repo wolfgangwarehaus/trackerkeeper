@@ -20,8 +20,9 @@ I18N_DIR="dough/i18n"
 LUPDATE="$(command -v .venv/bin/pyside6-lupdate || command -v pyside6-lupdate)"
 LRELEASE="$(command -v .venv/bin/pyside6-lrelease || command -v pyside6-lrelease)"
 
-# Every app source file — the i18n package itself has no UI strings.
-mapfile -t SOURCES < <(find dough -name '*.py' -not -path "$I18N_DIR/*" | sort)
+# Every app source file — including the i18n package itself (fmt.py carries
+# translatable duration-unit strings with plural forms).
+mapfile -t SOURCES < <(find dough -name '*.py' | sort)
 
 # New-language bootstrap: seed an empty catalog so lupdate fills it below.
 for lang in "$@"; do
