@@ -55,6 +55,15 @@ class Settings:
     def accent_color(self, v: str) -> None:
         self._set("ui/accent_color", v)
 
+    @property
+    def follow_system_accent(self) -> bool:
+        # Follow the desktop's accent colour (XDG portal / DWM / AppKit) —
+        # read at launch + watched live by dough.system_accent. Off by default.
+        return _as_bool(self._s.value("ui/follow_system_accent"), False)
+
+    @follow_system_accent.setter
+    def follow_system_accent(self, v: bool) -> None:
+        self._set("ui/follow_system_accent", bool(v))
 
     @property
     def font_scale(self) -> str:  # small | default | large | largest

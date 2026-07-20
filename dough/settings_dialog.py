@@ -57,6 +57,13 @@ class SettingsDialog(FrostedDialog):
         self.content_layout.addWidget(self._label("ACCENT COLOR"))
         self.content_layout.addLayout(self._accent_row())
 
+        # Follow the OS accent — applies now + tracks live changes (see
+        # dough.system_accent). Picking a swatch above turns it back off.
+        self.follow_accent_check = QCheckBox("Follow system accent color")
+        self.follow_accent_check.setChecked(self.s.follow_system_accent)
+        self.follow_accent_check.toggled.connect(self._on_follow_accent)
+        self.content_layout.addWidget(self.follow_accent_check)
+
         self.content_layout.addWidget(self._label("FONT SIZE"))
         self.font_sel = Selector()
         for lbl, val in _FONT_SIZES:
@@ -184,9 +191,26 @@ class SettingsDialog(FrostedDialog):
 
     def _on_accent(self, hex_: str) -> None:
         self.s.accent_color = hex_
+        # An explicit pick overrides the OS-follow — reflect that in the toggle
+        # (blockSignals so the un-check doesn't fire _on_follow_accent).
+        if self.s.follow_system_accent:
+            self.s.follow_system_accent = False
+            self.follow_accent_check.blockSignals(True)
+            self.follow_accent_check.setChecked(False)
+            self.follow_accent_check.blockSignals(False)
         self._mark_selected_swatch(hex_)
         self._apply_live()
         AppBus.get().accent_changed.emit(hex_)
+
+    def _on_follow_accent(self, on: bool) -> None:
+        self.s.follow_system_accent = bool(on)
+        if on:
+            # The live watcher only fires on OS-side changes — sync now so the
+            # toggle takes effect immediately (async off the GUI thread where
+            # the read blocks; the swatch ring updates via theme_changed).
+            from dough.system_accent import resync_system_accent
+
+            resync_system_accent()
 
     def _on_font_size(self, _idx: int) -> None:
         self.s.font_scale = self.font_sel.currentData()

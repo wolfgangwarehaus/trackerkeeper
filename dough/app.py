@@ -344,6 +344,18 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     else:
         noborder.install_main_window_noborder()
 
+    # Follow the desktop accent colour if the user enabled it: apply it now
+    # (launch re-read) and watch the OS for live changes (XDG portal / DWM
+    # message / AppKit notification). Best-effort — a DE without the portal
+    # simply never fires. Pinned on `win` so the watcher lives with the window.
+    try:
+        from dough.system_accent import SystemAccentFollower
+
+        win._accent_follower = SystemAccentFollower(win)
+        win._accent_follower.start()
+    except Exception:
+        pass
+
     win.show()
 
     # KWin drag-repaint effect — installed AFTER show (off the first-paint path;
