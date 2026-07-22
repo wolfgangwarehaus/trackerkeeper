@@ -1,0 +1,17 @@
+# dough→loaf sync manifest (see dough/dev/sync_loaf.py). Lives in the loaf.
+# Records the dough base relationship for `python dev/sync_loaf.py --loaf .`.
+
+# The dough commit this loaf was last reconciled against. `--record` stamps it.
+# Seeded to dough HEAD at init; set it to the commit you actually forked from if
+# you want the first sync to surface everything dough changed since.
+synced_from = "66362e8"
+
+# Files (relative to the trackerkeeper/ package dir) the fork OWNS — net-new app code or
+# modules it fully rewrote. Sync never reads or writes these.
+authored = [
+]
+
+# Files derived from dough but hand-customized. Sync shows dough's upstream diff
+# since `synced_from` so you port changes by hand (never blind-overwrites).
+manual = [
+]
