@@ -542,6 +542,9 @@ def _make_view(path: Path):
             s.setWidgetResizable(True)
             s.setFrameShape(QFrame.Shape.NoFrame)
             s.setWidget(inner)
+            # the slim, auto-fading accent pills the app family uses everywhere
+            # (no track, no gutter fill — just the handle over the frost)
+            ui_helpers.install_autofade_scrollbars(s)
             return s
 
         # ── Ingredients: the app summary page ─────────────────────────────
@@ -639,7 +642,12 @@ def _make_view(path: Path):
             titles = {"now": "Now", "next": "Next", "later": "Later", "done": "Done ✓"}
             for col in (*PRIORITIES, "done"):
                 frame = QFrame()
-                frame.setStyleSheet(_CARD_QSS)
+                # a soft LANE, not a bordered box — the cards are the boxes, so
+                # the column just needs a faint tint to read as a drop zone
+                # (borders-in-borders got heavy — August's note).
+                frame.setStyleSheet(
+                    ".QFrame{background:rgba(255,255,255,0.025);border:none;"
+                    "border-radius:10px;}")
                 v = QVBoxLayout(frame)
                 v.setContentsMargins(10, 8, 10, 8)
                 v.setSpacing(6)
@@ -695,8 +703,8 @@ def _make_view(path: Path):
                 b.setEnabled(not disabled)
                 b.setCursor(Qt.CursorShape.PointingHandCursor)
                 b.setStyleSheet(
-                    "QPushButton{border:none;border-radius:4px;color:#999;"
-                    "background:rgba(255,255,255,0.06);}"
+                    "QPushButton{border:none;border-radius:4px;color:#8a8a8a;"
+                    "background:transparent;}"  # no resting chip — only hover fills
                     f"QPushButton:hover{{color:#fff;background:{accent};}}"
                     "QPushButton:disabled{color:#444;}")
                 b.clicked.connect(slot)
