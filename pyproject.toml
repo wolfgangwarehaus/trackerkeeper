@@ -131,11 +131,14 @@ license_spdx = "GPL-2.0-or-later"
 # descriptive / store metadata — the renderer's inputs; these never touch the
 # running QApplication (that's trackerkeeper.identity's job — docs/BAKING.md §4).
 long_description = """\
-trackerkeeper is a fork-and-own application base for PySide6 desktop apps: a frosted, \
-KDE-native window chrome, a token-driven design system with live re-theming, \
-and the cross-platform scaffolding (single-instance, notifications, autostart, \
-power inhibition) every app otherwise re-implements. Fork it, set your identity \
-once, and build your app on a finished base."""
+tracker keeper is one dashboard for the software and firmware updates across \
+everything you own — apps, devices, and games, on every platform. It tells you \
+what's new and links you straight to the changelog; it does NOT download, install, \
+or apply updates — that stays entirely in your hands. It is a watchtower, not an \
+updater. Because no single "latest version" API exists, tracker keeper is the \
+uniform layer over a scattered world: it checks the sources it can automatically \
+(GitHub releases, Arch packages, and more to come) and lets you track the rest by \
+hand, sorted by what dropped today, with a notification when something new lands."""
 maintainer_name = "august"
 maintainer_email = "augustvontrips@gmail.com"
 # Publisher display name — the spaced brand is a DISPLAY variant of org_slug,

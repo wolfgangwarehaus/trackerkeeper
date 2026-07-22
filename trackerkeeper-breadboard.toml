@@ -5,7 +5,7 @@
 schema = 2
 product = "tracker keeper"
 goal = "One dashboard for software & firmware updates across everything you own — apps, devices, and games, every platform, sorted by what dropped today."
-purpose = "The moat IS the fragmentation: there's no single 'latest version' API, so tracker keeper BECOMES the uniform layer over a deliberately scattered world. That's the edge (nobody else assembles it) and the work (each source needs its own checker). Strategy: auto where we can (GitHub releases, Arch/AUR, Flatpak, RSS/Atom changelog feeds), manual where we can't (iOS betas, camera firmware), grow checker-by-checker. For: someone with apps/devices/games across every platform who wants one place to see what's new each day, with changelog links and notifications."
+purpose = "tracker keeper TRACKS updates — it tells you what's new and links the changelog; it never downloads, installs, or applies them (a watchtower, not an updater). The moat IS the fragmentation: there's no single 'latest version' API, so tracker keeper BECOMES the uniform layer over a deliberately scattered world. That's the edge (nobody else assembles it) and the work (each source needs its own checker). Strategy: auto where we can (GitHub releases, Arch/AUR, Flatpak, RSS/Atom changelog feeds), manual where we can't (iOS betas, camera firmware), grow checker-by-checker. For: someone with apps/devices/games across every platform who wants one place to see what's new each day, with changelog links and notifications."
 agent_request = ""
 
 [[ingredients]]
