@@ -3,14 +3,14 @@
 # the agent re-ingests (see AGENTS.md). Git-tracked on purpose.
 
 schema = 2
-product = "Tracker Keeper"
+product = "tracker keeper"
 goal = "One dashboard for software & firmware updates across everything you own — apps, devices, and games, every platform, sorted by what dropped today."
-purpose = "The moat IS the fragmentation: there's no single 'latest version' API, so Tracker Keeper BECOMES the uniform layer over a deliberately scattered world. That's the edge (nobody else assembles it) and the work (each source needs its own checker). Strategy: auto where we can (GitHub releases, Arch/AUR, Flatpak, RSS/Atom changelog feeds), manual where we can't (iOS betas, camera firmware), grow checker-by-checker. For: someone with apps/devices/games across every platform who wants one place to see what's new each day, with changelog links and notifications."
+purpose = "The moat IS the fragmentation: there's no single 'latest version' API, so tracker keeper BECOMES the uniform layer over a deliberately scattered world. That's the edge (nobody else assembles it) and the work (each source needs its own checker). Strategy: auto where we can (GitHub releases, Arch/AUR, Flatpak, RSS/Atom changelog feeds), manual where we can't (iOS betas, camera firmware), grow checker-by-checker. For: someone with apps/devices/games across every platform who wants one place to see what's new each day, with changelog links and notifications."
 agent_request = ""
 
 [[ingredients]]
 id = "583711"
-text = "Name settled: Tracker Keeper (slug trackerkeeper)"
+text = "Name settled: tracker keeper (slug trackerkeeper)"
 done = true
 by = "August"
 date = "2026-07-22"

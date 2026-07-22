@@ -2,7 +2,7 @@
 the latest version, and where's the changelog."
 
 The whole product thesis lives here: there is no single "latest version" API,
-so Tracker Keeper IS the uniform layer. Each provider is a small function
+so tracker keeper IS the uniform layer. Each provider is a small function
 ``(item, http) -> CheckResult | None`` for one KIND of source; growing coverage
 is adding providers, one world at a time (github, arch today; rss, flatpak,
 store pages next; firmware feeds later).

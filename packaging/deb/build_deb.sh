@@ -105,7 +105,7 @@ Section: devel
 Priority: optional
 Homepage: https://github.com/wolfgangwarehaus/trackerkeeper
 Description: One dashboard for software & firmware updates across everything you own
- Tracker Keeper — a self-contained desktop build.
+ tracker keeper — a self-contained desktop build.
  .
  Bundles Python and Qt under /opt/trackerkeeper; uses the system X/xcb +
  fontconfig stack for the Qt platform plugin.

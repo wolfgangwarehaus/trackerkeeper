@@ -6,7 +6,7 @@ Refresh checks every auto source (github/arch) off the UI thread and fires a
 desktop notification for anything genuinely new. Manual items hold what you
 enter until a checker for their world exists.
 
-The rule Tracker Keeper lives by: a card only ever shows a version a real
+The rule tracker keeper lives by: a card only ever shows a version a real
 source returned. A refresh that can't reach a source leaves the last-known
 value and says "couldn't check" — it never invents a "latest".
 """
@@ -76,7 +76,7 @@ class Dashboard(QWidget):
         # ── header: title + update count + actions ──
         header = QHBoxLayout()
         header.setSpacing(10)
-        self._title = QLabel("Tracker Keeper")
+        self._title = QLabel("tracker keeper")
         self._title.setStyleSheet(type_qss(TYPE_DISPLAY) + f"color:{ui_helpers.TEXT};")
         header.addWidget(self._title)
         self._count = QLabel("")
@@ -101,6 +101,7 @@ class Dashboard(QWidget):
         self._list.setContentsMargins(0, 0, 0, 0)
         self._list.setSpacing(9)
         scroll.setWidget(self._list_host)
+        ui_helpers.install_autofade_scrollbars(scroll)  # the slim auto-fading pill
         root.addWidget(scroll, 1)
 
         self._render()
@@ -287,5 +288,5 @@ def _esc(s: str) -> str:
 
 
 def build_content(window) -> QWidget:
-    """The run_app content factory: Tracker Keeper's dashboard."""
+    """The run_app content factory: tracker keeper's dashboard."""
     return Dashboard(window)

@@ -139,7 +139,7 @@ def save(items: list[Item]) -> None:
 
 
 def default_fleet() -> list[Item]:
-    """Tracker Keeper's first run shows a REAL dashboard, not an empty box:
+    """tracker keeper's first run shows a REAL dashboard, not an empty box:
     August's fleet, each mapped to the best source we can check today. The auto
     ones (github/arch) fill their `latest` on the first Refresh; the manual ones
     hold what you enter until a checker for their world exists."""

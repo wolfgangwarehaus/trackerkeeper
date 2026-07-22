@@ -35,7 +35,7 @@ from __future__ import annotations
 # gets a matching `app_id_base` for free.
 _org = "wolfgangwarehaus"
 _app = "trackerkeeper"
-_display_name = "Tracker Keeper"
+_display_name = "tracker keeper"
 _owner: str | None = None  # None ⇒ track `org` (see owner())
 
 

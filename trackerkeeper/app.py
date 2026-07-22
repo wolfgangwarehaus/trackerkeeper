@@ -432,7 +432,7 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
 
 
 def main() -> None:
-    """The default entry: boot Tracker Keeper with the update dashboard."""
+    """The default entry: boot tracker keeper with the update dashboard."""
     from trackerkeeper.dashboard import build_content
 
     sys.exit(run_app(build_content))

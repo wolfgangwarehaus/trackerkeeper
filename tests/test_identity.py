@@ -15,7 +15,7 @@ from trackerkeeper import identity
 def test_default_identity() -> None:
     assert identity.org() == "wolfgangwarehaus"
     assert identity.app() == "trackerkeeper"
-    assert identity.display_name() == "Tracker Keeper"
+    assert identity.display_name() == "tracker keeper"
 
 
 def test_windows_aumid_projection() -> None:

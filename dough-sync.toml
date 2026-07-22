@@ -19,5 +19,5 @@ authored = [
 # since `synced_from` so you port changes by hand (never blind-overwrites).
 manual = [
     "app.py",       # main() wires the dashboard as run_app content (not the placeholder)
-    "identity.py",  # display_name "Tracker Keeper" — the whole-word transform would regress it
+    "identity.py",  # display_name "tracker keeper" — the whole-word transform would regress it
 ]
