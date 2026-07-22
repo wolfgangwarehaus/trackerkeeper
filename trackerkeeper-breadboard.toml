@@ -44,43 +44,56 @@ done = false
 [[ingredients]]
 id = "ff911b"
 text = "Seed source list (the maker's real fleet: CachyOS, KDE Plasma, Slay the Spire 2, SteamOS/Armada, iOS dev beta, Blackmagic Camera iOS, …)"
-done = false
+done = true
+by = "AI"
+date = "2026-07-22"
 
 [[baking]]
 id = "ae4777"
 text = "Data model: a Tracked item (name, platform, current version, source kind, changelog URL) + storage"
-done = false
+done = true
 priority = "now"
+by = "AI"
+date = "2026-07-22"
 
 [[baking]]
 id = "954e19"
 text = "Source-provider interface: check() -> latest version + changelog URL; pluggable per kind"
-done = false
+done = true
 priority = "now"
+by = "AI"
+date = "2026-07-22"
 
 [[baking]]
 id = "754812"
 text = "First checker: GitHub releases (covers a huge slice — apps + games)"
-done = false
+done = true
 priority = "now"
+by = "AI"
+date = "2026-07-22"
 
 [[baking]]
 id = "3efac6"
 text = "The dashboard UI: list of items, version, released-date, sort by release date"
-done = false
-priority = "next"
+done = true
+priority = "now"
+by = "AI"
+date = "2026-07-22"
 
 [[baking]]
 id = "650142"
 text = "Manual-entry item (version + changelog URL you set) — the universal fallback"
-done = false
-priority = "next"
+done = true
+priority = "now"
+by = "AI"
+date = "2026-07-22"
 
 [[baking]]
 id = "f7a5a3"
 text = "Checker: Arch/AUR + Flatpak (the maker's Linux fleet)"
 done = false
 priority = "next"
+note = "Arch package checker SHIPPED in the MVP; Flatpak still to add"
 
 [[baking]]
 id = "cc76e7"
@@ -105,6 +118,14 @@ id = "eb70cb"
 text = "rig baseline goldens once the UI settles"
 done = false
 priority = "later"
+
+[[baking]]
+id = "5ca9f9"
+text = "GitHub repo created + pushed (public, 3-OS CI like butterPDF)"
+done = true
+priority = "now"
+by = "AI"
+date = "2026-07-22"
 
 [[delivery]]
 id = "267380"
