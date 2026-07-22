@@ -251,3 +251,20 @@ def test_coerce_degrades_to_repr():
         "a": "<opaque>",
         "b": [1, "<opaque>"],
     }
+
+
+def test_widget_node_survives_qaction_children(qapp):
+    """A QAction is a child that HAS isVisible() but no accessibleName() —
+    the tree walk must skip it, not crash. This is the macOS-only red (a mac
+    QLineEdit carries QAction children the Linux one doesn't)."""
+    from PySide6.QtGui import QAction
+    from PySide6.QtWidgets import QLineEdit, QWidget
+
+    from dough.test_bridge import _widget_node
+
+    w = QWidget()
+    QLineEdit(w)
+    w.addAction(QAction("act", w))  # a non-widget child among widget children
+    node = _widget_node(w, 4)  # must not raise
+    classes = [c["class"] for c in node.get("children", [])]
+    assert "QLineEdit" in classes and "QAction" not in classes
