@@ -125,6 +125,8 @@ done = false
 id = "e3b360"
 text = "iOS beta + camera firmware sources (the hard, manual-first tail)"
 done = false
+by = "maker"
+date = "2026-07-22"
 
 [[improvements]]
 id = "adff4b"

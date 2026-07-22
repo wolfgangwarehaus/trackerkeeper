@@ -432,9 +432,10 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
 
 
 def main() -> None:
-    """The default entry: boot trackerkeeper with the placeholder canvas. A fork either
-    swaps the placeholder or calls :func:`run_app` with its own content."""
-    sys.exit(run_app(lambda _window: _placeholder()))
+    """The default entry: boot Tracker Keeper with the update dashboard."""
+    from trackerkeeper.dashboard import build_content
+
+    sys.exit(run_app(build_content))
 
 
 if __name__ == "__main__":
