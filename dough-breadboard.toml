@@ -112,7 +112,7 @@ date = "2026-07-21"
 [[baking]]
 id = "3b3e65"
 text = "Breadboard item 2: the LIVE card (store_url + install_cmd in deliver.py)"
-done = false
+done = true
 priority = "now"
 by = "AI"
 date = "2026-07-21"
@@ -120,8 +120,8 @@ date = "2026-07-21"
 [[baking]]
 id = "458302"
 text = "Breadboard item 3: launch mode — self-refreshing Delivery board (MVP-of-magic)"
-done = false
-priority = "next"
+done = true
+priority = "now"
 by = "AI"
 date = "2026-07-21"
 
@@ -129,7 +129,7 @@ date = "2026-07-21"
 id = "344a3b"
 text = "Breadboard item 4: Ship it + the [[requests]] queue"
 done = false
-priority = "next"
+priority = "now"
 by = "AI"
 date = "2026-07-21"
 

@@ -235,3 +235,24 @@ def test_unauthed_gh_reads_unknown_not_undrafted(monkeypatch):
     states = deliver._channels()[0].states(Ctx(slug="x", repo="o/x", display_name="x"))
     assert states[0] is True  # the tag is a local fact
     assert states[1] is None  # drafted? unknowable without gh
+
+
+# ── the LIVE card data (breadboard item 2) ───────────────────────────────────
+
+
+def test_channels_expose_store_url_and_install_cmd(ctx):
+    chans = {c.key: c for c in deliver._channels()}
+    assert chans["pypi"].install_cmd(ctx) == "pip install butterpdf"
+    assert chans["pypi"].store_url(ctx) == "https://pypi.org/project/butterpdf/"
+    assert chans["aur"].install_cmd(ctx) == "yay -S butterpdf"
+    assert chans["macos"].install_cmd(ctx) == "brew install --cask butterpdf"
+    assert chans["winget"].install_cmd(ctx) == "winget install wolfgangwarehaus.butterpdf"
+    assert chans["github-release"].store_url(ctx).endswith("/releases/latest")
+
+
+def test_dough_pypi_install_uses_the_dist_name():
+    """dough publishes as dough-base — the install command must say so."""
+    c = Ctx(slug="dough", repo="wolfgangwarehaus/dough", display_name="dough",
+            dist="dough-base")
+    pypi = next(ch for ch in deliver._channels() if ch.key == "pypi")
+    assert pypi.install_cmd(c) == "pip install dough-base"

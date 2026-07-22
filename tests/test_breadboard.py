@@ -276,3 +276,92 @@ def test_schema1_file_upgrades_on_next_save(tmp_path: Path) -> None:
     assert reloaded["schema"] == 2
     assert reloaded["baking"][0]["id"]
     assert reloaded["baking"][0]["text"] == "old item"
+
+
+# ── item 2/3: the LIVE card + launch mode (the self-refreshing board) ────────
+
+
+def _payload(tag, channels):
+    return {"tag": tag, "channels": channels}
+
+
+def _chan(key, live, stub=False, alert=None, store_url="", install_cmd=""):
+    return {"key": key, "title": key.title(), "note": "", "stub": stub, "alert": alert,
+            "steps": [("step", live)], "guide": "" if live else "do the thing",
+            "live": live, "store_url": store_url, "install_cmd": install_cmd}
+
+
+@pytest.fixture
+def home_view(tmp_path, monkeypatch):
+    """A breadboard view whose HOME is the tmp board — so the Delivery tab
+    builds its live channel UI (watch button, channel box) instead of the
+    foreign-project fallback."""
+    p = tmp_path / board.FILENAME
+    board.save(p, board.default_board("x"))
+    monkeypatch.setattr(board, "board_path", lambda: p)
+    return board._make_view(p)
+
+
+@pytest.mark.usefixtures("qapp")
+def test_launch_auto_arms_when_a_tag_is_in_flight(home_view) -> None:
+    """A tag exists and not everything's live → the board watches on its own."""
+    assert not home_view._launch_active
+    home_view._on_probe_ready(_payload("v0.1.0", [
+        _chan("pypi", live=False), _chan("aur", live=False)]))
+    assert home_view._launch_active and home_view._launch_timer.isActive()
+
+
+@pytest.mark.usefixtures("qapp")
+def test_launch_does_not_arm_without_a_tag(home_view) -> None:
+    home_view._on_probe_ready(_payload(None, [_chan("pypi", live=False)]))
+    assert not home_view._launch_active
+    assert not home_view._launch_timer.isActive()
+
+
+@pytest.mark.usefixtures("qapp")
+def test_launch_stops_when_all_channels_live(home_view) -> None:
+    home_view._on_probe_ready(_payload("v0.1.0", [_chan("pypi", live=False)]))
+    assert home_view._launch_active
+    home_view._on_probe_ready(_payload("v0.1.0", [_chan("pypi", live=True)]))  # flipped
+    assert not home_view._launch_active and not home_view._launch_timer.isActive()
+
+
+@pytest.mark.usefixtures("qapp")
+def test_launch_settles_after_unchanged_polls(home_view) -> None:
+    """Stuck state (waiting on a human/secret step) stops polling, not spins."""
+    def same():
+        return _payload("v0.1.0", [_chan("pypi", live=False)])
+
+    home_view._on_probe_ready(same())  # arms
+    for _ in range(5):  # several unchanged polls
+        home_view._on_probe_ready(same())
+    assert not home_view._launch_active  # settled
+
+
+@pytest.mark.usefixtures("qapp")
+def test_a_watched_channel_stamps_its_go_live_time(home_view) -> None:
+    home_view._on_probe_ready(_payload("v0.1.0", [_chan("pypi", live=False)]))
+    assert "pypi" not in home_view._live_since
+    home_view._on_probe_ready(_payload("v0.1.0", [_chan("pypi", live=True)]))
+    assert "pypi" in home_view._live_since  # we watched it flip → stamped
+
+
+@pytest.mark.usefixtures("qapp")
+def test_never_fakes_a_green_the_probe_did_not_return(home_view) -> None:
+    """The cardinal rule: an unresolved channel stays unresolved through any
+    number of polls — the timer reflects only true probe results."""
+    for _ in range(3):
+        home_view._on_probe_ready(_payload("v0.1.0", [_chan("pypi", live=False)]))
+    assert "pypi" not in home_view._live_since
+    assert home_view._channel_rows[0]["live"] is False
+
+
+@pytest.mark.usefixtures("qapp")
+def test_live_card_carries_the_store_url_and_install_cmd(home_view) -> None:
+    from PySide6.QtWidgets import QLineEdit
+
+    card = home_view._live_card(_chan("pypi", live=True,
+                                      store_url="https://pypi.org/project/x/",
+                                      install_cmd="pip install x"))
+    box = card.findChild(QLineEdit)
+    assert box is not None and box.text() == "pip install x" and box.isReadOnly()

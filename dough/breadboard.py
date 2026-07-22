@@ -263,6 +263,7 @@ def _make_view(path: Path):
     from PySide6.QtCore import QFileSystemWatcher, Qt, QThread, QTimer, Signal
     from PySide6.QtGui import QDesktopServices, QPixmap
     from PySide6.QtWidgets import (
+        QApplication,
         QCheckBox,
         QFrame,
         QHBoxLayout,
@@ -303,9 +304,12 @@ def _make_view(path: Path):
         return escaped.replace("\n", "<br>")
 
     class _ChannelProbe(QThread):
-        """deliver's detections hit git/gh/the network — never on the UI
-        thread. Emits [(title, note, alert, [(step_title, state)], guide)],
-        or the exception when probing itself failed."""
+        """deliver's DETECTED state — the trust engine. Runs off the UI thread
+        (git/gh/network). Emits ``{"tag", "channels":[...]}`` where each channel
+        is a dict carrying its live step states, the next guide, and — when
+        LIVE — the real store URL + install command for the celebratory card.
+        Emits the exception if probing itself failed. Every value here is a
+        true probe result: nothing is asserted, so a green can't be faked."""
 
         ready = Signal(object)
 
@@ -314,7 +318,7 @@ def _make_view(path: Path):
                 from dough import deliver
 
                 ctx = deliver._ctx()
-                rows = []
+                channels = []
                 for ch in deliver._channels():
                     states = ch.states(ctx)
                     guide = ""
@@ -322,11 +326,21 @@ def _make_view(path: Path):
                         if st is not True:
                             guide = step.guide(ctx)
                             break
-                    rows.append(
-                        (ch.title, ch.note, ch.alert(ctx),
-                         [(s.title, st) for s, st in zip(ch.steps, states, strict=True)], guide)
-                    )
-                self.ready.emit(rows)
+                    live = bool(states) and all(s is True for s in states)
+                    channels.append({
+                        "key": ch.key,
+                        "title": ch.title,
+                        "note": ch.note,
+                        "stub": ch.stub,
+                        "alert": ch.alert(ctx),
+                        "steps": [(s.title, st)
+                                  for s, st in zip(ch.steps, states, strict=True)],
+                        "guide": guide,
+                        "live": live,
+                        "store_url": ch.store_url(ctx) if live else "",
+                        "install_cmd": ch.install_cmd(ctx) if live else "",
+                    })
+                self.ready.emit({"tag": ctx.tag, "channels": channels})
             except Exception as exc:  # pragma: no cover - defensive
                 self.ready.emit(exc)
 
@@ -342,6 +356,18 @@ def _make_view(path: Path):
             self._writing = False
             self._probe: _ChannelProbe | None = None
             self._channel_rows = None  # probed on first Delivery open; Refresh re-runs
+            self._probe_tag = None
+            # launch mode — the self-refreshing board while a release is in flight
+            self._launch_timer = QTimer(self)
+            self._launch_timer.setSingleShot(True)
+            self._launch_timer.timeout.connect(self._start_probe)
+            self._launch_active = False
+            self._launch_interval = 0
+            self._launch_polls = 0
+            self._launch_stable = 0
+            self._last_state_sig = None
+            self._settled_sig = None  # the state we auto-stopped on — don't re-arm for it
+            self._live_since: dict = {}  # channel key → wall-clock it flipped LIVE (this session)
 
             root = QVBoxLayout(self)
             root.setContentsMargins(16, 10, 16, 12)
@@ -425,6 +451,18 @@ def _make_view(path: Path):
             self._rewatch.setSingleShot(True)
             self._rewatch.timeout.connect(self._ensure_watched)
 
+            # Let a running channel probe finish before teardown — closing the
+            # window mid-probe would otherwise abort ("QThread destroyed while
+            # running"). Off-thread work is short (git/gh); wait briefly.
+            app = QApplication.instance()
+            if app is not None:
+                app.aboutToQuit.connect(self._cleanup)
+
+        def _cleanup(self) -> None:
+            self._launch_timer.stop()
+            if self._probe is not None and self._probe.isRunning():
+                self._probe.wait(3000)
+
         # ── project switching + the wind-down request ─────────────────────
         def _on_project_pick(self, _idx: int) -> None:
             data = self._project_sel.currentData()
@@ -436,6 +474,11 @@ def _make_view(path: Path):
             the summary card + watcher; live channel detection stays home-only
             (deliver probes THIS checkout — a sibling's truth needs its own
             `<slug>-breadboard`)."""
+            self._launch_timer.stop()  # a new project's delivery is its own story
+            self._launch_active = False
+            self._last_state_sig = None
+            self._settled_sig = None
+            self._live_since = {}
             self._watcher.removePath(str(self._path))
             self._path = Path(new_path)
             self._root = self._path.parent
@@ -705,15 +748,26 @@ def _make_view(path: Path):
                 return self._scroll(inner)
             bar = QHBoxLayout()
             self._delivery_status = QLabel("")
+            self._delivery_status.setWordWrap(True)
             self._delivery_status.setStyleSheet("color:#888;")
-            bar.addWidget(self._delivery_status)
-            bar.addStretch(1)
-            refresh = QPushButton("Refresh")
-            refresh.setCursor(Qt.CursorShape.PointingHandCursor)
-            refresh.setStyleSheet(
+            bar.addWidget(self._delivery_status, 1)
+            _btn_qss = (
                 "QPushButton{border:1px solid rgba(255,255,255,0.2);border-radius:8px;"
                 "padding:4px 12px;background:transparent;color:#ccc;}"
-                f"QPushButton:hover{{border-color:{accent};}}")
+                f"QPushButton:hover{{border-color:{accent};}}"
+                f"QPushButton:checked{{border-color:{accent};color:{accent};}}")
+            self._watch_btn = QPushButton("Watch")
+            self._watch_btn.setCheckable(True)
+            self._watch_btn.setToolTip(
+                "While a release is in flight, keep re-probing so channels flip to LIVE "
+                "on their own. Auto-arms when a tag exists and something isn't live yet.")
+            self._watch_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._watch_btn.setStyleSheet(_btn_qss)
+            self._watch_btn.clicked.connect(self._toggle_watch)
+            bar.addWidget(self._watch_btn)
+            refresh = QPushButton("Refresh")
+            refresh.setCursor(Qt.CursorShape.PointingHandCursor)
+            refresh.setStyleSheet(_btn_qss)
             refresh.clicked.connect(self._start_probe)
             bar.addWidget(refresh)
             v.addLayout(bar)
@@ -721,6 +775,7 @@ def _make_view(path: Path):
             self._channels_box = QVBoxLayout()
             self._channels_box.setSpacing(8)
             v.addLayout(self._channels_box)
+            self._watch_btn.setChecked(self._launch_active)
             if self._channel_rows is not None:
                 self._render_channels(self._channel_rows)
 
@@ -736,60 +791,198 @@ def _make_view(path: Path):
         def _start_probe(self) -> None:
             if self._probe and self._probe.isRunning():
                 return
-            self._delivery_status.setText("probing channels…")
+            if not self._launch_active:
+                self._delivery_status.setText("probing channels…")
             self._probe = _ChannelProbe(self)
             self._probe.ready.connect(self._on_probe_ready)
             self._probe.start()
 
-        def _on_probe_ready(self, rows) -> None:
-            if isinstance(rows, Exception):
-                self._delivery_status.setText(f"probe failed: {rows}")
-                return
-            self._channel_rows = rows
-            self._delivery_status.setText(
-                "detected state — ✓ done · ▶ next · ? unknowable from here")
-            self._render_channels(rows)
+        # ── launch mode: the board that moves on its own ──────────────────
+        # While a release is in flight, re-probe on a backing-off cadence so
+        # channels flip ▶→✓→LIVE without the maker touching anything. Every
+        # green is still a real probe result — the timer never fakes state.
+        _LAUNCH_START_MS = 5000
+        _LAUNCH_MAX_MS = 20000
+        _LAUNCH_STOP_STABLE = 3   # settle after N unchanged polls
+        _LAUNCH_MAX_POLLS = 60    # hard backstop
 
-        def _render_channels(self, rows) -> None:
+        @staticmethod
+        def _state_sig(channels) -> tuple:
+            return tuple((c["key"], c["live"], sum(1 for _, s in c["steps"] if s is True))
+                         for c in channels)
+
+        def _all_live(self, channels) -> bool:
+            real = [c for c in channels if not c["stub"] and not c["alert"]]
+            return bool(real) and all(c["live"] for c in real)
+
+        def _toggle_watch(self) -> None:
+            if self._watch_btn.isChecked():
+                self._start_launch(manual=True)
+            else:
+                self._stop_launch("stopped by maker")
+
+        def _start_launch(self, manual: bool = False) -> None:
+            if self._launch_active:
+                return
+            self._launch_active = True
+            self._launch_interval = self._LAUNCH_START_MS
+            self._launch_polls = 0
+            self._launch_stable = 0
+            if manual:
+                self._settled_sig = None  # the maker overrides the settle latch
+            self._watch_btn.setChecked(True)
+            self._watch_btn.setText("Watching ●")
+            # A manual click kicks a probe now; an AUTO arm from _on_probe_ready
+            # rides the timer it's about to set (no redundant double-probe).
+            if manual and not (self._probe and self._probe.isRunning()):
+                self._start_probe()
+
+        def _stop_launch(self, why: str, sig=None) -> None:
+            self._launch_active = False
+            self._launch_timer.stop()
+            self._settled_sig = sig  # don't auto-re-arm for this same state
+            self._watch_btn.setChecked(False)
+            self._watch_btn.setText("Watch")
+
+        def _on_probe_ready(self, payload) -> None:
+            if isinstance(payload, Exception):
+                self._delivery_status.setText(f"probe failed: {payload}")
+                self._stop_launch("probe error")
+                return
+            channels = payload["channels"]
+            self._probe_tag = payload["tag"]
+            sig = self._state_sig(channels)
+            changed = sig != self._last_state_sig
+            # stamp the wall-clock of any channel we WATCHED flip live this run
+            from datetime import datetime
+
+            prev = {c["key"]: c["live"] for c in (self._channel_rows or [])}
+            for c in channels:
+                if c["live"] and not prev.get(c["key"]) and c["key"] not in self._live_since:
+                    self._live_since[c["key"]] = datetime.now().strftime("%H:%M")
+            self._last_state_sig = sig
+            self._channel_rows = channels
+            self._render_channels(channels)
+
+            all_live = self._all_live(channels)
+            # auto-arm launch mode: a tag exists, the release isn't fully live,
+            # and we haven't already settled on this exact state (no re-arm loop)
+            if (not self._launch_active and self._probe_tag and not all_live
+                    and sig != self._settled_sig):
+                self._start_launch()
+
+            if self._launch_active:
+                self._launch_polls += 1
+                self._launch_stable = 0 if changed else self._launch_stable + 1
+                if all_live:
+                    self._stop_launch("all channels live", sig)
+                    self._delivery_status.setText("✓ every channel is LIVE — shipped.")
+                elif (self._launch_stable >= self._LAUNCH_STOP_STABLE
+                      or self._launch_polls >= self._LAUNCH_MAX_POLLS):
+                    self._stop_launch("settled", sig)
+                    self._delivery_status.setText(
+                        "state settled — press Watch to keep polling, or Refresh once.")
+                else:
+                    if changed:
+                        self._launch_interval = self._LAUNCH_START_MS  # reset on progress
+                    else:
+                        self._launch_interval = min(
+                            int(self._launch_interval * 1.5), self._LAUNCH_MAX_MS)
+                    self._launch_timer.start(self._launch_interval)
+                    secs = self._launch_interval // 1000
+                    self._delivery_status.setText(
+                        f"● watching for go-live — re-probing every {secs}s "
+                        f"(poll {self._launch_polls}). Every green is a real probe.")
+            else:
+                self._delivery_status.setText(
+                    "detected state — ✓ done · ▶ next · ? unknowable from here")
+
+        def _render_channels(self, channels) -> None:
             while self._channels_box.count():
                 it = self._channels_box.takeAt(0)
                 if it.widget():
                     it.widget().deleteLater()
-            marks = {True: ("✓", "#8f8"), False: ("▶", accent), None: ("?", "#888")}
-            for title, note, alert, steps, guide in rows:
-                card = QFrame()
-                card.setStyleSheet(_CARD_QSS)
-                cv = QVBoxLayout(card)
-                cv.setContentsMargins(12, 8, 12, 8)
-                cv.setSpacing(4)
-                head = QLabel(title + (f"   —   ⚠ {alert}" if alert else ""))
-                head.setStyleSheet(
-                    "color:#f88;font-weight:bold;" if alert
-                    else "color:#fff;font-weight:bold;")
-                cv.addWidget(head)
-                if note:
-                    n = QLabel(note)
-                    n.setWordWrap(True)
-                    n.setStyleSheet("color:#888;font-size:11px;")
-                    cv.addWidget(n)
-                for step_title, st in steps:
-                    mark, color = marks.get(st, ("?", "#888"))
-                    s = QLabel(f'<span style="color:{color};">{mark}</span>  {step_title}')
-                    s.setTextFormat(Qt.TextFormat.RichText)
-                    s.setStyleSheet("color:#ccc;")
-                    cv.addWidget(s)
-                if guide:
-                    g = QLabel(_linkify(guide))
-                    g.setTextFormat(Qt.TextFormat.RichText)
-                    g.setOpenExternalLinks(True)
-                    g.setWordWrap(True)
-                    g.setTextInteractionFlags(
-                        Qt.TextInteractionFlag.TextBrowserInteraction)
-                    g.setStyleSheet(
-                        "color:#aaa;background:rgba(0,0,0,0.25);border-radius:6px;"
-                        "padding:6px;font-family:monospace;font-size:11px;")
-                    cv.addWidget(g)
-                self._channels_box.addWidget(card)
+            for c in channels:
+                if c["live"]:
+                    self._channels_box.addWidget(self._live_card(c))
+                else:
+                    self._channels_box.addWidget(self._pending_card(c))
+
+        def _live_card(self, c) -> QWidget:
+            """The celebratory row: a channel the probe found fully LIVE, with
+            the real public URL + the one-line install command. This card is
+            the payoff — a green nobody can fake, because it's detected."""
+            card = QFrame()
+            card.setStyleSheet(
+                "QFrame{background:rgba(86,196,141,0.10);border:1px solid "
+                "rgba(86,196,141,0.45);border-radius:10px;}")
+            cv = QVBoxLayout(card)
+            cv.setContentsMargins(14, 11, 14, 12)
+            cv.setSpacing(7)
+            since = self._live_since.get(c["key"])
+            head = QLabel(
+                f'{c["title"]}   '
+                f'<span style="color:#56c48d;font-weight:700;">● LIVE</span>'
+                + (f'   <span style="color:#6a8;font-size:11px;">went live {since}</span>'
+                   if since else ""))
+            head.setTextFormat(Qt.TextFormat.RichText)
+            head.setStyleSheet("color:#fff;font-weight:600;")
+            cv.addWidget(head)
+            if c["store_url"]:
+                link = QLabel(
+                    f'<a href="{c["store_url"]}" style="color:{accent};'
+                    f'text-decoration:none;">{c["store_url"]} →</a>')
+                link.setTextFormat(Qt.TextFormat.RichText)
+                link.setOpenExternalLinks(True)
+                link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+                cv.addWidget(link)
+            if c["install_cmd"]:
+                cmd = QLineEdit(c["install_cmd"])
+                cmd.setReadOnly(True)
+                cmd.setCursorPosition(0)
+                cmd.setToolTip("select-all + copy")
+                cmd.setStyleSheet(
+                    "QLineEdit{background:rgba(0,0,0,0.30);border:1px solid "
+                    "rgba(255,255,255,0.10);border-radius:6px;padding:6px 10px;"
+                    "color:#dfe;font-family:monospace;font-size:13px;}")
+                cv.addWidget(cmd)
+            return card
+
+        def _pending_card(self, c) -> QWidget:
+            card = QFrame()
+            card.setStyleSheet(_CARD_QSS)
+            cv = QVBoxLayout(card)
+            cv.setContentsMargins(12, 8, 12, 8)
+            cv.setSpacing(4)
+            alert = c["alert"]
+            head = QLabel(c["title"] + (f"   —   ⚠ {alert}" if alert else "")
+                          + ("   [stub]" if c["stub"] else ""))
+            head.setStyleSheet(
+                "color:#f88;font-weight:bold;" if alert else "color:#fff;font-weight:bold;")
+            cv.addWidget(head)
+            if c["note"]:
+                n = QLabel(c["note"])
+                n.setWordWrap(True)
+                n.setStyleSheet("color:#888;font-size:11px;")
+                cv.addWidget(n)
+            marks = {True: ("✓", "#56c48d"), False: ("▶", accent), None: ("?", "#888")}
+            for step_title, st in c["steps"]:
+                mark, color = marks.get(st, ("?", "#888"))
+                s = QLabel(f'<span style="color:{color};">{mark}</span>  {step_title}')
+                s.setTextFormat(Qt.TextFormat.RichText)
+                s.setStyleSheet("color:#ccc;")
+                cv.addWidget(s)
+            if c["guide"]:
+                g = QLabel(_linkify(c["guide"]))
+                g.setTextFormat(Qt.TextFormat.RichText)
+                g.setOpenExternalLinks(True)
+                g.setWordWrap(True)
+                g.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+                g.setStyleSheet(
+                    "color:#aaa;background:rgba(0,0,0,0.25);border-radius:6px;"
+                    "padding:6px;font-family:monospace;font-size:11px;")
+                cv.addWidget(g)
+            return card
 
         # ── shared checklist rows (Ingredients tail + Improvements) ───────
         def _build_checklist_page(self, phase: str) -> QWidget:

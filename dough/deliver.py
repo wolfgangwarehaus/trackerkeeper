@@ -191,6 +191,11 @@ class Channel:
     # optional red-flag probe — a non-None string REPLACES the board status
     # (e.g. "NAME CONFLICT" when the channel's namespace is squatted).
     alert: Callable[[Ctx], str | None] = lambda c: None
+    # When the channel is LIVE, the public place it landed + the one-line
+    # install command a user runs — the payload of the breadboard's LIVE card.
+    # Empty string = none for this channel.
+    store_url: Callable[[Ctx], str] = lambda c: ""
+    install_cmd: Callable[[Ctx], str] = lambda c: ""
 
     def states(self, ctx: Ctx) -> list[bool | None]:
         return [s.detect(ctx) for s in self.steps]
@@ -216,7 +221,8 @@ def _channels() -> list[Channel]:
         Channel(
             "github-release",
             "GitHub release (carries the .deb / AppImage / wheel / .exe)",
-            [
+            store_url=lambda c: f"https://github.com/{c.repo}/releases/latest",
+            steps=[
                 Step("a v* tag exists", "local",
                      lambda c: c.tag is not None, tagcmd),
                 Step("release.yml drafted the release", "local",
@@ -235,6 +241,8 @@ def _channels() -> list[Channel]:
             "pypi",
             "PyPI (OIDC trusted publishing — no token)",
             alert=lambda c: "NAME CONFLICT" if c.pypi_state == "conflict" else None,
+            store_url=lambda c: f"https://pypi.org/project/{c.dist}/",
+            install_cmd=lambda c: f"pip install {c.dist}",
             steps=[
                 Step("the PyPI name is ours (or free)", "account",
                      lambda c: {None: None, "free": True, "ours": True,
@@ -268,6 +276,8 @@ def _channels() -> list[Channel]:
             "aur",
             "AUR (Arch User Repository)",
             alert=lambda c: "NAME CONFLICT" if c.aur_state == "conflict" else None,
+            store_url=lambda c: f"https://aur.archlinux.org/packages/{c.slug}",
+            install_cmd=lambda c: f"yay -S {c.slug}",
             steps=[
                 Step("AUR account + SSH key exist", "account",
                      lambda c: c.secret_set("AUR_SSH_PRIVATE_KEY"),
@@ -295,6 +305,7 @@ def _channels() -> list[Channel]:
                   lambda c: "a GitHub PAT with public_repo; winget-releaser opens the "
                             "manifest PR from the published .exe (docs/RELEASING.md)")],
             stub=True, note="activates off the published release; needs no Windows host",
+            install_cmd=lambda c: f"winget install {c.repo.split('/')[0]}.{c.slug}",
         ),
         Channel(
             "msix", "Microsoft Store (MSIX)",
@@ -310,6 +321,7 @@ def _channels() -> list[Channel]:
                   lambda c: "needs the $99/yr Apple Developer membership; the secret list "
                             "is documented at the top of .github/workflows/macos.yml")],
             stub=True, note="macos.yml is dormant until the Apple secrets exist",
+            install_cmd=lambda c: f"brew install --cask {c.slug}",
         ),
     ]
 
