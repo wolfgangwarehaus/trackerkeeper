@@ -1,8 +1,8 @@
-# dough — the wolfgang warehaus app base. Fork this project, rename the
-# `dough` package + the identity fields below to your app, and build.
+# trackerkeeper — the wolfgang warehaus app base. Fork this project, rename the
+# `trackerkeeper` package + the identity fields below to your app, and build.
 #
-# Flat layout (the single `dough/` package at the repo root, entry in
-# `dough/app.py`) so `python -m dough` runs straight from a checkout with no
+# Flat layout (the single `trackerkeeper/` package at the repo root, entry in
+# `trackerkeeper/app.py`) so `python -m trackerkeeper` runs straight from a checkout with no
 # install. Core stays PySide6-only — heavy/native deps (a PDF engine, mpv, a
 # cast stack) belong in [project.optional-dependencies], never the base.
 
@@ -11,23 +11,23 @@ requires = ["setuptools>=68", "wheel", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-# The PyPI DISTRIBUTION name — "dough" is squatted on PyPI (a 2015 third-party
-# package), so pip's name is dough-base while the import package stays `dough`
-# (distribution name ≠ import name, like beautifulsoup4/bs4). `dough new` pins
+# The PyPI DISTRIBUTION name — "trackerkeeper" is squatted on PyPI (a 2015 third-party
+# package), so pip's name is trackerkeeper-base while the import package stays `trackerkeeper`
+# (distribution name ≠ import name, like beautifulsoup4/bs4). `trackerkeeper new` pins
 # a fork's name back to its slug.
-name = "dough-base"
+name = "trackerkeeper"
 # version is DYNAMIC — the tag is the version (docs/BAKING.md §2 principle 4).
 # setuptools-scm derives it from the latest `git tag vX.Y.Z`; there is nothing
 # to stamp in N files and therefore no version-drift class to gate against.
 dynamic = ["version"]
-description = "A frosted, cross-platform PySide6 app base"
+description = "One dashboard for software & firmware updates across everything you own"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-2.0-or-later" }
 authors = [{ name = "august", email = "augustvontrips@gmail.com" }]
 keywords = ["pyside6", "qt", "desktop", "starter", "template", "frosted-glass", "cross-platform", "kde", "windows"]
 # PyPI Trove classifiers are a hand-maintained SECOND site, not yet rendered
-# from [tool.dough.metadata]. The License line is guarded against license_spdx by
+# from [tool.trackerkeeper.metadata]. The License line is guarded against license_spdx by
 # tests/test_metadata.py; the OS/Environment lines are a free-text platform fact
 # a fork must edit by hand until the renderer derives them (license from
 # license_spdx, OS/Env from a platform flag). They are distinct from the
@@ -53,7 +53,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# `bake` is the release tooling (dough bake); jinja2 is build-time only — the
+# `bake` is the release tooling (trackerkeeper bake); jinja2 is build-time only — the
 # shipped app never imports it. dev includes it so the generate-then-verify gate
 # (tests/test_bake.py) runs in the default test pass.
 bake = ["jinja2>=3"]
@@ -63,7 +63,7 @@ dev = [
     "keyring>=24",
     "cryptography>=42 ; sys_platform != 'win32'",
 ]
-# Named-secret store (dough/credentials.py): OS keyring primary + an encrypted
+# Named-secret store (trackerkeeper/credentials.py): OS keyring primary + an encrypted
 # QSettings resilience blob. cryptography is the AES-GCM arm — Linux/macOS only
 # (no win_arm64 wheel; Windows uses ctypes DPAPI instead, zero extra deps).
 credentials = [
@@ -84,54 +84,54 @@ macos = [
 ]
 
 [project.gui-scripts]
-dough = "dough.app:main"
+trackerkeeper = "trackerkeeper.app:main"
 
 [project.scripts]
-# The oven: render packaging/ from [tool.dough.metadata] (docs/BAKING.md §2).
-dough-bake = "dough.bake:main"
-# The entry verb for building WITH dough: scaffold a fresh OWNED app from a clone.
-dough-new = "dough.scaffold:main"
+# The oven: render packaging/ from [tool.trackerkeeper.metadata] (docs/BAKING.md §2).
+trackerkeeper-bake = "trackerkeeper.bake:main"
+# The entry verb for building WITH trackerkeeper: scaffold a fresh OWNED app from a clone.
+trackerkeeper-new = "trackerkeeper.scaffold:main"
 # The Delivery-phase walkthroughs: the channel board, per-channel activation,
 # and the update lap (docs/DELIVERY.md).
-dough-deliver = "dough.deliver:main"
+trackerkeeper-deliver = "trackerkeeper.deliver:main"
 # The live maker surface: goals + phase checklists, shared with the AI agent
-# via dough-breadboard.toml (docs/TODO.md §THE BREADBOARD).
-dough-breadboard = "dough.breadboard:main"
+# via trackerkeeper-breadboard.toml (docs/TODO.md §THE BREADBOARD).
+trackerkeeper-breadboard = "trackerkeeper.breadboard:main"
 
 [project.urls]
-Homepage = "https://github.com/wolfgangwarehaus/dough"
-Repository = "https://github.com/wolfgangwarehaus/dough"
+Homepage = "https://github.com/wolfgangwarehaus/trackerkeeper"
+Repository = "https://github.com/wolfgangwarehaus/trackerkeeper"
 
 # ── the baking-phase metadata sidecar (docs/BAKING.md §3) ────────────────────
 # ONE source for app identity + descriptive/store metadata. The oven (a future
-# `dough bake`) renders every manifest — .desktop, metainfo, deb control, winget
+# `trackerkeeper bake`) renders every manifest — .desktop, metainfo, deb control, winget
 # YAML, PKGBUILD, the landing page — from this table; none is hand-authored. The
 # id projections (app_id_base / windows_aumid / cf_bundle_id) are COMPUTED from
-# the slugs below via dough.identity's pure helpers, never re-literalised. Where
+# the slugs below via trackerkeeper.identity's pure helpers, never re-literalised. Where
 # a field overlaps `[project]` (description↔summary, keywords, license,
 # requires-python, the maintainer), the two are kept identical and
 # tests/test_metadata.py asserts they never drift — the exact failure mode this
 # table exists to kill (jellytoast carried six summary wordings and three
 # publisher strings; see docs/BAKING.md §1).
-[tool.dough.metadata]
+[tool.trackerkeeper.metadata]
 # Schema-versioned like color_tokens' PALETTE_VERSION: bump when the field set
 # changes so the renderer and the verify gate move together.
 metadata_version = 1
 
 # the inputs everything else derives from
-app_slug = "dough"
+app_slug = "trackerkeeper"
 org_slug = "wolfgangwarehaus"
 github_owner = "wolfgangwarehaus"
-repo_name = "dough"
-display_name = "dough"
+repo_name = "trackerkeeper"
+display_name = "Tracker Keeper"
 generic_name = "App Base"
-summary = "A frosted, cross-platform PySide6 app base"
+summary = "One dashboard for software & firmware updates across everything you own"
 license_spdx = "GPL-2.0-or-later"
 
 # descriptive / store metadata — the renderer's inputs; these never touch the
-# running QApplication (that's dough.identity's job — docs/BAKING.md §4).
+# running QApplication (that's trackerkeeper.identity's job — docs/BAKING.md §4).
 long_description = """\
-dough is a fork-and-own application base for PySide6 desktop apps: a frosted, \
+trackerkeeper is a fork-and-own application base for PySide6 desktop apps: a frosted, \
 KDE-native window chrome, a token-driven design system with live re-theming, \
 and the cross-platform scaffolding (single-instance, notifications, autostart, \
 power inhibition) every app otherwise re-implements. Fork it, set your identity \
@@ -143,12 +143,12 @@ maintainer_email = "augustvontrips@gmail.com"
 # warehaus drift; docs/BAKING.md §9).
 publisher_display_name = "wolfgang warehaus"
 # A single freedesktop MAIN category (more than one risks a double menu entry —
-# desktop-file-validate hint). dough is developer tooling; a fork sets its own.
+# desktop-file-validate hint). trackerkeeper is developer tooling; a fork sets its own.
 categories = ["Development"]
 keywords = ["pyside6", "qt", "desktop", "starter", "template", "frosted-glass", "cross-platform", "kde", "windows"]
 requires_python = ">=3.11"
-entry_point = "dough.app:main"
-icon_svg_source = "dough/assets/dough.svg"
+entry_point = "trackerkeeper.app:main"
+icon_svg_source = "trackerkeeper/assets/trackerkeeper.svg"
 # Ko-fi / donation handle — set to light up the landing-page tip box and the
 # metainfo <url type="donation">. Empty ⇒ the donation links are omitted.
 kofi_handle = ""
@@ -167,13 +167,13 @@ feature_cards = [
 screenshots = []
 
 # Single-instance identity that must be TRACKED, never regenerated, and never
-# cross-contaminated between apps (docs/BAKING.md §9). `dough bake <newapp>`
+# cross-contaminated between apps (docs/BAKING.md §9). `trackerkeeper bake <newapp>`
 # mints a fresh uuid4 for inno_appid_guid; the MSIX values are Partner-Center-
 # issued and left blank until the forker registers.
-[tool.dough.metadata.store_secrets_of_record]
-# dough's IMMUTABLE Inno installer identity — minted once (uuid4), never changed
+[tool.trackerkeeper.metadata.store_secrets_of_record]
+# trackerkeeper's IMMUTABLE Inno installer identity — minted once (uuid4), never changed
 # (changing it orphans installed users from upgrades). A fork mints its own.
-inno_appid_guid = "953E2575-85CD-42D0-85E9-35921C67D377"
+inno_appid_guid = "DBBF328E-3F1A-4489-BE07-DBAF5D6014BA"
 msix_publisher_cn = ""
 msix_pfn = ""
 msix_store_id = ""
@@ -183,32 +183,32 @@ msix_store_id = ""
 macos_team_id = ""
 
 [tool.setuptools_scm]
-# The tag is the version. setuptools-scm writes dough/_version.py at build time
-# (gitignored; dough.__init__ reads it with a graceful source-checkout
+# The tag is the version. setuptools-scm writes trackerkeeper/_version.py at build time
+# (gitignored; trackerkeeper.__init__ reads it with a graceful source-checkout
 # fallback). No tag yet ⇒ a dev version like 0.0.1.devN+gHASH; the first
 # `git tag v0.1.0` makes it concrete.
-version_file = "dough/_version.py"
+version_file = "trackerkeeper/_version.py"
 fallback_version = "0.0.0"
 
 [tool.setuptools.packages.find]
-include = ["dough*"]
+include = ["trackerkeeper*"]
 exclude = ["tests*", "docs*", "packaging*"]
 
 [tool.setuptools.package-data]
-# The brand SVG (dough/assets/dough.svg) ships in the wheel so make_app_icon
+# The brand SVG (trackerkeeper/assets/trackerkeeper.svg) ships in the wheel so make_app_icon
 # resolves it via importlib.resources.
-"dough.assets" = ["*.svg"]
+"trackerkeeper.assets" = ["*.svg"]
 # The drag-repaint KWin scripted effect ships as data (a JSON + JS template pair
-# carrying the {{app_id}} token) inside the dough.drag_repaint package — rendered
+# carrying the {{app_id}} token) inside the trackerkeeper.drag_repaint package — rendered
 # from the app identity and installed into the user's KWin effects dir at runtime
-# by dough/drag_repaint/_kwin.py.
-"dough.drag_repaint" = [
+# by trackerkeeper/drag_repaint/_kwin.py.
+"trackerkeeper.drag_repaint" = [
     "effect/dragrepaint/metadata.json",
     "effect/dragrepaint/contents/code/main.js",
 ]
-# Compiled translation catalogs (dough/i18n/dough_<code>.qm) ship as package
-# data so dough.i18n.install resolves them via importlib.resources.
-"dough.i18n" = ["*.qm"]
+# Compiled translation catalogs (trackerkeeper/i18n/trackerkeeper_<code>.qm) ship as package
+# data so trackerkeeper.i18n.install resolves them via importlib.resources.
+"trackerkeeper.i18n" = ["*.qm"]
 
 [tool.pytest.ini_options]
 # GUI tests run headless — conftest.py forces QT_QPA_PLATFORM=offscreen before

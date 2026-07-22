@@ -1,4 +1,4 @@
-"""Tests for dough.drag_repaint — the KWin scripted-effect that kills the
+"""Tests for trackerkeeper.drag_repaint — the KWin scripted-effect that kills the
 stale-blur drag artifact.
 
 Covers the bundled effect **template** (well-formedness + the ``{{app_id}}``
@@ -7,7 +7,7 @@ subprocess + data-dir mocked), the identity rendering (the token is replaced
 with the app slug on install), the ``_unsupported`` no-op backend, and the
 facade's ``sync()`` env gate.
 
-The ``_kwin`` backend is imported directly — ``dough.drag_repaint``'s
+The ``_kwin`` backend is imported directly — ``trackerkeeper.drag_repaint``'s
 ``__init__`` picks a backend at import time via ``is_kde_wayland()``, which is
 False under the test environment, so the package facade resolves to
 ``_unsupported``. Importing ``_kwin`` directly exercises the real logic.
@@ -19,8 +19,8 @@ import json
 
 import pytest
 
-from dough import identity
-from dough.drag_repaint import _kwin, _unsupported
+from trackerkeeper import identity
+from trackerkeeper.drag_repaint import _kwin, _unsupported
 
 # ── The bundled effect template ───────────────────────────────────────
 
@@ -242,9 +242,9 @@ class TestUnsupportedBackend:
 
 class TestFacadeSync:
     def test_sync_installs_by_default(self, monkeypatch):
-        import dough.drag_repaint as dr
+        import trackerkeeper.drag_repaint as dr
 
-        monkeypatch.delenv("DOUGH_NO_DRAG_REPAINT", raising=False)
+        monkeypatch.delenv("TRACKERKEEPER_NO_DRAG_REPAINT", raising=False)
         called = []
         monkeypatch.setattr(dr, "install", lambda: called.append("install") or True)
         monkeypatch.setattr(dr, "uninstall", lambda: called.append("uninstall") or True)
@@ -252,9 +252,9 @@ class TestFacadeSync:
         assert called == ["install"]
 
     def test_sync_uninstalls_under_env_flag(self, monkeypatch):
-        import dough.drag_repaint as dr
+        import trackerkeeper.drag_repaint as dr
 
-        monkeypatch.setenv("DOUGH_NO_DRAG_REPAINT", "1")
+        monkeypatch.setenv("TRACKERKEEPER_NO_DRAG_REPAINT", "1")
         called = []
         monkeypatch.setattr(dr, "install", lambda: called.append("install") or True)
         monkeypatch.setattr(dr, "uninstall", lambda: called.append("uninstall") or True)
@@ -262,9 +262,9 @@ class TestFacadeSync:
         assert called == ["uninstall"]
 
     def test_sync_env_flag_must_be_exactly_one(self, monkeypatch):
-        import dough.drag_repaint as dr
+        import trackerkeeper.drag_repaint as dr
 
-        monkeypatch.setenv("DOUGH_NO_DRAG_REPAINT", "0")
+        monkeypatch.setenv("TRACKERKEEPER_NO_DRAG_REPAINT", "0")
         called = []
         monkeypatch.setattr(dr, "install", lambda: called.append("install") or True)
         monkeypatch.setattr(dr, "uninstall", lambda: called.append("uninstall") or True)

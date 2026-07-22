@@ -1,4 +1,4 @@
-"""The dough board (dough/breadboard.py) — the live maker surface. The FILE is the
+"""The trackerkeeper board (trackerkeeper/breadboard.py) — the live maker surface. The FILE is the
 API between maker, window, and agent, so the file half gets the real coverage:
 deterministic round-trips, the seed template, and the window's write-backs.
 """
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from dough import breadboard as board
+from trackerkeeper import breadboard as board
 
 
 def test_default_board_round_trips_byte_stable(tmp_path: Path) -> None:
@@ -161,19 +161,19 @@ def test_purpose_edits_write_the_file(tmp_path: Path) -> None:
 
 
 def test_discover_projects_finds_home_and_siblings(tmp_path: Path) -> None:
-    home = tmp_path / "dough"
+    home = tmp_path / "trackerkeeper"
     sib = tmp_path / "butterpdf"
     plain = tmp_path / "not-a-loaf"
     for d in (home, sib, plain):
         d.mkdir()
     (home / "pyproject.toml").write_text("")
     (sib / "pyproject.toml").write_text("")
-    board.save(home / "dough-breadboard.toml", board.default_board("dough"))
+    board.save(home / "trackerkeeper-breadboard.toml", board.default_board("trackerkeeper"))
     board.save(sib / "butterpdf-breadboard.toml", board.default_board("butterPDF"))
     (plain / "readme.txt").write_text("no pyproject, no board")
 
     found = board.discover_projects(home)
-    assert [name for name, _ in found] == ["dough", "butterPDF"]  # home first
+    assert [name for name, _ in found] == ["trackerkeeper", "butterPDF"]  # home first
     assert found[0][1].parent == home
 
 

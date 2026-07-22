@@ -1,4 +1,4 @@
-"""The AppBus contract — dough's decoupling spine stays generic.
+"""The AppBus contract — trackerkeeper's decoupling spine stays generic.
 
 These are permanent invariants, not P0 xfails: the base bus ships only generic
 chrome signals and carries NO music signals. The power/ recast depends on the
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from dough.bus import AppBus, get_bus
+from trackerkeeper.bus import AppBus, get_bus
 
 GENERIC_SIGNALS = {
     "theme_changed",

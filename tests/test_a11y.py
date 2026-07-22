@@ -7,7 +7,7 @@ the real surfaces a bare fork ships (the demo window + the settings dialog)
 and fails on any violator, so future apps inherit the honesty check.
 
 Opt-out: ``setProperty("a11y_exempt", True)`` — for genuinely decorative
-controls only, used sparingly (zero in bare dough).
+controls only, used sparingly (zero in bare trackerkeeper).
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 import pytest
 from PySide6.QtWidgets import QAbstractButton, QComboBox, QWidget
 
-from dough.selector import Selector
+from trackerkeeper.selector import Selector
 
 
 def _announces(w: QWidget) -> bool:
@@ -45,10 +45,10 @@ def _violations(root: QWidget) -> list[str]:
 
 @pytest.mark.usefixtures("qapp")
 def test_demo_window_all_controls_announce() -> None:
-    from dough.app import _placeholder
-    from dough.window import AppWindow
+    from trackerkeeper.app import _placeholder
+    from trackerkeeper.window import AppWindow
 
-    win = AppWindow(title="dough")
+    win = AppWindow(title="trackerkeeper")
     win.set_content(_placeholder())
     bad = _violations(win)
     assert not bad, f"controls with no accessible name or text: {bad}"
@@ -56,7 +56,7 @@ def test_demo_window_all_controls_announce() -> None:
 
 @pytest.mark.usefixtures("qapp")
 def test_settings_dialog_all_controls_announce() -> None:
-    from dough.settings_dialog import SettingsDialog
+    from trackerkeeper.settings_dialog import SettingsDialog
 
     dlg = SettingsDialog()
     bad = _violations(dlg)
@@ -68,20 +68,20 @@ class TestIconButtonNaming:
     """The constructor/fallback contract on the kit's icon-only button."""
 
     def test_explicit_name(self, qapp) -> None:
-        from dough.icon_button import IconButton
+        from trackerkeeper.icon_button import IconButton
 
         b = IconButton(accessible_name="Play")
         assert b.accessibleName() == "Play"
 
     def test_tooltip_falls_back_to_name(self, qapp) -> None:
-        from dough.icon_button import IconButton
+        from trackerkeeper.icon_button import IconButton
 
         b = IconButton()
         b.setToolTip("Shuffle")
         assert b.accessibleName() == "Shuffle"
 
     def test_explicit_name_wins_over_tooltip(self, qapp) -> None:
-        from dough.icon_button import IconButton
+        from trackerkeeper.icon_button import IconButton
 
         b = IconButton(accessible_name="Play")
         b.setToolTip("Play the current queue")
@@ -90,15 +90,15 @@ class TestIconButtonNaming:
         assert b.accessibleDescription() == "Play the current queue"
 
     def test_top_bar_buttons_named(self, qapp) -> None:
-        from dough.window import AppWindow
+        from trackerkeeper.window import AppWindow
 
-        win = AppWindow(title="dough")
+        win = AppWindow(title="trackerkeeper")
         assert win.top_bar.settings_btn.accessibleName() == "Settings"
 
 
 class TestFrostedDialogA11y:
     def test_title_becomes_accessible_name(self, qapp) -> None:
-        from dough.frosted_dialog import FrostedDialog
+        from trackerkeeper.frosted_dialog import FrostedDialog
 
         dlg = FrostedDialog(title="Import failed")
         assert dlg.accessibleName() == "Import failed"
@@ -108,7 +108,7 @@ class TestFrostedDialogA11y:
     def test_close_glyph_named(self, qapp) -> None:
         from PySide6.QtWidgets import QPushButton
 
-        from dough.frosted_dialog import FrostedDialog
+        from trackerkeeper.frosted_dialog import FrostedDialog
 
         dlg = FrostedDialog(title="x")
         glyphs = [b for b in dlg.findChildren(QPushButton) if b.text() == "✕"]
@@ -116,7 +116,7 @@ class TestFrostedDialogA11y:
         dlg.close()
 
     def test_focus_lands_on_a_control(self, qapp) -> None:
-        from dough.frosted_dialog import FrostedMessageDialog
+        from trackerkeeper.frosted_dialog import FrostedMessageDialog
 
         dlg = FrostedMessageDialog(None, title="t", text="body")
         dlg.show()

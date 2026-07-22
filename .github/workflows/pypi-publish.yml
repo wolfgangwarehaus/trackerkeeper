@@ -10,9 +10,9 @@ name: Publish to PyPI
 # One-time PyPI setup — create a pending publisher (the project doesn't exist on
 # PyPI yet, so use the "pending publisher" form):
 #   https://pypi.org/manage/account/publishing/  → Add a new pending publisher:
-#     PyPI Project Name: dough-base
+#     PyPI Project Name: trackerkeeper-base
 #     Owner:             wolfgangwarehaus
-#     Repository name:   dough
+#     Repository name:   trackerkeeper
 #     Workflow name:     pypi-publish.yml
 #     Environment name:  pypi
 #   These must match the values below exactly or PyPI rejects the OIDC token.
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/dough-base/
+      url: https://pypi.org/project/trackerkeeper-base/
     permissions:
       contents: read # gh release download
       id-token: write # mint the short-lived OIDC token Trusted Publishing needs

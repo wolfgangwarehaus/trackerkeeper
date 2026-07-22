@@ -1,6 +1,6 @@
-"""Runtime guard for ``dough.power``.
+"""Runtime guard for ``trackerkeeper.power``.
 
-The phantom-import smoke does NOT catch this one: ``dough.power`` imports
+The phantom-import smoke does NOT catch this one: ``trackerkeeper.power`` imports
 perfectly cleanly. The bug it guards was a runtime ``AttributeError`` inside the
 old ``SleepInhibitor.start()``, which connected to ``bus.playback_*`` signals the
 generic ``AppBus`` never defines — only *calling* it surfaced the failure, which
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from dough.power import SleepInhibitor, is_supported
+from trackerkeeper.power import SleepInhibitor, is_supported
 
 
 @pytest.mark.usefixtures("qapp")

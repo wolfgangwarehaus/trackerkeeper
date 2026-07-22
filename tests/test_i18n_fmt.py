@@ -12,7 +12,7 @@ import datetime
 import pytest
 from PySide6.QtCore import QLocale
 
-from dough.i18n import fmt
+from trackerkeeper.i18n import fmt
 
 
 @pytest.fixture()

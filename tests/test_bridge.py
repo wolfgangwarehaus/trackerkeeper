@@ -1,6 +1,6 @@
 """Agent test bridge — driven end-to-end over the real socket.
 
-The app runs as an actual SUBPROCESS (offscreen, DOUGH_TEST_BRIDGE=1) and the
+The app runs as an actual SUBPROCESS (offscreen, TRACKERKEEPER_TEST_BRIDGE=1) and the
 test process is the client — the production shape. In-process both-ends would
 deadlock by construction: the server handles requests on the GUI thread, and a
 blocking client wait on that same thread would starve it (the same reason the
@@ -29,13 +29,13 @@ _IO_MS = 15000
 
 _APP_SCRIPT = """
 import sys
-import dough
+import trackerkeeper
 
 # Identity FIRST (before anything heavy imports) — the uuid slug isolates the
 # socket name and the QSettings handle.
-dough.configure(org="dough-tests", app=sys.argv[1], display_name="bridge probe")
+trackerkeeper.configure(org="trackerkeeper-tests", app=sys.argv[1], display_name="bridge probe")
 
-from dough import test_bridge
+from trackerkeeper import test_bridge
 
 def _echo(bridge, args):
     return {"echo": args.get("value"), "win_title": bridge.win.windowTitle()}
@@ -58,7 +58,7 @@ def _content(win):
     lay.addWidget(edit)
     return w
 
-from dough.app import run_app
+from trackerkeeper.app import run_app
 
 sys.exit(run_app(_content, single_instance=False))
 """
@@ -112,17 +112,17 @@ def bridge(qapp, tmp_path_factory):
     import getpass
 
     tmp = tmp_path_factory.mktemp("bridge")
-    slug = f"dough-bridgetest-{uuid.uuid4().hex[:8]}"
+    slug = f"trackerkeeper-bridgetest-{uuid.uuid4().hex[:8]}"
     sock_name = f"{slug}-test-bridge-{getpass.getuser()}"
 
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     env = dict(
         os.environ,
         QT_QPA_PLATFORM="offscreen",
-        DOUGH_TEST_BRIDGE="1",
+        TRACKERKEEPER_TEST_BRIDGE="1",
         # Auto-update channel ⇒ the deferred update check never touches the
         # network from a test subprocess.
-        DOUGH_CHANNEL="aur",
+        TRACKERKEEPER_CHANNEL="aur",
         # Scratch config home so settings writes never land in the real
         # user config (Linux/macOS; on Windows the uuid slug isolates, and
         # the wind-down clears the store before quitting).
@@ -234,14 +234,14 @@ def test_unknown_op_is_a_structured_error(bridge):
 
 
 def test_socket_name_follows_identity(qapp):
-    from dough import identity, test_bridge
+    from trackerkeeper import identity, test_bridge
 
     identity.configure(app="loafling")  # restored by the conftest identity fixture
     assert test_bridge.socket_name().startswith("loafling-test-bridge-")
 
 
 def test_coerce_degrades_to_repr():
-    from dough.test_bridge import _coerce
+    from trackerkeeper.test_bridge import _coerce
 
     class Opaque:
         def __repr__(self):
@@ -260,7 +260,7 @@ def test_widget_node_survives_qaction_children(qapp):
     from PySide6.QtGui import QAction
     from PySide6.QtWidgets import QLineEdit, QWidget
 
-    from dough.test_bridge import _widget_node
+    from trackerkeeper.test_bridge import _widget_node
 
     w = QWidget()
     QLineEdit(w)

@@ -1,7 +1,7 @@
-"""Tests for dough.noborder — the KWin ``noborder`` main-window rule.
+"""Tests for trackerkeeper.noborder — the KWin ``noborder`` main-window rule.
 
 The package picks its backend at import time via a runtime call to
-``dough.platform_compat.is_kde_wayland()``. On KDE Wayland the ``_kwin`` backend
+``trackerkeeper.platform_compat.is_kde_wayland()``. On KDE Wayland the ``_kwin`` backend
 shells out to kwriteconfig/kreadconfig/qdbus to manage a window rule in
 kwinrulesrc. Everywhere else the unsupported backend is a silent no-op.
 
@@ -17,23 +17,23 @@ import sys
 
 import pytest
 
-from dough import identity
+from trackerkeeper import identity
 
 
 def _reload_noborder():
     """Drop and re-import the package so its import-time ``is_kde_wayland()``
     gate re-evaluates against current mocks."""
     for mod_name in (
-        "dough.noborder",
-        "dough.noborder._kwin",
-        "dough.noborder._unsupported",
+        "trackerkeeper.noborder",
+        "trackerkeeper.noborder._kwin",
+        "trackerkeeper.noborder._unsupported",
     ):
         sys.modules.pop(mod_name, None)
-    return importlib.import_module("dough.noborder")
+    return importlib.import_module("trackerkeeper.noborder")
 
 
 def _force_kde_wayland(monkeypatch, value: bool):
-    import dough.platform_compat as pc
+    import trackerkeeper.platform_compat as pc
 
     monkeypatch.setattr(pc, "is_kde_wayland", lambda: value)
 
@@ -70,9 +70,9 @@ def _restore_noborder_module():
     backend reference."""
     yield
     for mod_name in (
-        "dough.noborder",
-        "dough.noborder._kwin",
-        "dough.noborder._unsupported",
+        "trackerkeeper.noborder",
+        "trackerkeeper.noborder._kwin",
+        "trackerkeeper.noborder._unsupported",
     ):
         sys.modules.pop(mod_name, None)
 
@@ -99,13 +99,13 @@ def test_imports_cleanly_off_kde_wayland(monkeypatch):
 def test_kwin_backend_selected_on_kde_wayland(monkeypatch):
     _force_kde_wayland(monkeypatch, True)
     noborder = _reload_noborder()
-    assert noborder._backend.__name__ == "dough.noborder._kwin"
+    assert noborder._backend.__name__ == "trackerkeeper.noborder._kwin"
 
 
 def test_unsupported_backend_selected_off_kde_wayland(monkeypatch):
     _force_kde_wayland(monkeypatch, False)
     noborder = _reload_noborder()
-    assert noborder._backend.__name__ == "dough.noborder._unsupported"
+    assert noborder._backend.__name__ == "trackerkeeper.noborder._unsupported"
 
 
 # ── _unsupported backend ──────────────────────────────────────────────
@@ -128,7 +128,7 @@ def test_unsupported_methods_are_silent_noops(monkeypatch):
 def test_is_supported_false_when_kde_tools_missing(monkeypatch):
     _force_kde_wayland(monkeypatch, True)
     noborder = _reload_noborder()
-    from dough.noborder import _kwin
+    from trackerkeeper.noborder import _kwin
 
     monkeypatch.setattr(_kwin.shutil, "which", lambda _: None)
     assert noborder.is_supported() is False
@@ -137,7 +137,7 @@ def test_is_supported_false_when_kde_tools_missing(monkeypatch):
 def test_is_supported_true_when_kde_tools_present(monkeypatch):
     _force_kde_wayland(monkeypatch, True)
     noborder = _reload_noborder()
-    from dough.noborder import _kwin
+    from trackerkeeper.noborder import _kwin
 
     monkeypatch.setattr(_kwin.shutil, "which", lambda cmd: f"/usr/bin/{cmd}")
     assert noborder.is_supported() is True
@@ -147,7 +147,7 @@ def test_is_supported_true_when_kde_tools_present(monkeypatch):
 
 
 def _wire_kwin(monkeypatch):
-    from dough.noborder import _kwin
+    from trackerkeeper.noborder import _kwin
 
     monkeypatch.setattr(_kwin.shutil, "which", lambda cmd: f"/usr/bin/{cmd}")
     monkeypatch.setattr(_kwin, "QSettings", _FakeQSettings)
@@ -164,7 +164,7 @@ def _wire_kwin(monkeypatch):
 def test_install_returns_false_when_tools_missing(monkeypatch):
     _force_kde_wayland(monkeypatch, True)
     noborder = _reload_noborder()
-    from dough.noborder import _kwin
+    from trackerkeeper.noborder import _kwin
 
     monkeypatch.setattr(_kwin.shutil, "which", lambda _: None)
     assert noborder.install_main_window_noborder() is False
@@ -181,7 +181,7 @@ def test_install_shells_out_and_reconfigures(monkeypatch):
 
 
 def test_install_matches_on_wmclass_not_title(monkeypatch):
-    """dough scopes the rule to the wmclass (identity.app()) with NO title match
+    """trackerkeeper scopes the rule to the wmclass (identity.app()) with NO title match
     — so the window title is free to change (e.g. a document name). Assert a
     wmclass write with the app slug, and that no `title`/`titlematch` key is
     ever written."""
@@ -250,7 +250,7 @@ def test_install_survives_subprocess_failure(monkeypatch):
     swallowed; install still reports True because is_supported gated past."""
     _force_kde_wayland(monkeypatch, True)
     noborder = _reload_noborder()
-    from dough.noborder import _kwin
+    from trackerkeeper.noborder import _kwin
 
     monkeypatch.setattr(_kwin.shutil, "which", lambda cmd: f"/usr/bin/{cmd}")
     monkeypatch.setattr(_kwin, "QSettings", _FakeQSettings)
@@ -269,7 +269,7 @@ def test_install_survives_subprocess_failure(monkeypatch):
 def test_diagnose_on_kwin_backend_reports_wmclass(monkeypatch):
     _force_kde_wayland(monkeypatch, True)
     noborder = _reload_noborder()
-    from dough.noborder import _kwin
+    from trackerkeeper.noborder import _kwin
 
     monkeypatch.setattr(_kwin.shutil, "which", lambda cmd: f"/usr/bin/{cmd}")
     d = noborder.diagnose()

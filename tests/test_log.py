@@ -1,4 +1,4 @@
-"""dough.log — the opt-in rotating file log.
+"""trackerkeeper.log — the opt-in rotating file log.
 
 install() is process-global (root-logger handlers), so each test resets the
 module's idempotency latch and detaches the handlers it added; the log dir is
@@ -11,7 +11,7 @@ import logging
 
 import pytest
 
-from dough import log as dlog
+from trackerkeeper import log as dlog
 
 
 @pytest.fixture(autouse=True)
@@ -35,7 +35,7 @@ def test_install_creates_rotating_file_log(tmp_path):
     assert dlog.install() is True
     path = dlog.log_file_path()
     assert path is not None and path.parent == tmp_path / "logs"
-    logging.getLogger("dough.test").info("hello from the suite")
+    logging.getLogger("trackerkeeper.test").info("hello from the suite")
     for h in logging.getLogger().handlers:
         h.flush()
     assert "hello from the suite" in path.read_text(encoding="utf-8")
@@ -62,7 +62,7 @@ def test_console_handler_stays_at_warning():
 
 
 def test_dough_log_env_sets_debug(monkeypatch):
-    monkeypatch.setenv("DOUGH_LOG", "debug")
+    monkeypatch.setenv("TRACKERKEEPER_LOG", "debug")
     dlog.install()
     assert logging.getLogger().level == logging.DEBUG
 
@@ -79,7 +79,7 @@ def test_unwritable_dir_degrades_without_raising(monkeypatch, tmp_path):
 def test_rotation_caps_file_size(tmp_path, monkeypatch):
     monkeypatch.setattr(dlog, "_MAX_BYTES", 2_000)
     dlog.install()
-    lg = logging.getLogger("dough.rotate")
+    lg = logging.getLogger("trackerkeeper.rotate")
     for i in range(200):
         lg.info("line %04d %s", i, "x" * 40)
     path = dlog.log_file_path()

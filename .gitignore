@@ -7,4 +7,4 @@ dist/
 venv/
 
 # Written by setuptools-scm at build time (the tag is the version); never committed.
-dough/_version.py
+trackerkeeper/_version.py

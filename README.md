@@ -1,11 +1,11 @@
-<h1 align="center">dough</h1>
+<h1 align="center">trackerkeeper</h1>
 
 <p align="center">
   A frosted, cross-platform <a href="https://doc.qt.io/qtforpython/">PySide6</a>
   app base — the shared starter every wolfgang warehaus app is baked from.
 </p>
 
-dough is a **fork-and-own starter**, not a dependency. Clone it, rename it,
+trackerkeeper is a **fork-and-own starter**, not a dependency. Clone it, rename it,
 delete what you don't need, and build. It solves the cross-platform window
 chrome, the design system, and the platform scaffolding *once* — so a new app
 is mostly its own idea plus a thin layer on top.
@@ -30,13 +30,13 @@ a blank canvas with the hard parts already done. See
   `AppBus` signal bus, slim persistent `Settings`, single-instance.
 - **HiDPI done right** — PassThrough fractional scaling + device-pixel snapping.
 - **Languages for free** — Qt translation catalogs wired at boot, plural-aware
-  strings, locale-safe number/date/duration formatting (`dough.i18n.fmt`),
+  strings, locale-safe number/date/duration formatting (`trackerkeeper.i18n.fmt`),
   RTL-mirrored chrome. See `docs/TRANSLATING.md`.
 - **Accessible by default** — every kit control announces to screen readers
   (a test fails the build on unnamed ones), visible keyboard-focus states, a
   keyboard path for every mouse path. See `docs/ACCESSIBILITY.md`.
 - **Structured logging** — an opt-in rotating file log (~1 MB × 3) in the app's
-  state dir, console noise capped at WARNING, `DOUGH_LOG=debug` to turn it up.
+  state dir, console noise capped at WARNING, `TRACKERKEEPER_LOG=debug` to turn it up.
 - **Settings migrations** — a versioned run-once migration runner
   (`meta/schema_version`), so a renamed key never strands an installed user.
 - **Credentials store** — `save_secret`/`load_secret`: OS keyring first, an
@@ -52,36 +52,36 @@ a blank canvas with the hard parts already done. See
 ## Quick start
 
 ```bash
-git clone https://github.com/wolfgangwarehaus/dough.git
-cd dough
+git clone https://github.com/wolfgangwarehaus/trackerkeeper.git
+cd trackerkeeper
 pip install -e .
-python -m dough          # or: dough  (the console script)
+python -m trackerkeeper          # or: trackerkeeper  (the console script)
 ```
 
 Runs straight from a checkout — the flat layout means no install is strictly
-required (`python -m dough`).
+required (`python -m trackerkeeper`).
 
 ## Make it yours
 
-1. **Rename the package + set your identity.** Rename the `dough/` package to your
-   app, then set your identity in **one** place — `dough/identity.py` (`org`, `app`,
+1. **Rename the package + set your identity.** Rename the `trackerkeeper/` package to your
+   app, then set your identity in **one** place — `trackerkeeper/identity.py` (`org`, `app`,
    `display_name`). It's the single source the QSettings handle, the Qt app/org
    names, the window title, and the Windows AUMID all read. (Or, for programmatic
-   control, call `dough.configure(org=…, app=…, display_name=…)` once, before
+   control, call `trackerkeeper.configure(org=…, app=…, display_name=…)` once, before
    importing the app — the font-scale loader reads identity at import time.)
-2. **Boot your content.** Call `dough.run_app(lambda window: YourWidget(window))`
+2. **Boot your content.** Call `trackerkeeper.run_app(lambda window: YourWidget(window))`
    — it does the full cross-platform boot (identity, blur, HiDPI, single-instance,
    persisted theme, window geometry, the settings dialog) and shows your content.
-   (Or, for the quickest start, just edit `dough/app.py::_placeholder`.)
+   (Or, for the quickest start, just edit `trackerkeeper/app.py::_placeholder`.)
 3. **Extend the bus.** Add your app's signals by subclassing `AppBus`
-   (`dough/bus.py`); the base stays minimal.
+   (`trackerkeeper/bus.py`); the base stays minimal.
 4. **Keep it light.** Heavy/native deps (a PDF engine, mpv, …) go in
    `[project.optional-dependencies]`, never the PySide6-only core.
 
 ## Layout
 
 ```
-dough/
+trackerkeeper/
   app.py          # main() + the placeholder you replace
   window.py       # AppWindow — the frosted cross-platform chrome
   top_bar.py      # the titlebar / top bar

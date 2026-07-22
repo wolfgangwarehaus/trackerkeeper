@@ -1,7 +1,7 @@
 """RTL smoke — the whole chrome builds mirrored without error.
 
 Qt reverses every box/grid layout automatically when layoutDirection is
-RightToLeft (an Arabic/Hebrew locale flips it at boot). dough's kit avoids
+RightToLeft (an Arabic/Hebrew locale flips it at boot). trackerkeeper's kit avoids
 hardcoded left/right positioning, so mirroring should be free — this suite
 forces RTL app-wide, boots the real window + kit pieces, and keeps it that
 way: a future widget that positions with absolute left/right maths tends to
@@ -26,10 +26,10 @@ def rtl(qapp):
 
 
 def test_main_window_builds_rtl(rtl):
-    from dough.top_bar import TopBar
-    from dough.window import AppWindow
+    from trackerkeeper.top_bar import TopBar
+    from trackerkeeper.window import AppWindow
 
-    win = AppWindow(title="dough")
+    win = AppWindow(title="trackerkeeper")
     win.set_content(QLabel("مرحبا"))
     win.resize(640, 480)
     win.show()
@@ -49,7 +49,7 @@ def test_main_window_builds_rtl(rtl):
 
 
 def test_selector_builds_rtl(rtl):
-    from dough.selector import Selector, selector_qss
+    from trackerkeeper.selector import Selector, selector_qss
 
     sel = Selector()
     for label in ("uno", "dos", "tres"):
@@ -66,7 +66,7 @@ def test_selector_builds_rtl(rtl):
 
 
 def test_frosted_dialog_builds_rtl(rtl):
-    from dough.frosted_dialog import FrostedMessageDialog
+    from trackerkeeper.frosted_dialog import FrostedMessageDialog
 
     dlg = FrostedMessageDialog(None, title="عنوان", text="نص الرسالة")
     dlg.show()

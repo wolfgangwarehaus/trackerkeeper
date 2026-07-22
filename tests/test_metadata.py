@@ -1,10 +1,10 @@
 """The baking-phase metadata core — the verify half of "one source → generate →
 verify nothing drifted" (docs/BAKING.md §2), in test form before the renderer
-(``dough bake``) exists.
+(``trackerkeeper bake``) exists.
 
 Four guards:
 
-1. **Sidecar shape** — ``[tool.dough.metadata]`` loads, is schema-versioned, and
+1. **Sidecar shape** — ``[tool.trackerkeeper.metadata]`` loads, is schema-versioned, and
    carries the inputs the renderer needs.
 2. **The §4 guarantee** — the build-time projections (computed from the sidecar
    slugs) EQUAL the runtime seam's projections (computed from the live identity).
@@ -16,7 +16,7 @@ Four guards:
    three publisher strings — docs/BAKING.md §1).
 4. **No re-literalised ids** — no composite reverse-DNS / AUMID id appears as a
    hardcoded string anywhere in the package except the seam that defines the
-   formula. notifications/_windows.py used to carry ``"wolfgangwarehaus.dough"``;
+   formula. notifications/_windows.py used to carry ``"wolfgangwarehaus.trackerkeeper"``;
    this guard keeps it (and any future copy) gone.
 """
 
@@ -27,8 +27,8 @@ from pathlib import Path
 
 import pytest
 
-import dough
-from dough import identity, metadata
+import trackerkeeper
+from trackerkeeper import identity, metadata
 
 
 @pytest.fixture(scope="module")
@@ -66,7 +66,7 @@ def test_sidecar_carries_the_inputs(sidecar: dict) -> None:
 
 def test_sidecar_slugs_match_the_runtime_seam(sidecar: dict) -> None:
     """The overlap fields (docs/BAKING.md §4): the sidecar's build-time slugs are
-    the same strings dough.identity exposes at runtime."""
+    the same strings trackerkeeper.identity exposes at runtime."""
     assert sidecar["app_slug"] == identity.app()
     assert sidecar["org_slug"] == identity.org()
     assert sidecar["github_owner"] == identity.owner()
@@ -89,15 +89,15 @@ def test_projections_match_the_runtime_seam() -> None:
 
 def test_projection_values_are_canonical() -> None:
     proj = metadata.projections()
-    assert proj["app_id_base"] == "io.github.wolfgangwarehaus.dough"
-    assert proj["windows_aumid"] == "wolfgangwarehaus.dough"
-    assert proj["cf_bundle_id"] == "com.wolfgangwarehaus.dough"
+    assert proj["app_id_base"] == "io.github.wolfgangwarehaus.trackerkeeper"
+    assert proj["windows_aumid"] == "wolfgangwarehaus.trackerkeeper"
+    assert proj["cf_bundle_id"] == "com.wolfgangwarehaus.trackerkeeper"
     # desktop_id == app_id_base, but pin it independently so a drift in its own
     # formula (e.g. appending ".desktop" or lowercasing) is caught — elsewhere
     # it's only ever asserted RELATIONALLY (== app_id_base), which moves together.
-    assert proj["desktop_id"] == "io.github.wolfgangwarehaus.dough"
-    assert proj["homepage_url"] == "https://github.com/wolfgangwarehaus/dough"
-    assert proj["client_identity"] == f"dough/{dough.__version__} (+{proj['homepage_url']})"
+    assert proj["desktop_id"] == "io.github.wolfgangwarehaus.trackerkeeper"
+    assert proj["homepage_url"] == "https://github.com/wolfgangwarehaus/trackerkeeper"
+    assert proj["client_identity"] == f"trackerkeeper/{trackerkeeper.__version__} (+{proj['homepage_url']})"
 
 
 def test_context_merges_and_projections_win(sidecar: dict) -> None:
@@ -150,14 +150,14 @@ def test_project_maintainer_matches_sidecar(pyproject: dict, sidecar: dict) -> N
 
 def test_project_entry_point_matches_sidecar(pyproject: dict, sidecar: dict) -> None:
     # the gui-script target is the sidecar entry_point
-    assert pyproject["project"]["gui-scripts"]["dough"] == sidecar["entry_point"]
+    assert pyproject["project"]["gui-scripts"]["trackerkeeper"] == sidecar["entry_point"]
 
 
 # ── 4. no re-literalised composite ids ───────────────────────────────────────
 
 
 def test_no_hardcoded_composite_ids_outside_the_seam() -> None:
-    """No source outside dough/identity.py (where the formula lives) may carry a
+    """No source outside trackerkeeper/identity.py (where the formula lives) may carry a
     composite reverse-DNS / AUMID id — those are PROJECTIONS, computed, never
     typed (docs/BAKING.md §3.2).
 
@@ -169,18 +169,18 @@ def test_no_hardcoded_composite_ids_outside_the_seam() -> None:
     would never match as a verbatim substring — still trips it."""
     import re
 
-    org, app = "wolfgangwarehaus", "dough"  # dough's frozen canonical org/app
+    org, app = "wolfgangwarehaus", "trackerkeeper"  # trackerkeeper's frozen canonical org/app
     patterns = [
         re.compile(re.escape(f"{org}.{app}"), re.I),  # windows_aumid
         re.compile(r"io\.github\." + re.escape(org), re.I),  # app_id_base / desktop_id prefix
         re.compile(r"com\." + re.escape(org) + r"\.", re.I),  # cf_bundle_id prefix
     ]
-    pkg_dir = Path(dough.__file__).parent
+    pkg_dir = Path(trackerkeeper.__file__).parent
     exempt = {"identity.py", "_version.py"}  # the formula home; the generated file
-    # NOTE: scope is the dough/ *.py package only. When the Beat-2 `dough bake`
+    # NOTE: scope is the trackerkeeper/ *.py package only. When the Beat-2 `trackerkeeper bake`
     # renderer + its templates land, extend this to also scan the *.j2 templates
     # and any checked-in manifest fixtures (.desktop / metainfo / deb control /
-    # winget YAML / PKGBUILD) — those aren't .py and don't live under dough/.
+    # winget YAML / PKGBUILD) — those aren't .py and don't live under trackerkeeper/.
     offenders: list[str] = []
     for py in sorted(pkg_dir.rglob("*.py")):
         if py.name in exempt:
@@ -189,6 +189,6 @@ def test_no_hardcoded_composite_ids_outside_the_seam() -> None:
         for pat in patterns:
             if pat.search(text):
                 offenders.append(f"{py.relative_to(pkg_dir)}: matches {pat.pattern!r}")
-    assert not offenders, "re-literalised composite ids (use dough.identity):\n  " + "\n  ".join(
+    assert not offenders, "re-literalised composite ids (use trackerkeeper.identity):\n  " + "\n  ".join(
         offenders
     )

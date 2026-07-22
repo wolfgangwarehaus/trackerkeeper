@@ -1,35 +1,35 @@
-# Translating a dough app
+# Translating a trackerkeeper app
 
-dough carries Qt's standard translation layer (lifted from jellytoast's #232
+trackerkeeper carries Qt's standard translation layer (lifted from jellytoast's #232
 work), so every loaf gets i18n for free. English is the source language; every
-other language is a catalog pair in `dough/i18n/`:
+other language is a catalog pair in `trackerkeeper/i18n/`:
 
-- `dough_<code>.ts` — the editable XML catalog translators work on
-- `dough_<code>.qm` — the compiled binary the app actually loads
+- `trackerkeeper_<code>.ts` — the editable XML catalog translators work on
+- `trackerkeeper_<code>.qm` — the compiled binary the app actually loads
 
-(In a fork, `dough new`'s identity replace renames both the package and the
+(In a fork, `trackerkeeper new`'s identity replace renames both the package and the
 catalog basenames to the fork's slug.)
 
-The app picks a language at startup (`run_app` → `dough.i18n.install`): the
+The app picks a language at startup (`run_app` → `trackerkeeper.i18n.install`): the
 **Settings → Language** override if set, otherwise the system locale. English
 needs no catalog — untranslated strings always fall back to the English source
-text, so a partially-translated catalog is fine to ship. Bare dough ships no
+text, so a partially-translated catalog is fine to ship. Bare trackerkeeper ships no
 catalogs (`SHIPPED_LANGUAGES` is empty) and hides the Language row until a
 fork adds one.
 
 ## Starting a new language
 
 ```bash
-dev/update_translations.sh fr     # bootstraps dough_fr.ts + fills it
+dev/update_translations.sh fr     # bootstraps trackerkeeper_fr.ts + fills it
 ```
 
 Then translate (below), and add the language to `SHIPPED_LANGUAGES` in
-`dough/i18n/__init__.py` (code, English name, native name) — the Settings
+`trackerkeeper/i18n/__init__.py` (code, English name, native name) — the Settings
 dropdown builds itself from that list and appears once it's non-empty.
 
 ## Improving an existing language
 
-1. Open `dough/i18n/dough_<code>.ts` in **Qt Linguist** (`pyside6-linguist`,
+1. Open `trackerkeeper/i18n/trackerkeeper_<code>.ts` in **Qt Linguist** (`pyside6-linguist`,
    installed with the dev venv) or any text editor. Each `<message>` pairs a
    `<source>` English string with a `<translation>`.
 2. Keep `{0}`-style placeholders exactly as they appear — they're filled at
@@ -53,11 +53,11 @@ dropdown builds itself from that list and appears once it's non-empty.
   catalog picks up the new sources (existing translations are preserved;
   changed strings show as "unfinished" until retranslated).
 
-## Numbers, dates, sizes — route through `dough.i18n.fmt`
+## Numbers, dates, sizes — route through `trackerkeeper.i18n.fmt`
 
 Never f-string a number/date/size into a user-visible string — `f"{n}"` bakes
 English separators ("1,234.5") that read wrong in most locales (German:
-"1.234,5"). Use the helpers in `dough/i18n/fmt.py` (`fmt_int`, `fmt_decimal`,
+"1.234,5"). Use the helpers in `trackerkeeper/i18n/fmt.py` (`fmt_int`, `fmt_decimal`,
 `fmt_percent`, `fmt_datetime`, `fmt_duration`, `fmt_file_size`) and drop the
 result into a translated template:
 

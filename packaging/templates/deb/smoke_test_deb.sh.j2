@@ -2,7 +2,7 @@
 # Smoke-test the built .deb inside a CLEAN, NEWER distro than the build runner —
 # proves the Qt xcb Depends closure is COMPLETE on a machine that lacks the
 # build-time libs (the in-runner boot can't: it built on the same host). GENERATED
-# by `dough bake` — edit the template, never this file.
+# by `trackerkeeper bake` — edit the template, never this file.
 #   for img in ubuntu:24.04 debian:stable; do
 #     docker run --rm -v "$PWD:/src:ro" "$img" bash /src/packaging/deb/smoke_test_deb.sh
 #   done

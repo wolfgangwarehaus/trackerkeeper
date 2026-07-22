@@ -1,4 +1,4 @@
-"""dough.credentials — the named-secret store: dual-store with an
+"""trackerkeeper.credentials — the named-secret store: dual-store with an
 AES-GCM-encrypted QSettings fallback, opportunistic backfill /
 legacy-plaintext upgrade, and graceful behavior when the wallet is unusable.
 
@@ -21,8 +21,8 @@ from __future__ import annotations
 import pytest
 from PySide6.QtCore import QSettings
 
-from dough import credentials as cred
-from dough.credentials import _ENC_PREFIX, _decrypt, _encrypt
+from trackerkeeper import credentials as cred
+from trackerkeeper.credentials import _ENC_PREFIX, _decrypt, _encrypt
 
 
 class _FakeKeyring:
@@ -96,7 +96,7 @@ def test_decrypt_corrupted_blob_returns_empty():
 
 
 def test_entropy_is_identity_routed(monkeypatch):
-    from dough import identity
+    from trackerkeeper import identity
 
     before = cred._entropy()
     monkeypatch.setattr(identity, "_app", "someloaf")
@@ -113,7 +113,7 @@ def test_entropy_is_identity_routed(monkeypatch):
 # which a Windows box deliberately doesn't have — the real DPAPI path is
 # exercised there by the plain round-trip tests instead.
 
-from dough.platform_compat import IS_WINDOWS as _REAL_WINDOWS
+from trackerkeeper.platform_compat import IS_WINDOWS as _REAL_WINDOWS
 
 _needs_aesgcm = pytest.mark.skipif(
     _REAL_WINDOWS, reason="simulates Windows from a non-Windows box (needs the v1: AES-GCM arm)"

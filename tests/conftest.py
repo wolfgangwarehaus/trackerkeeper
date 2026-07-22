@@ -1,6 +1,6 @@
-"""Shared fixtures for the dough test suite.
+"""Shared fixtures for the trackerkeeper test suite.
 
-dough is PySide6 code, so almost every test needs a live ``QApplication``. We
+trackerkeeper is PySide6 code, so almost every test needs a live ``QApplication``. We
 deliberately don't depend on ``pytest-qt`` (it's not in the dev extras) — a
 hand-rolled, session-scoped ``qapp`` fixture mirrors the offscreen application
 ``ci.yml``'s boot-smoke builds, so the suite runs headless and deterministically.
@@ -22,23 +22,23 @@ from PySide6.QtWidgets import QApplication
 @pytest.fixture(scope="session")
 def qapp():
     """The process-wide QApplication, identity-stamped exactly like ``main()``:
-    application + organization name ``"dough"`` so the ``QSettings("dough",
-    "dough")`` handle resolves identically under test."""
+    application + organization name ``"trackerkeeper"`` so the ``QSettings("trackerkeeper",
+    "trackerkeeper")`` handle resolves identically under test."""
     app = QApplication.instance() or QApplication([])
-    app.setApplicationName("dough")
-    app.setOrganizationName("dough")
+    app.setApplicationName("trackerkeeper")
+    app.setOrganizationName("trackerkeeper")
     yield app
 
 
 @pytest.fixture(autouse=True)
 def _isolate_identity():
-    """Snapshot and restore the process-global identity (dough.identity is module
+    """Snapshot and restore the process-global identity (trackerkeeper.identity is module
     state mutated by configure()). Defense-in-depth for the whole identity /
     metadata suite: a test that reidentifies the app and fails — or a future one
     that forgets to restore — would otherwise leak into every later assertion.
     Restores the raw ``_owner`` sentinel too, which configure() cannot reset to
     None. Snapshot via the private globals so the reset is exact."""
-    from dough import identity
+    from trackerkeeper import identity
 
     saved = (identity._org, identity._app, identity._display_name, identity._owner)
     yield

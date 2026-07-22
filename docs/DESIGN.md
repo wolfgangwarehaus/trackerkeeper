@@ -1,8 +1,8 @@
-# dough — first-looks design
+# trackerkeeper — first-looks design
 
-dough's promise isn't just "it runs everywhere" — it's **looks right on the very first
+trackerkeeper's promise isn't just "it runs everywhere" — it's **looks right on the very first
 launch**, before the maker touches a pixel. These are the load-bearing defaults that make
-that true. They were proven by building the first real app (butterPDF) WITH dough and
+that true. They were proven by building the first real app (butterPDF) WITH trackerkeeper and
 folding what worked back into the base ([docs/BACKPORT.md](BACKPORT.md)). Honour them; a
 fork inherits a polished surface for free.
 
@@ -79,8 +79,8 @@ Two base primitives back the look above and are worth knowing by name:
 
 ## Per-app, not base
 
-Some butterPDF tuning is app taste and deliberately stays out of dough: the 8px scrollbar
-lane (dough's default is 12px), TopBar density (48px / 36×32 buttons), the per-app
+Some butterPDF tuning is app taste and deliberately stays out of trackerkeeper: the 8px scrollbar
+lane (trackerkeeper's default is 12px), TopBar density (48px / 36×32 buttons), the per-app
 top-bar content, and any document/PDF-specific geometry. A fork overrides these by
 subclassing — the base ships comfortable, grabbable defaults.
 

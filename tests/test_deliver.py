@@ -1,4 +1,4 @@
-"""The Delivery walkthroughs (dough/deliver.py) — state is DETECTED, offline-
+"""The Delivery walkthroughs (trackerkeeper/deliver.py) — state is DETECTED, offline-
 safe, and never touches secret values. Probes are faked at the module seam
 (_run/_gh_json/_http_json), so no test shells out or hits the network."""
 
@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import pytest
 
-from dough import deliver
-from dough.deliver import Ctx
+from trackerkeeper import deliver
+from trackerkeeper.deliver import Ctx
 
 
 @pytest.fixture
@@ -156,19 +156,19 @@ def test_next_version_first_release():
 
 
 def _pypi_payload(home: str) -> dict:
-    return {"info": {"name": "dough", "home_page": home, "project_urls": None}}
+    return {"info": {"name": "trackerkeeper", "home_page": home, "project_urls": None}}
 
 
 def test_pypi_name_conflict_is_flagged_not_live(monkeypatch):
     """A squatted PyPI name must read NAME CONFLICT, never LIVE (found live:
-    pypi 'dough' is a 2015-era third-party package)."""
+    pypi 'trackerkeeper' is a 2015-era third-party package)."""
     monkeypatch.setattr(deliver, "_run", lambda cmd: None)
     monkeypatch.setattr(deliver, "_gh_json", lambda args: None)
     monkeypatch.setattr(
         deliver, "_http_json",
         lambda url: _pypi_payload("https://github.com/someone/else") if "pypi.org" in url else None,
     )
-    c = Ctx(slug="dough", repo="wolfgangwarehaus/dough", display_name="dough")
+    c = Ctx(slug="trackerkeeper", repo="wolfgangwarehaus/trackerkeeper", display_name="trackerkeeper")
     assert c.pypi_state == "conflict"
     out = deliver.board(c)
     assert "NAME CONFLICT" in out and "LIVE" not in out
@@ -189,7 +189,7 @@ def test_pypi_ownership_via_project_urls(monkeypatch):
 
 
 def test_pypi_probes_use_the_distribution_name(monkeypatch):
-    """dough publishes as dough-base (the bare name is squatted): every PyPI
+    """trackerkeeper publishes as trackerkeeper-base (the bare name is squatted): every PyPI
     probe and guide must carry [project].name, never the slug."""
     urls = []
     monkeypatch.setattr(deliver, "_run", lambda cmd: None)
@@ -197,12 +197,12 @@ def test_pypi_probes_use_the_distribution_name(monkeypatch):
     monkeypatch.setattr(
         deliver, "_http_json", lambda url: urls.append(url) or deliver._NOT_FOUND
     )
-    c = Ctx(slug="dough", repo="wolfgangwarehaus/dough", display_name="dough",
-            dist="dough-base")
+    c = Ctx(slug="trackerkeeper", repo="wolfgangwarehaus/trackerkeeper", display_name="trackerkeeper",
+            dist="trackerkeeper-base")
     assert c.pypi_state == "free"
-    assert any("pypi.org/pypi/dough-base/json" in u for u in urls)
+    assert any("pypi.org/pypi/trackerkeeper-base/json" in u for u in urls)
     out = deliver.walkthrough(c, "pypi")
-    assert "PyPI project name:  dough-base" in out
+    assert "PyPI project name:  trackerkeeper-base" in out
 
 
 def test_ctx_dist_defaults_to_slug():
@@ -218,7 +218,7 @@ def test_git_probes_are_anchored_to_the_checkout(monkeypatch):
     _ = Ctx(slug="x", repo="o/x", display_name="x").tag
     (git_call,) = [c for c in seen if c[0] == "git"]
     assert git_call[1] == "-C"
-    from dough import metadata
+    from trackerkeeper import metadata
 
     assert git_call[2] == str(metadata._find_pyproject().parent)
 
@@ -251,8 +251,8 @@ def test_channels_expose_store_url_and_install_cmd(ctx):
 
 
 def test_dough_pypi_install_uses_the_dist_name():
-    """dough publishes as dough-base — the install command must say so."""
-    c = Ctx(slug="dough", repo="wolfgangwarehaus/dough", display_name="dough",
-            dist="dough-base")
+    """trackerkeeper publishes as trackerkeeper-base — the install command must say so."""
+    c = Ctx(slug="trackerkeeper", repo="wolfgangwarehaus/trackerkeeper", display_name="trackerkeeper",
+            dist="trackerkeeper-base")
     pypi = next(ch for ch in deliver._channels() if ch.key == "pypi")
-    assert pypi.install_cmd(c) == "pip install dough-base"
+    assert pypi.install_cmd(c) == "pip install trackerkeeper-base"

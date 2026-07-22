@@ -33,12 +33,12 @@ jobs:
         if: env.HAVE_KEY == 'true'
         uses: KSXGitHub/github-actions-deploy-aur@084b0d9b15415bf9cdb65d44dad1efe37a354050 # v4.2.0
         with:
-          pkgname: dough
+          pkgname: trackerkeeper
           pkgbuild: packaging/aur/PKGBUILD
           commit_username: wolfgangwarehaus
           commit_email: augustvontrips@gmail.com
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: dough ${{ github.event.release.tag_name }}
+          commit_message: trackerkeeper ${{ github.event.release.tag_name }}
           updpkgsums: true
           ssh_keyscan_types: rsa,ecdsa,ed25519
       - name: Dormant — AUR_SSH_PRIVATE_KEY not set

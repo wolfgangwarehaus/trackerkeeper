@@ -1,6 +1,6 @@
 # Accessibility
 
-dough's kit ships accessible by default, and a test keeps forks honest. Three
+trackerkeeper's kit ships accessible by default, and a test keeps forks honest. Three
 rules — they cost minutes at build time and are near-impossible to retrofit:
 
 ## 1. Name everything
@@ -27,14 +27,14 @@ stop to a screen reader.
 dialog and fails on any `QAbstractButton`/combo-like control that announces
 as nothing. Fork the test along with the base; point it at your real
 surfaces. Escape hatch for genuinely decorative controls, used sparingly:
-`w.setProperty("a11y_exempt", True)` (bare dough uses it zero times).
+`w.setProperty("a11y_exempt", True)` (bare trackerkeeper uses it zero times).
 
 ## 2. Focus must be visible
 
 Anything focusable shows where focus is: chrome buttons use the platform
 style's native focus indicator, `Selector` brightens its accent border on
 `:focus`, list surfaces paint the accent keyboard-cursor ring via the
-`dough.keyboard_focus` recipe (`keyboard_focus_in/out`,
+`trackerkeeper.keyboard_focus` recipe (`keyboard_focus_in/out`,
 `keyboard_cursor_active`, `paint_kb_row_ring`). If you suppress an outline
 in QSS, you owe a replacement affordance in the same commit.
 

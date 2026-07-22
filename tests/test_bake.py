@@ -3,7 +3,7 @@
 The committed ``packaging/`` tree is RENDERED output, never hand-authored. These
 guard that contract:
 
-1. **In sync** — a fresh render equals what's committed (the ``dough bake
+1. **In sync** — a fresh render equals what's committed (the ``trackerkeeper bake
    --check`` gate). A hand-edit of a rendered manifest, or a stale render after a
    metadata change, fails here — forcing the edit into the template instead.
 2. **Ids are projections** — the reverse-DNS id stamped into the .desktop /
@@ -27,8 +27,8 @@ import pytest
 
 pytest.importorskip("jinja2")
 
-import dough
-from dough import bake, identity, metadata
+import trackerkeeper
+from trackerkeeper import bake, identity, metadata
 
 
 @pytest.fixture(scope="module")
@@ -51,7 +51,7 @@ def _committed_files(packaging_dir: Path):
 def test_packaging_is_in_sync(packaging_dir: Path) -> None:
     """The committed tree equals a fresh render — the generate-then-verify gate."""
     drift = bake.check(packaging_dir)
-    assert not drift, "packaging out of sync (run `dough bake`):\n  " + "\n  ".join(drift)
+    assert not drift, "packaging out of sync (run `trackerkeeper bake`):\n  " + "\n  ".join(drift)
 
 
 def test_render_is_deterministic(packaging_dir: Path) -> None:
@@ -108,7 +108,7 @@ def test_renders_are_version_stable(packaging_dir: Path) -> None:
     """No committed artifact bakes the version — else the gate would flap every
     commit (setuptools-scm bumps __version__ each commit). The version reaches
     manifests only at release time (docs/BAKING.md §6.2)."""
-    version = dough.__version__
+    version = trackerkeeper.__version__
     offenders: list[str] = []
     for path in _committed_files(packaging_dir):
         if version in path.read_text(encoding="utf-8"):
@@ -133,7 +133,7 @@ def test_release_block_injected_only_with_a_version(packaging_dir: Path) -> None
 
 
 def test_release_render_defaults_a_valid_date(tmp_path: Path, packaging_dir: Path) -> None:
-    """`dough bake --release-version` WITHOUT --release-date self-defaults a real
+    """`trackerkeeper bake --release-version` WITHOUT --release-date self-defaults a real
     date — AppStream rejects a <release> with an empty date, so date="" would be
     silently-invalid output. Rendered into a copy so the committed tree is intact."""
     import re
@@ -148,7 +148,7 @@ def test_release_render_defaults_a_valid_date(tmp_path: Path, packaging_dir: Pat
 
 
 def test_check_ignores_release_version(packaging_dir: Path) -> None:
-    """`dough bake --check --release-version X` must NOT inject a <release> or
+    """`trackerkeeper bake --check --release-version X` must NOT inject a <release> or
     report drift — the gate stays version-free (main() calls check() with no ctx).
     Load-bearing for the CI gate: a refactor threading ctx into check() would break it."""
     rc = bake.main(["--packaging", str(packaging_dir), "--check", "--release-version", "9.9.9"])
@@ -214,7 +214,7 @@ def test_rendered_cask_is_valid_ruby(packaging_dir: Path) -> None:
 
 
 def test_bake_cli_injects_release(tmp_path: Path, packaging_dir: Path) -> None:
-    """`dough bake --release-version` writes the <release> block (the release-time
+    """`trackerkeeper bake --release-version` writes the <release> block (the release-time
     render); the plain CLI / --check stays version-free. Rendered into a copy so
     the committed tree is untouched."""
     shutil.copytree(packaging_dir / "templates", tmp_path / "templates")
@@ -228,12 +228,12 @@ def test_bake_cli_injects_release(tmp_path: Path, packaging_dir: Path) -> None:
 
 def test_templates_use_projections_not_literal_ids(packaging_dir: Path) -> None:
     """Templates must reference {{ app_id_base }} / {{ vendor_id }} etc., never a
-    hardcoded composite id — else a fork renaming itself silently ships dough's
+    hardcoded composite id — else a fork renaming itself silently ships trackerkeeper's
     ids into its manifests (the rendered output legitimately carries the literals;
     only the .j2 sources are scanned)."""
     import re
 
-    org, app = "wolfgangwarehaus", "dough"  # frozen canonical org/app
+    org, app = "wolfgangwarehaus", "trackerkeeper"  # frozen canonical org/app
     patterns = [
         re.compile(re.escape(f"{org}.{app}"), re.I),
         re.compile(r"io\.github\." + re.escape(org), re.I),

@@ -1,6 +1,6 @@
 """Runtime construction guards for the carved-from-music widgets.
 
-Both subscribe to the phantom ``dough.player_state.PlayerBus`` for live
+Both subscribe to the phantom ``trackerkeeper.player_state.PlayerBus`` for live
 re-theming. ``CoverOverlayButton`` wraps the import in try/except (so it
 constructs, but silently loses the subscription); ``EmptyState`` does NOT —
 its import is unwrapped, so merely constructing the widget hard-crashes with
@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 from PySide6.QtWidgets import QWidget
 
-from dough.ui_helpers import CoverOverlayButton, EmptyState
+from trackerkeeper.ui_helpers import CoverOverlayButton, EmptyState
 
 
 @pytest.mark.usefixtures("qapp")

@@ -1,10 +1,10 @@
-# dough — the baking phase
+# trackerkeeper — the baking phase
 
-dough has two halves. The first is the **creation medium** — the rise: a uniform
+trackerkeeper has two halves. The first is the **creation medium** — the rise: a uniform
 window chrome, design system, themes, the platform scaffolding, so a new app is
 mostly its own idea on a frosted base. The second is the **baking phase** — the
 oven: the way one uniform product is *released across every platform and channel*,
-productizing what jellytoast proved in the field. dough rises, then bakes, then
+productizing what jellytoast proved in the field. trackerkeeper rises, then bakes, then
 ships to the stores.
 
 This document is the design for that second half. It's a spec, not yet code —
@@ -15,7 +15,7 @@ real release stack plus each channel's canonical schema.
 > vocabulary (**Ingredients → Baking → Delivery**, then the Improvements loop —
 > see `docs/TODO.md`). In that vocabulary, what this document calls "the baking
 > phase" is the machinery behind the **Delivery** phase (channels, release
-> pipeline, stores). `dough bake` itself is the **render step** — regenerating
+> pipeline, stores). `trackerkeeper bake` itself is the **render step** — regenerating
 > `packaging/` from the metadata sidecar — which a maker runs *during Baking*
 > (the build loop). The doc keeps its historical phrasing; read "baking phase"
 > below as "the Delivery machinery."
@@ -38,7 +38,7 @@ So the baking phase is one idea applied ruthlessly:
 
 > **One metadata source → generate every manifest → verify nothing drifted.**
 
-Everything below is downstream of that sentence. dough already proved the pattern
+Everything below is downstream of that sentence. trackerkeeper already proved the pattern
 on the *design* side — `color_tokens` exports the palette to JSON so the app and
 the landing page share one source of truth. The baking phase is the same move for
 *identity and packaging metadata*.
@@ -47,15 +47,15 @@ the landing page share one source of truth. The baking phase is the same move fo
 
 ## 2. Principles
 
-1. **One metadata source.** A single schema-versioned table — `[tool.dough.metadata]`
+1. **One metadata source.** A single schema-versioned table — `[tool.trackerkeeper.metadata]`
    in `pyproject.toml`, co-located with `[project]` — holds the union field set
    once. Every manifest is rendered from it; none is hand-authored.
 
-2. **Generate-then-verify, never hand-edit-then-test.** A `dough bake` render step
+2. **Generate-then-verify, never hand-edit-then-test.** A `trackerkeeper bake` render step
    reads the metadata + the identity-seam projections and *emits* the metainfo,
    `.desktop`, winget YAMLs, PKGBUILD, `.iss`, AppxManifest, deb control, the
    landing page, `palette.json`. A CI gate re-renders and diffs the committed files
-   against a fresh render — any drift fails the build. (jellytoast lints; dough
+   against a fresh render — any drift fails the build. (jellytoast lints; trackerkeeper
    regenerates.)
 
 3. **Dormancy is the default.** Every secret-bearing channel is guarded by
@@ -69,7 +69,7 @@ the landing page share one source of truth. The baking phase is the same move fo
    version action is `git tag vX.Y.Z`. There is nothing to stamp and no
    consistency gate to need, because version divergence is made *structurally
    impossible* rather than caught afterward. `__version__` is read from a generated
-   `dough/_version.py`; CI resolves the version from the tag and injects it into
+   `trackerkeeper/_version.py`; CI resolves the version from the tag and injects it into
    the version-bearing manifest fields at release time.
 
 5. **OIDC-first; manual-first where the platform demands it.** Prefer tokenless
@@ -84,7 +84,7 @@ the landing page share one source of truth. The baking phase is the same move fo
 
 ### 3.1 The sidecar
 
-`[tool.dough.metadata]` in `pyproject.toml` holds the union field set once,
+`[tool.trackerkeeper.metadata]` in `pyproject.toml` holds the union field set once,
 version-free (version is referenced from `[project]`, never duplicated), and
 schema-versioned with a `metadata_version` key the way `color_tokens` carries a
 `PALETTE_VERSION`. The render engine reads this plus the seam's id projections and
@@ -93,11 +93,11 @@ the tag-resolved version.
 About nine inputs drive everything; the rest are **derived**:
 
 ```
-app_slug          dough
+app_slug          trackerkeeper
 org_slug          wolfgangwarehaus
 github_owner      wolfgangwarehaus
-repo_name         dough
-display_name      dough
+repo_name         trackerkeeper
+display_name      trackerkeeper
 summary           A frosted, cross-platform PySide6 app base
 long_description  <one source, rendered to AppStream <p>/<ul>, deb body, store listing…>
 license_spdx      GPL-2.0-or-later
@@ -109,15 +109,15 @@ license_spdx      GPL-2.0-or-later
 A single logical identity projects into every channel's required shape. These are
 *computed*, never re-literalised:
 
-| Projection | Value (dough) | Consumed by |
+| Projection | Value (trackerkeeper) | Consumed by |
 |---|---|---|
-| `windows_aumid` = `{org}.{app}` | `wolfgangwarehaus.dough` | Win AUMID **and** winget `PackageIdentifier` seed **and** MSIX `Identity Name` |
-| `app_id_base` = `io.github.{owner}.{app}` | `io.github.wolfgangwarehaus.dough` | Flatpak manifest/metainfo/`.desktop`/icon names, deb+AppImage+AUR install paths, Wayland app_id, single-instance prefix |
-| `cf_bundle_id` = `com.{org}.{app}` | `com.wolfgangwarehaus.dough` | macOS `CFBundleIdentifier`, cask `zap` |
-| `homepage_url` = `github.com/{owner}/{repo}` | …/wolfgangwarehaus/dough | issues/releases/changelog/download URLs all derive |
+| `windows_aumid` = `{org}.{app}` | `wolfgangwarehaus.trackerkeeper` | Win AUMID **and** winget `PackageIdentifier` seed **and** MSIX `Identity Name` |
+| `app_id_base` = `io.github.{owner}.{app}` | `io.github.wolfgangwarehaus.trackerkeeper` | Flatpak manifest/metainfo/`.desktop`/icon names, deb+AppImage+AUR install paths, Wayland app_id, single-instance prefix |
+| `cf_bundle_id` = `com.{org}.{app}` | `com.wolfgangwarehaus.trackerkeeper` | macOS `CFBundleIdentifier`, cask `zap` |
+| `homepage_url` = `github.com/{owner}/{repo}` | …/wolfgangwarehaus/trackerkeeper | issues/releases/changelog/download URLs all derive |
 
 The crux: `windows_aumid` is *already hardcoded* at `windows_shortcut.py:48`
-(`APP_USER_MODEL_ID = "wolfgangwarehaus.dough"`) and is exactly `{org}.{app}` — the
+(`APP_USER_MODEL_ID = "wolfgangwarehaus.trackerkeeper"`) and is exactly `{org}.{app}` — the
 same string winget and MSIX need. `app_id_base` is the single most load-bearing
 value in the whole system (it's the immutable application identity, frozen once
 published). The baking phase doesn't invent these — it computes them from the same
@@ -155,7 +155,7 @@ published). The baking phase doesn't invent these — it computes them from the 
 | `store_secrets_of_record` | input/tracked | Inno AppId GUID (immutable), MSIX Publisher CN / PFN / Store ID — **threaded, never regenerated** |
 | `kofi_handle` | input | landing tip box + metainfo `url type=donation` |
 
-`runtime_deps` is the one genuinely app-specific block dough can't own — but the
+`runtime_deps` is the one genuinely app-specific block trackerkeeper can't own — but the
 *projections* of it (AUR depends, deb `Depends`, AppImage bundling) should be
 auto-derived (`dpkg-shlibdeps`, a PyPI→Arch table, `linuxdeploy-plugin-qt`), not
 hand-maintained the way jellytoast does in `XCB_DEPS_WORKLIST.md`.
@@ -169,7 +169,7 @@ The baking phase is the *consumer* of P0 step 4's identity seam, and the researc
 
 - **`configure(org, app, display_name)`** carries only *runtime* identity + its
   deterministic id projections. Its one hard job is the import-time coupling:
-  `design_tokens._load_font_scale` reads `QSettings("dough","dough")` at module
+  `design_tokens._load_font_scale` reads `QSettings("trackerkeeper","trackerkeeper")` at module
   import (`design_tokens.py:53`), *before* a QApplication exists — so identity
   cannot come from `applicationName()`. `configure()` routes that, plus
   `settings.py:18-19,36` and `app.py:30,89-93`, through one call, and exposes the
@@ -183,7 +183,7 @@ The baking phase is the *consumer* of P0 step 4's identity seam, and the researc
 
 - **The overlap** is `org` / `app` / `display_name` / `version`: the seam exposes
   them at runtime, the sidecar/`[project]` holds them at build time, and a CI test
-  (dough's analogue of `test_version_consistency.py`, extended to the id
+  (trackerkeeper's analogue of `test_version_consistency.py`, extended to the id
   projections) asserts the seam's computed `app_id_base` / `windows_aumid` /
   `winget-id` / `desktop-id` match what the renderer stamped into every manifest —
   so a hand-edit that bypasses the seam fails CI.
@@ -251,7 +251,7 @@ oven stamp every manifest from a single source later.
   marketing version. Asset matrix is a **data-driven** size/scale/targetsize table
   rendered from `icon_svg_source` — not jellytoast's bespoke 24-file `make-assets`
   enumeration — plus the `makepri` step jellytoast omits. `is_msix_packaged()` and
-  the StartupTask autostart backend are generic enough to live in dough's
+  the StartupTask autostart backend are generic enough to live in trackerkeeper's
   `platform_compat` / `autostart`, not per app.
 
 - **Hosted apt / PPA** — greenfield, opt-in. `reprepro`/`aptly` → Pages with a
@@ -260,7 +260,7 @@ oven stamp every manifest from a single source later.
   large rework, which is why jellytoast shipped the loose `.deb` instead.
 
 - **macOS** *(a real goal — present but dormant)* — wired into the template now so
-  dough is mac-ready, gated off until you have an Apple account. Full chain:
+  trackerkeeper is mac-ready, gated off until you have an Apple account. Full chain:
   PyInstaller `BUNDLE` (`Info.plist` `CFBundleIdentifier = com.{org}.{app}`,
   relaxed `library-validation` entitlement so PySide6 loads unsigned dylibs) → sign
   nested dylibs **bottom-up** → sign the `.app` → `create-dmg` → sign the dmg →
@@ -291,7 +291,7 @@ the draft + human gate + wait-for-public-asset semantics are *why* it works.
 
 ```
 PHASE 1  — on push, tags: v*
-  release.yml: resolve version from the tag → dough bake (render manifests)
+  release.yml: resolve version from the tag → trackerkeeper bake (render manifests)
     → build every artifact family in parallel → smoke-test → Sigstore provenance
     → create a DRAFT GitHub Release (SHA256SUMS + CHANGELOG-curated notes)
   release-checklist.yml: open the propagation checklist issue
@@ -307,7 +307,7 @@ PHASE 2  — on the release event
 ### 6.2 Dynamic versioning
 
 `pyproject.toml` declares `dynamic = ["version"]` with `setuptools-scm` writing
-`dough/_version.py`; runtime `__version__` reads it. Cutting a release is
+`trackerkeeper/_version.py`; runtime `__version__` reads it. Cutting a release is
 **`git tag vX.Y.Z && git push --tags`** — there is no version to stamp in N files
 and therefore no version-drift class to gate against. CI resolves the version once
 (`${GITHUB_REF_NAME#v}`, factored into a `resolve-version` composite action rather
@@ -346,7 +346,7 @@ placeholders + skip-if-unset guards:
 
 ## 7. Templated `packaging/` layout
 
-`dough bake <name>` walks every `*.j2`, substitutes from `[tool.dough.metadata]` +
+`trackerkeeper bake <name>` walks every `*.j2`, substitutes from `[tool.trackerkeeper.metadata]` +
 the seam projections + the tag-resolved version, and writes a fully-wired tree —
 one command from fork to installable.
 
@@ -360,7 +360,7 @@ one command from fork to installable.
 > so it has no template — only the publish workflow.
 >
 > The `.github/workflows/*` are committed **static `.yml`** (GitHub runs them
-> directly — it can't run a `.j2`), NOT rendered by `dough bake`. They read the
+> directly — it can't run a `.j2`), NOT rendered by `trackerkeeper bake`. They read the
 > sidecar at runtime where they can (`python -c …app_slug/display_name`); the few
 > remaining identity literals (the PyPI URL, the AUR `pkgname`, the commit author)
 > a fork edits by hand. Templatizing the workflows (`*.yml.j2` → `*.yml`) is a
@@ -374,7 +374,7 @@ one command from fork to installable.
 > `.exe` (§5), so only `winget.yml` is committed.
 
 ```
-pyproject.toml                      # [tool.dough.metadata] — the one source
+pyproject.toml                      # [tool.trackerkeeper.metadata] — the one source
 packaging/
   templates/
     freedesktop/  {{app_id_base}}.metainfo.xml.j2   {{app_id_base}}.desktop.j2
@@ -399,14 +399,14 @@ tests/ test_identity_consistency.py.j2   # render-diff gate
 
 ## 8. Build sequencing
 
-Three buckets, mapped onto the dough roadmap:
+Three buckets, mapped onto the trackerkeeper roadmap:
 
 1. **Lift-and-templatize (proven in jellytoast — just parameterize the literals):**
    PyPI, loose `.deb`, AppImage, Windows Inno+PyInstaller, winget, MSIX, the landing
    page, and the whole orchestration spine. The fastest path to "installable on day
    one."
 
-2. **Build fresh as a framework capability (jellytoast hand-rolled per-channel; dough
+2. **Build fresh as a framework capability (jellytoast hand-rolled per-channel; trackerkeeper
    makes it shared data):** the single metadata source, the id-projection engine,
    the generate-then-verify renderer, the data-driven icon/asset matrix, auto-derived
    deb `Depends` + table-driven AUR depends, `linuxdeploy-plugin-qt` bundling, and
@@ -429,7 +429,7 @@ Most of a fork is `org`/`app`/`display_name` + the descriptive fields. A handful
 values are **single-instance identity that must be tracked, never regenerated**, and
 never cross-contaminated between apps:
 
-- **Inno `AppId` GUID** — `dough bake` generates a fresh `uuid4` for a new fork; it is
+- **Inno `AppId` GUID** — `trackerkeeper bake` generates a fresh `uuid4` for a new fork; it is
   immutable thereafter (changing it orphans installed users from upgrades).
 - **MSIX `Publisher CN` / PFN / Store ID** — Partner-Center-issued; left as blank
   placeholders the forker fills after registration.

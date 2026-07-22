@@ -1,4 +1,4 @@
-"""The KWin blur backend's plugin-path shim (dough/blur/_kwin.py).
+"""The KWin blur backend's plugin-path shim (trackerkeeper/blur/_kwin.py).
 
 A pip-installed PySide6 bundles its own Qt, whose library paths don't include
 the distro's /usr/lib/qt6/plugins — so KWindowSystem's platform-integration
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dough.blur import _kwin
+from trackerkeeper.blur import _kwin
 
 
 def _reset_shim_state(monkeypatch):

@@ -1,16 +1,16 @@
-"""dough.diagnostics — the support report: complete, bounded, secret-free."""
+"""trackerkeeper.diagnostics — the support report: complete, bounded, secret-free."""
 
 from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import QSettings
 
-from dough import diagnostics
+from trackerkeeper import diagnostics
 
 
 @pytest.fixture()
 def isolated_settings(tmp_path, monkeypatch):
-    import dough.settings as smod
+    import trackerkeeper.settings as smod
 
     s = smod.Settings.__new__(smod.Settings)
     s._s = QSettings(str(tmp_path / "store.ini"), QSettings.Format.IniFormat)
@@ -19,7 +19,7 @@ def isolated_settings(tmp_path, monkeypatch):
 
 
 def test_report_carries_identity_and_versions(qapp, isolated_settings):
-    from dough import __version__, identity
+    from trackerkeeper import __version__, identity
 
     report = diagnostics.collect_report()
     assert identity.app() in report
@@ -62,9 +62,9 @@ def test_report_binary_values_summarized(qapp, isolated_settings):
 
 
 def test_report_tails_the_log_when_installed(qapp, isolated_settings, tmp_path, monkeypatch):
-    from dough import log as dlog
+    from trackerkeeper import log as dlog
 
-    logf = tmp_path / "dough.log"
+    logf = tmp_path / "trackerkeeper.log"
     lines = [f"line {i}" for i in range(150)]
     logf.write_text("\n".join(lines) + "\n", encoding="utf-8")
     monkeypatch.setattr(dlog, "_file_path", logf)
@@ -74,7 +74,7 @@ def test_report_tails_the_log_when_installed(qapp, isolated_settings, tmp_path, 
 
 
 def test_report_explains_missing_log(qapp, isolated_settings, monkeypatch):
-    from dough import log as dlog
+    from trackerkeeper import log as dlog
 
     monkeypatch.setattr(dlog, "_file_path", None)
     report = diagnostics.collect_report()
@@ -89,7 +89,7 @@ def test_copy_to_clipboard(qapp, isolated_settings):
 
 
 def test_settings_dialog_button_copies(qapp, isolated_settings):
-    from dough.settings_dialog import SettingsDialog
+    from trackerkeeper.settings_dialog import SettingsDialog
 
     dlg = SettingsDialog()
     try:

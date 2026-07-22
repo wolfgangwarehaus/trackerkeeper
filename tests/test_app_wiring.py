@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import pytest
 
-from dough import app as app_mod
-from dough import autostart, notifications
-from dough.bus import AppBus
+from trackerkeeper import app as app_mod
+from trackerkeeper import autostart, notifications
+from trackerkeeper.bus import AppBus
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def test_reconcile_autostart_reasserts_when_enabled(monkeypatch):
     [(False, True), (True, False), (False, False)],
 )
 def test_reconcile_autostart_is_opt_in(monkeypatch, supported, enabled):
-    """dough never turns autostart ON — off or unsupported means no enable()."""
+    """trackerkeeper never turns autostart ON — off or unsupported means no enable()."""
     calls = []
     monkeypatch.setattr(autostart, "is_supported", lambda: supported)
     monkeypatch.setattr(autostart, "is_enabled", lambda: enabled)
@@ -94,7 +94,7 @@ def test_settings_dialog_autostart_toggle(monkeypatch):
         autostart, "disable", lambda: state.__setitem__("enabled", False) or True
     )
 
-    from dough.settings_dialog import SettingsDialog
+    from trackerkeeper.settings_dialog import SettingsDialog
 
     dlg = SettingsDialog()
     try:
@@ -112,7 +112,7 @@ def test_settings_dialog_autostart_toggle(monkeypatch):
 def test_settings_dialog_hides_autostart_when_unsupported(monkeypatch):
     monkeypatch.setattr(autostart, "is_supported", lambda: False)
 
-    from dough.settings_dialog import SettingsDialog
+    from trackerkeeper.settings_dialog import SettingsDialog
 
     dlg = SettingsDialog()
     try:

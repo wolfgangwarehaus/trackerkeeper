@@ -4,7 +4,7 @@ name: macos
 # release is PUBLISHED. DORMANT until the Apple secrets exist (the whole job
 # skips) — macOS is a present-but-dormant goal (docs/BAKING.md §5).
 #
-# One UNIVERSAL2 .dmg (arm64 + x86_64 in a single bundle) — dough has no native
+# One UNIVERSAL2 .dmg (arm64 + x86_64 in a single bundle) — trackerkeeper has no native
 # deps, so a single fat build reaches both chips (see the freeze step for the
 # per-arch-matrix fallback).
 #
@@ -81,20 +81,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install ".[bake]" pyinstaller
           brew install librsvg create-dmg
-          python -m dough.bake --packaging packaging --release-version "$VERSION" --release-date "$(date -u +%F)"
+          python -m trackerkeeper.bake --packaging packaging --release-version "$VERSION" --release-date "$(date -u +%F)"
           # Render the .icns from the brand SVG (an .iconset of the required sizes).
-          ICONSET=packaging/macos/dough.iconset
+          ICONSET=packaging/macos/trackerkeeper.iconset
           mkdir -p "$ICONSET"
           # Canonical iconutil sizes only (NOT 64 — iconutil rejects a non-standard
           # icon_64x64). Each base size + its @2x.
           for s in 16 32 128 256 512; do
-            rsvg-convert -w "$s"     -h "$s"     dough/assets/dough.svg -o "$ICONSET/icon_${s}x${s}.png"
-            rsvg-convert -w $((s*2)) -h $((s*2)) dough/assets/dough.svg -o "$ICONSET/icon_${s}x${s}@2x.png"
+            rsvg-convert -w "$s"     -h "$s"     trackerkeeper/assets/trackerkeeper.svg -o "$ICONSET/icon_${s}x${s}.png"
+            rsvg-convert -w $((s*2)) -h $((s*2)) trackerkeeper/assets/trackerkeeper.svg -o "$ICONSET/icon_${s}x${s}@2x.png"
           done
-          iconutil -c icns "$ICONSET" -o packaging/macos/dough.icns
+          iconutil -c icns "$ICONSET" -o packaging/macos/trackerkeeper.icns
           # UNIVERSAL2: the spec's EXE carries target_arch="universal2" (rendered
-          # by `dough bake`), and the universal2 CPython above lets the freeze emit
-          # both slices; dough has no native deps, so every wheel ships universal2
+          # by `trackerkeeper bake`), and the universal2 CPython above lets the freeze emit
+          # both slices; trackerkeeper has no native deps, so every wheel ships universal2
           # and the freeze never hits a thin binary.
           #
           # HONEST FLOOR: the bundle's REAL macOS minimum is the runner OS — this is
@@ -107,11 +107,11 @@ jobs:
           # below runs ON this floor, so a too-high floor can't ship silently either.
           FLOOR="$(sw_vers -productVersion | cut -d. -f1).0"
           export MACOSX_DEPLOYMENT_TARGET="$FLOOR"
-          pyinstaller packaging/pyinstaller/dough.spec --noconfirm
+          pyinstaller packaging/pyinstaller/trackerkeeper.spec --noconfirm
           /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $FLOOR" \
-            "dist/dough.app/Contents/Info.plist"
+            "dist/trackerkeeper.app/Contents/Info.plist"
           echo "LSMinimumSystemVersion now: $(/usr/libexec/PlistBuddy -c \
-            'Print :LSMinimumSystemVersion' dist/dough.app/Contents/Info.plist)"
+            'Print :LSMinimumSystemVersion' dist/trackerkeeper.app/Contents/Info.plist)"
 
       - name: Smoke-test the .app (boots headless, offscreen)
         if: env.HAVE_APPLE == 'true'
@@ -122,7 +122,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          BIN="dist/dough.app/Contents/MacOS/dough"
+          BIN="dist/trackerkeeper.app/Contents/MacOS/trackerkeeper"
           test -x "$BIN"
           "$BIN" &
           PID=$!
@@ -166,7 +166,7 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           IDENTITY="Developer ID Application"
-          APP="dist/dough.app"
+          APP="dist/trackerkeeper.app"
           ENTITLEMENTS="packaging/macos/entitlements.plist"
           # Sign EVERY nested Mach-O bottom-up — dylibs, .so, AND the Qt/Python
           # .framework binaries (which are neither *.dylib nor *.so, so a name
@@ -182,9 +182,9 @@ jobs:
           codesign --force --timestamp --options runtime \
             --entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$APP"
           codesign --verify --strict --verbose=2 "$APP"
-          DMG="dist/dough-${VERSION}-macos.dmg"
-          create-dmg --volname "dough ${VERSION}" --app-drop-link 480 120 \
-            --icon "dough.app" 160 120 --window-size 640 280 "$DMG" "$APP"
+          DMG="dist/trackerkeeper-${VERSION}-macos.dmg"
+          create-dmg --volname "trackerkeeper ${VERSION}" --app-drop-link 480 120 \
+            --icon "trackerkeeper.app" 160 120 --window-size 640 280 "$DMG" "$APP"
           codesign --force --timestamp --sign "$IDENTITY" "$DMG"
           # Notarize the .dmg. PREFER the App Store Connect API key (scoped,
           # individually revocable, not coupled to an Apple ID's 2FA) when its
@@ -220,5 +220,5 @@ jobs:
         with:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           tap: wolfgangwarehaus/homebrew-tap
-          cask: dough
+          cask: trackerkeeper
           tag: ${{ github.event.release.tag_name || inputs.tag }}

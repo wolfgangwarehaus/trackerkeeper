@@ -1,4 +1,4 @@
-"""dough.settings_migration — the versioned run-once migration runner.
+"""trackerkeeper.settings_migration — the versioned run-once migration runner.
 
 Each test hands migrate() an explicit INI-backed QSettings under tmp_path, so
 nothing touches the real per-user store.
@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from PySide6.QtCore import QSettings
 
-from dough import settings_migration as sm
+from trackerkeeper import settings_migration as sm
 
 
 @pytest.fixture()

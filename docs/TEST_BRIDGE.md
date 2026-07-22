@@ -1,11 +1,11 @@
 # The agent test bridge
 
-Every dough app is born **drivable by an agent**. `DOUGH_TEST_BRIDGE=1` opens
-a dev-only, per-user local socket (`dough/test_bridge.py`) whose JSON commands
+Every trackerkeeper app is born **drivable by an agent**. `TRACKERKEEPER_TEST_BRIDGE=1` opens
+a dev-only, per-user local socket (`trackerkeeper/test_bridge.py`) whose JSON commands
 run on the GUI thread — so a Claude Code session (or any script) can click
 real controls, read the widget tree, flip settings, take screenshots, and read
 back state, deterministically, on every platform. This is the machinery behind
-jellytoast's autonomous QA legs on KDE Wayland, Windows, and macOS; dough
+jellytoast's autonomous QA legs on KDE Wayland, Windows, and macOS; trackerkeeper
 ships it generic so a fork inherits it on day one.
 
 Why a socket instead of synthetic OS input: on Wayland (and in offscreen CI)
@@ -24,10 +24,10 @@ set. Never enable it in a shipped build.
 # under $TMPDIR, and server + client must share it (macOS gives every context
 # a PRIVATE per-user temp dir; sandboxed/systemd launches redirect it on
 # Linux too). Pin both sides:
-TMPDIR=/tmp DOUGH_TEST_BRIDGE=1 python -m dough &   # wait for the window
+TMPDIR=/tmp TRACKERKEEPER_TEST_BRIDGE=1 python -m trackerkeeper &   # wait for the window
 
 # Windows (PowerShell) — named pipes, no TMPDIR concern:
-$env:DOUGH_TEST_BRIDGE=1; python -m dough
+$env:TRACKERKEEPER_TEST_BRIDGE=1; python -m trackerkeeper
 ```
 
 The socket name is `{identity.app()}-test-bridge-{user}` — it follows the
@@ -88,7 +88,7 @@ Register commands in your app code before `run_app` (module import is enough
 — the registry is process-global):
 
 ```python
-from dough import test_bridge
+from trackerkeeper import test_bridge
 
 def _open_document(bridge, args):
     # bridge.app / bridge.win are the live objects; runs on the GUI thread.

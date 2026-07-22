@@ -7,7 +7,7 @@ shape is load-bearing twice over (verified against pyside6 6.x, 2026-07):
   numerus="yes">`` ONLY for ``self.tr(source, disambiguation, n)``. The
   free-function ``QCoreApplication.translate(ctx, source, disamb, n)`` is
   extracted WITHOUT numerus (a plain message), so plural-bearing strings must
-  live on a QObject — that's why ``dough.i18n.fmt`` routes its unit strings
+  live on a QObject — that's why ``trackerkeeper.i18n.fmt`` routes its unit strings
   through the ``_DurationUnits`` QObject rather than module-level translate.
 * **Runtime** — ``QTranslator`` resolves the right ``<numerusform>`` from the
   CLDR plural rules of the catalog's language, and substitutes ``%n``;
@@ -119,7 +119,7 @@ class TestNumerusRuntime:
         assert got == "5 archivos"
 
     def test_fmt_duration_units_translate(self, qapp, spanish_catalog):
-        from dough.i18n.fmt import fmt_duration
+        from trackerkeeper.i18n.fmt import fmt_duration
 
         assert fmt_duration(3600 + 23 * 60) == "1 hora 23 minutos"
         assert fmt_duration(2 * 3600) == "2 horas"

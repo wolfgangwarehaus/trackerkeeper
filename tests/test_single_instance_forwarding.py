@@ -18,13 +18,13 @@ import uuid
 
 import pytest
 
-from dough.single_instance import SingleInstance, _normalize_args
+from trackerkeeper.single_instance import SingleInstance, _normalize_args
 
 _SECOND_LAUNCH = """
 import sys
 from PySide6.QtCore import QCoreApplication
 app = QCoreApplication([])
-from dough.single_instance import SingleInstance
+from trackerkeeper.single_instance import SingleInstance
 si = SingleInstance(sys.argv[1])
 # acquire() must be REFUSED (the test process holds the lock); exit 0 then.
 sys.exit(0 if not si.acquire(sys.argv[2:]) else 3)

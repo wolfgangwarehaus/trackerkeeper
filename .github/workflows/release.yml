@@ -1,7 +1,7 @@
 # Release builds — on every v* tag, build the Linux artifacts and open a DRAFT
 # GitHub release holding them:
-#   • dough_<ver>_amd64.deb         (Ubuntu 22.04+/Debian 12+, self-contained)
-#   • dough-<ver>-x86_64.AppImage   (universal Linux; + .zsync for delta updates)
+#   • trackerkeeper_<ver>_amd64.deb         (Ubuntu 22.04+/Debian 12+, self-contained)
+#   • trackerkeeper-<ver>-x86_64.AppImage   (universal Linux; + .zsync for delta updates)
 #   • sdist + wheel                 (PyPI-shaped, also attached)
 #   • SHA256SUMS
 #
@@ -57,24 +57,24 @@ jobs:
         # Strip the PEP 440 local segment (…+gHASH) so a dispatch dev build yields a
         # clean filename / Debian Version.
         run: |
-          V="$(python -c 'import dough; print(dough.__version__.split("+")[0])')"
+          V="$(python -c 'import trackerkeeper; print(trackerkeeper.__version__.split("+")[0])')"
           echo "version=$V" >> "$GITHUB_OUTPUT"
       - name: Render manifests (inject the release) + freeze
         run: |
           # Render into the ephemeral checkout's packaging/ with the version's
           # <release>; date = the tagged commit's UTC day so it matches the .deb
           # changelog (which keys off the same commit via SOURCE_DATE_EPOCH).
-          python -m dough.bake --packaging packaging \
+          python -m trackerkeeper.bake --packaging packaging \
             --release-version "${{ steps.ver.outputs.version }}" \
             --release-date "$(date -u -d "@$(git log -1 --format=%ct)" +%F)"
-          pyinstaller packaging/pyinstaller/dough.spec --noconfirm
+          pyinstaller packaging/pyinstaller/trackerkeeper.spec --noconfirm
       - name: Frozen-bundle smoke test (Qt offscreen boot probe)
         # A fast in-runner boot on the BUILD host — proves the bundle starts. The
         # dedicated "Smoke-test the .deb in clean containers" step below is the one
         # that proves self-containment on a distro lacking the build-time libs.
         run: |
-          test -x dist/dough/dough
-          QT_QPA_PLATFORM=offscreen timeout 10 dist/dough/dough || [ $? -eq 124 ]
+          test -x dist/trackerkeeper/trackerkeeper
+          QT_QPA_PLATFORM=offscreen timeout 10 dist/trackerkeeper/trackerkeeper || [ $? -eq 124 ]
       - name: Build .deb
         run: bash packaging/deb/build_deb.sh "${{ steps.ver.outputs.version }}"
       - name: Smoke-test the .deb in clean containers (self-containment)
@@ -136,14 +136,14 @@ jobs:
         id: ver
         # One source: setuptools-scm (== the wheel). Strip the PEP 440 local segment.
         run: |
-          V="$(python -c 'import dough; print(dough.__version__.split("+")[0])')"
+          V="$(python -c 'import trackerkeeper; print(trackerkeeper.__version__.split("+")[0])')"
           echo "version=$V" >> "$GITHUB_OUTPUT"
       - name: Render manifests (inject the release) + freeze
         run: |
-          python -m dough.bake --packaging packaging \
+          python -m trackerkeeper.bake --packaging packaging \
             --release-version "${{ steps.ver.outputs.version }}" \
             --release-date "$(date -u -d "@$(git log -1 --format=%ct)" +%F)"
-          pyinstaller packaging/pyinstaller/dough.spec --noconfirm
+          pyinstaller packaging/pyinstaller/trackerkeeper.spec --noconfirm
       - name: Build the AppImage
         run: bash packaging/appimage/build_appimage.sh "${{ steps.ver.outputs.version }}"
       - name: Smoke-test the AppImage in clean containers (self-containment)
@@ -192,23 +192,23 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          $v = python -c "import dough; print(dough.__version__.split('+')[0])"
+          $v = python -c "import trackerkeeper; print(trackerkeeper.__version__.split('+')[0])"
           "version=$v" >> $env:GITHUB_OUTPUT
       - name: Generate the .ico from the brand SVG (best-effort)
         continue-on-error: true
         shell: pwsh
         run: |
-          magick -background none -density 384 "${{ github.workspace }}\dough\assets\dough.svg" `
+          magick -background none -density 384 "${{ github.workspace }}\trackerkeeper\assets\trackerkeeper.svg" `
             -define icon:auto-resize=256,128,64,48,32,16 `
-            "${{ github.workspace }}\packaging\windows\dough.ico"
+            "${{ github.workspace }}\packaging\windows\trackerkeeper.ico"
       - name: Render manifests (version_info + .iss) + freeze
         shell: pwsh
         run: |
           # format-local resolves in the runner's TZ (UTC on GitHub runners), matching
           # the Linux jobs' UTC commit day — not the committer's local %cd.
           $d = git log -1 --format=%cd --date=format-local:%F
-          python -m dough.bake --packaging packaging --release-version ${{ steps.ver.outputs.version }} --release-date $d
-          pyinstaller packaging/pyinstaller/dough.spec --noconfirm
+          python -m trackerkeeper.bake --packaging packaging --release-version ${{ steps.ver.outputs.version }} --release-date $d
+          pyinstaller packaging/pyinstaller/trackerkeeper.spec --noconfirm
       # Sign the frozen bundle (exe + DLLs) BEFORE the installer wraps it, so every
       # shipped binary is signed. Skipped until the Azure secrets are configured.
       - name: Code-sign frozen bundle (Azure Trusted Signing)
@@ -221,14 +221,14 @@ jobs:
           endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
           trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
-          files-folder: ${{ github.workspace }}\dist\dough
+          files-folder: ${{ github.workspace }}\dist\trackerkeeper
           files-folder-filter: exe,dll
           files-folder-recurse: true
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
       - name: Build the Inno Setup installer
-        run: iscc /DAppVersion=${{ steps.ver.outputs.version }} packaging\windows\dough.iss
+        run: iscc /DAppVersion=${{ steps.ver.outputs.version }} packaging\windows\trackerkeeper.iss
       - name: Code-sign the installer (Azure Trusted Signing)
         if: env.SIGN == 'true'
         uses: azure/trusted-signing-action@v0
@@ -247,8 +247,8 @@ jobs:
       - name: Build the portable zip
         shell: pwsh
         run: |
-          Compress-Archive -Path dist\dough\* `
-            -DestinationPath "dist\dough-${{ steps.ver.outputs.version }}-windows-x64-portable.zip"
+          Compress-Archive -Path dist\trackerkeeper\* `
+            -DestinationPath "dist\trackerkeeper-${{ steps.ver.outputs.version }}-windows-x64-portable.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -339,7 +339,7 @@ jobs:
         run: |
           TAG="${{ github.ref_name }}"
           REPO="${{ github.repository }}"
-          NAME="$(python3 -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['tool']['dough']['metadata']['display_name'])")"
+          NAME="$(python3 -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['tool']['trackerkeeper']['metadata']['display_name'])")"
           TITLE="$NAME $TAG"
           if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
             echo "Release $TAG exists — updating in place (idempotent re-run)."

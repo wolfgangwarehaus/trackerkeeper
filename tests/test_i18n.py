@@ -1,8 +1,8 @@
 """i18n — language resolution + the empty-catalog contract.
 
-Covers the boot-time layer only: which language ``dough.i18n`` resolves
+Covers the boot-time layer only: which language ``trackerkeeper.i18n`` resolves
 (Settings override → system locale → English fallback) and that install()
-degrades cleanly while no catalog ships (bare dough's SHIPPED_LANGUAGES is
+degrades cleanly while no catalog ships (bare trackerkeeper's SHIPPED_LANGUAGES is
 empty). Catalog-loading itself is exercised in a fork the moment it ships one
 — the loader is a verbatim lift of jellytoast's, which has a shipped-catalog
 test against its Spanish .qm.
@@ -10,8 +10,8 @@ test against its Spanish .qm.
 
 import pytest
 
-from dough import i18n
-from dough.settings import get_settings
+from trackerkeeper import i18n
+from trackerkeeper.settings import get_settings
 
 
 @pytest.fixture()
@@ -48,7 +48,7 @@ class TestResolvedLanguage:
 
 class TestInstall:
     def test_no_shipped_catalog_stays_english(self, qapp, _lang_settings):
-        # Bare dough ships no catalogs — an explicit pick degrades to English
+        # Bare trackerkeeper ships no catalogs — an explicit pick degrades to English
         # (returns "") and installs nothing.
         _lang_settings.language = "es"
         assert i18n.install(qapp) == ""

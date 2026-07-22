@@ -2,7 +2,7 @@
 inversion): a top-bar factory hook, a pinned footer slot, and a body-backdrop
 paint hook. The final test mimics JellytoastWindow's exact shape — a custom top
 bar + a 3-row body (top bar / content / transport footer) + a frost backdrop —
-to prove a real app can subclass dough.AppWindow without re-running the chrome.
+to prove a real app can subclass trackerkeeper.AppWindow without re-running the chrome.
 """
 
 from __future__ import annotations
@@ -15,16 +15,16 @@ from PySide6.QtWidgets import QLabel, QWidget
 
 @pytest.mark.usefixtures("qapp")
 def test_default_top_bar_unchanged() -> None:
-    from dough.top_bar import TopBar
-    from dough.window import AppWindow
+    from trackerkeeper.top_bar import TopBar
+    from trackerkeeper.window import AppWindow
 
-    win = AppWindow(title="dough")
+    win = AppWindow(title="trackerkeeper")
     assert isinstance(win.top_bar, TopBar)  # default hook still builds TopBar
 
 
 @pytest.mark.usefixtures("qapp")
 def test_custom_top_bar_hook() -> None:
-    from dough.window import AppWindow
+    from trackerkeeper.window import AppWindow
 
     class _Bar(QWidget):
         def __init__(self, parent=None, titlebar_mode=False):
@@ -46,7 +46,7 @@ def test_custom_top_bar_hook() -> None:
 
 @pytest.mark.usefixtures("qapp")
 def test_set_footer_pins_third_row() -> None:
-    from dough.window import AppWindow
+    from trackerkeeper.window import AppWindow
 
     win = AppWindow(title="x")
     win.set_content(QLabel("body"))
@@ -72,7 +72,7 @@ def test_set_footer_pins_third_row() -> None:
 
 @pytest.mark.usefixtures("qapp")
 def test_backdrop_hook_fires_on_paint() -> None:
-    from dough.window import AppWindow
+    from trackerkeeper.window import AppWindow
 
     class _Win(AppWindow):
         painted = 0
@@ -96,7 +96,7 @@ def test_jellytoast_shaped_window() -> None:
     frost backdrop — none of which re-implements chrome."""
     from PySide6.QtWidgets import QStackedWidget
 
-    from dough.window import AppWindow
+    from trackerkeeper.window import AppWindow
 
     class _MusicBar(QWidget):
         def __init__(self, parent=None, titlebar_mode=False):

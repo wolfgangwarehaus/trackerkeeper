@@ -1,8 +1,8 @@
-# Releasing dough
+# Releasing trackerkeeper
 
 **The tag is the version.** setuptools-scm derives the version from the latest
 `git tag vX.Y.Z`; there is nothing to bump in N files. Manifests are *generated*
-from `[tool.dough.metadata]` by `dough bake`, never hand-edited (docs/BAKING.md).
+from `[tool.trackerkeeper.metadata]` by `trackerkeeper bake`, never hand-edited (docs/BAKING.md).
 
 ## Cut a release
 
@@ -34,7 +34,7 @@ uploads workflow artifacts but creates no release.
 
 - **PyPI Trusted Publishing** — add a pending publisher at
   <https://pypi.org/manage/account/publishing/> matching `pypi-publish.yml`
-  (project `dough-base`, owner `wolfgangwarehaus`, repo `dough`, workflow
+  (project `trackerkeeper-base`, owner `wolfgangwarehaus`, repo `trackerkeeper`, workflow
   `pypi-publish.yml`, environment `pypi`). See the header of that workflow.
 - **AUR** *(dormant)* — `aur.yml` publishes the PKGBUILD on `release: released`,
   but skips until you add an `AUR_SSH_PRIVATE_KEY` secret (a dedicated AUR deploy
@@ -65,7 +65,7 @@ uploads workflow artifacts but creates no release.
 ## Verify an artifact
 
 ```sh
-gh attestation verify <file> --repo wolfgangwarehaus/dough
+gh attestation verify <file> --repo wolfgangwarehaus/trackerkeeper
 sha256sum -c SHA256SUMS
 ```
 

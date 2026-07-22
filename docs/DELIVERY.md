@@ -1,14 +1,14 @@
 # Delivery helpers — design + v1 (C1)
 
-> **STATUS: v1 BUILT, 2026-07-03** — `dough/deliver.py` (`dough-deliver` /
-> `python -m dough.deliver`), tests in `tests/test_deliver.py`. The open
+> **STATUS: v1 BUILT, 2026-07-03** — `trackerkeeper/deliver.py` (`trackerkeeper-deliver` /
+> `python -m trackerkeeper.deliver`), tests in `tests/test_deliver.py`. The open
 > questions below were resolved as proposed (separate verb; helper-only
 > selection; interactive-only). One design addition earned in the first real
 > run: **name-ownership detection** — a channel-namespace probe compares the
 > found project's URLs to our repo, because a squatted name must read
-> **NAME CONFLICT**, never LIVE. (Found live immediately: PyPI `dough` is a
+> **NAME CONFLICT**, never LIVE. (Found live immediately: PyPI `trackerkeeper` is a
 > 2015-era third-party package — see the C2 note in `docs/TODO.md`. PyPI
-> `butterpdf` and AUR `dough`/`butterpdf` are free.)
+> `butterpdf` and AUR `trackerkeeper`/`butterpdf` are free.)
 
 ## The problem
 
@@ -26,7 +26,7 @@ update lap*.
 
 ## The shape: `deliver` — a stateful, re-entrant walkthrough
 
-A new shared module `dough/deliver.py` (+ console script `{slug}-deliver`,
+A new shared module `trackerkeeper/deliver.py` (+ console script `{slug}-deliver`,
 synced to loaves like `bake`):
 
     butterpdf-deliver              # the status board: every channel, its state

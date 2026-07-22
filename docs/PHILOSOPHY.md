@@ -1,16 +1,16 @@
-# dough — philosophy
+# trackerkeeper — philosophy
 
-**dough** is the shared base every wolfgang warehaus app is baked from. It's
+**trackerkeeper** is the shared base every wolfgang warehaus app is baked from. It's
 the cross-platform window chrome, the design system, and the platform
 scaffolding — solved once, so a new app is mostly *its own idea* plus a thin
-layer on top. toast (jellytoast) was the first loaf; dough is the starter
+layer on top. toast (jellytoast) was the first loaf; trackerkeeper is the starter
 everything else rises from.
 
-dough is a **fork-and-own starter**, not a dependency. Clone it, rename it,
+trackerkeeper is a **fork-and-own starter**, not a dependency. Clone it, rename it,
 delete what you don't need, and build. It gives you base classes and helpers;
 it never imposes a framework, a lifecycle, or an architecture.
 
-Three things make dough good. Each is a principle, *why* it holds (research +
+Three things make trackerkeeper good. Each is a principle, *why* it holds (research +
 what jellytoast proved in production), and what it means concretely here.
 
 ---
@@ -27,26 +27,26 @@ what jellytoast proved in production), and what it means concretely here.
   one codebase runs on KDE/Wayland and Windows without `if platform:`
   scattered through app code.
 - **One decoupled bus.** `AppBus` (Qt signals): the UI emits intents, the
-  backend reacts, neither holds a reference to the other. dough ships only the
+  backend reacts, neither holds a reference to the other. trackerkeeper ships only the
   generic chrome signals; an app extends the bus with its own. (jellytoast's
-  `PlayerBus` grew to 60+ signals — dough keeps the bus minimal on purpose.)
+  `PlayerBus` grew to 60+ signals — trackerkeeper keeps the bus minimal on purpose.)
 
 ## 2. Light & tight (for making new things)
 
 - **Core is PySide6-only.** Heavy or native dependencies (a PDF engine, mpv,
   a cast stack) live behind `[project.optional-dependencies]`, never in the
   core. `python-mpv` loads `libmpv` *at import time* — exactly what must stay
-  out of the base. dough core installs in seconds with zero native libs.
+  out of the base. trackerkeeper core installs in seconds with zero native libs.
 - **One identity, parameterized once.** App name / app-id / repo URL come from
-  a single source — `dough/identity.py` (or `dough.configure(org, app,
+  a single source — `trackerkeeper/identity.py` (or `trackerkeeper.configure(org, app,
   display_name)` at runtime), which every projection (QSettings handle, Qt
   app/org names, window title, Windows AUMID, desktop id) reads — not hardcoded
   across twenty packaging, autostart, and D-Bus files.
-- **Flat, runnable layout.** A single `dough/` package, `python -m dough`, no
+- **Flat, runnable layout.** A single `trackerkeeper/` package, `python -m trackerkeeper`, no
   install needed from a checkout. Fork → rename → run.
 - **Batteries, templated.** Packaging (PyPI / deb / AppImage / AUR / Windows
   Inno+winget / MSIX / macOS), CI, and the release pipeline ship as
-  `{{placeholder}}` templates rendered by `dough bake` — so a new app is
+  `{{placeholder}}` templates rendered by `trackerkeeper bake` — so a new app is
   installable on day one, not month three.
 
 ## 3. Looks good across platforms, resolutions, and mediums
@@ -75,9 +75,9 @@ what jellytoast proved in production), and what it means concretely here.
 
 ---
 
-## What dough refines vs. jellytoast
+## What trackerkeeper refines vs. jellytoast
 
-dough is jellytoast's proven cross-platform/visual engine, minus the music,
+trackerkeeper is jellytoast's proven cross-platform/visual engine, minus the music,
 plus four deliberate refinements:
 
 1. **`AppBus`** (minimal, generic) instead of a 60-signal `PlayerBus`.
@@ -89,7 +89,7 @@ plus four deliberate refinements:
 ## Conventions inherited from jellytoast
 
 - No autoformatter; wrap by editorial judgment, match surrounding code.
-- All network/disk I/O goes through `dough.async_io` — never a raw
+- All network/disk I/O goes through `trackerkeeper.async_io` — never a raw
   `threading.Thread`.
 - Qt thread affinity: create/touch a `QTimer`/`QObject` only on its owning
   thread; hop back with `QTimer.singleShot(0, app, fn)` / a queued signal.

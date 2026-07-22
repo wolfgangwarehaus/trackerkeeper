@@ -1,8 +1,8 @@
-# dough on macOS — the hardware-earned gotchas
+# trackerkeeper on macOS — the hardware-earned gotchas
 
-This is the distilled, dough-relevant record of what it takes to make a PySide6/Qt6
+This is the distilled, trackerkeeper-relevant record of what it takes to make a PySide6/Qt6
 app feel native on macOS **and** ship it signed, notarized, and Store-eligible. The
-lessons were paid for in real hardware time on the app dough was extracted from
+lessons were paid for in real hardware time on the app trackerkeeper was extracted from
 (jellytoast, on an Intel MacBook Pro · macOS Sequoia 15) and in its now-private
 release ops. Music/player specifics have been stripped; only the base-relevant
 lessons remain.
@@ -15,7 +15,7 @@ lessons remain.
 
 ## 1. Chrome architecture — a real NSWindow, never Qt-frameless
 
-**macOS is the one platform where dough does NOT go frameless.** On KDE Wayland the
+**macOS is the one platform where trackerkeeper does NOT go frameless.** On KDE Wayland the
 window stays decorated with a KWin `noborder` rule; on Windows / GNOME / wlroots it's
 Qt `FramelessWindowHint`. On macOS it keeps its **real NSWindow** — traffic lights,
 native resize / zoom / fullscreen / tiling, and Stage Manager all keep working for
@@ -24,7 +24,7 @@ free. `window._resolve_chrome_mode()` resolves macOS to *all-False* (native chro
 
 The custom look is achieved *without* dropping the frame:
 
-- **`dough/macos_window.py`** — a **transparent titlebar + full-size content view**
+- **`trackerkeeper/macos_window.py`** — a **transparent titlebar + full-size content view**
   (`NSWindowStyleMaskFullSizeContentView`, `setTitlebarAppearsTransparent_`,
   `setTitleVisibility_(Hidden)`, `setTitlebarSeparatorStyleNone`). The frosted body
   flows up under the traffic lights to the native rounded top corners — no separate
@@ -38,7 +38,7 @@ The custom look is achieved *without* dropping the frame:
     position back — **debounced** (a drag fires ~60×/s; syncing mid-drag fights the
     drag and freezes the UI, so it fires once the window has been still ~140ms).
 
-- **`dough/macos_menubar.py`** — the **native global menu bar** (App / File / Edit /
+- **`trackerkeeper/macos_menubar.py`** — the **native global menu bar** (App / File / Edit /
   View / Window / Help). A Qt app with no `QMenuBar` reads as a half-finished port.
   Two subtleties: (1) Qt relocates About/Settings/Quit into the bold app menu by
   QAction **menu *role*** (`AboutRole`/`PreferencesRole`/`QuitRole`), *not* label
@@ -49,14 +49,14 @@ The custom look is achieved *without* dropping the frame:
   native menu on the event loop). Also installs Dock-click reopen.
 
 - **Faux-frost fallback** — when native vibrancy is off (Reduce Transparency on, or
-  pyobjc absent), the body paints `dough/blur/_faux_frost.py`'s `FauxFrost` texture
+  pyobjc absent), the body paints `trackerkeeper/blur/_faux_frost.py`'s `FauxFrost` texture
   instead of a dead near-opaque panel. See §3.
 
 ---
 
 ## 2. Native vibrancy (NSVisualEffectView) — the sibling-below pattern
 
-`dough/blur/_macos.py` is the macOS arm of the blur backend. It installs an
+`trackerkeeper/blur/_macos.py` is the macOS arm of the blur backend. It installs an
 `NSVisualEffectView` (blending mode **behind window**, material
 `UnderWindowBackground`, `.popover` for elevated popups) so the system frost shows
 through Qt's translucent body — the mac-native equivalent of KWin's blur-behind.
@@ -91,14 +91,14 @@ ownership of the content-view slot.
 **Body alpha:** vibrancy veils heavier than KWin's blur, so the shared ~67% glass
 (172) reads too opaque on macOS. `theme._mac_glass_alpha()` caps it to **110 (~43%)**,
 tuned by eye against KDE Plasma, applied as `min(theme_alpha, cap)` so it only ever
-lightens. Env-tunable via `DOUGH_MAC_GLASS_ALPHA`.
+lightens. Env-tunable via `TRACKERKEEPER_MAC_GLASS_ALPHA`.
 
 ---
 
 ## 3. Honor "Reduce Transparency" — including a *live* toggle
 
 The HIG requires honoring System Settings → Accessibility → Display → **Reduce
-Transparency**. dough does, and there's a sharp edge here:
+Transparency**. trackerkeeper does, and there's a sharp edge here:
 
 - `probe()` returns **UNSUPPORTED** when Reduce Transparency is on, so the theme falls
   back to a near-opaque / faux-frost body instead of vibrancy.
@@ -145,10 +145,10 @@ You cannot judge frost from a VM or from Qt's own grab:
 
 ## 5. Signing & notarization (Developer-ID .dmg)
 
-dough's macOS release workflow is `.github/workflows/macos.yml` (a static file, not
+trackerkeeper's macOS release workflow is `.github/workflows/macos.yml` (a static file, not
 templated); the bundle metadata lives in `packaging/templates/macos/**`.
 
-- **Universal2, one fat binary.** dough ships a single `universal2` `.dmg` (arm64 +
+- **Universal2, one fat binary.** trackerkeeper ships a single `universal2` `.dmg` (arm64 +
   x86_64 in one Mach-O) rather than two native per-arch builds. Tradeoff: a universal2
   build is larger and requires universal2 wheels for every native dependency, but it's
   one artifact, one notarization, one download — simpler for a fork to reason about.
@@ -167,15 +167,15 @@ templated); the bundle metadata lives in `packaging/templates/macos/**`.
   `APPLE_ID` + `APPLE_APP_SPECIFIC_PASSWORD` + `APPLE_TEAM_ID`. Staple the ticket to
   the `.dmg` after approval.
 - **Identity flows through the templates — never a literal.** The bundle id is
-  `{{ cf_bundle_id }}` / `dough.identity.cf_bundle_id()` and the app slug is
-  `{{ app_slug }}`; a fork gets its own identity for free via `dough new`. **Never
+  `{{ cf_bundle_id }}` / `trackerkeeper.identity.cf_bundle_id()` and the app slug is
+  `{{ app_slug }}`; a fork gets its own identity for free via `trackerkeeper new`. **Never
   hardcode an app-id or team-id.** The team id comes from CI (`APPLE_TEAM_ID`) or, in
   build-variable contexts, from `$(AppIdentifierPrefix)` / `$(TeamIdentifierPrefix)` —
   not a literal string in a committed file.
 - **Minimal Developer-ID entitlements.** Only `disable-library-validation` (so the
   bundle can load its own signed-with-a-different-cert Python/Qt dylibs) and
   `allow-dyld-environment-variables`. **Do NOT** add a JIT
-  `allow-unsigned-executable-memory` entitlement — dough has no JIT'd media runtime, so
+  `allow-unsigned-executable-memory` entitlement — trackerkeeper has no JIT'd media runtime, so
   it would only widen the attack surface and complicate hardened-runtime review.
 
 ---
@@ -212,12 +212,12 @@ the Developer-ID build is fine with:
 
 | Concern | Module / symbol |
 |---|---|
-| Transparent titlebar + full-size content, position-sync | `dough/macos_window.py` (`apply`, `TITLEBAR_INSET`, `_install_position_sync`) |
-| Native global menu bar + Dock reopen | `dough/macos_menubar.py` (`install`, `set_app_name`, `_strip_app_menu_noise`) |
-| Vibrancy backend (sibling-below, Reduce-Transparency, ax observer) | `dough/blur/_macos.py` (`apply`, `probe`, `install_accessibility_observer`) |
-| No-blur fallback texture | `dough/blur/_faux_frost.py` (`FauxFrost`) |
-| macOS body alpha cap | `dough/theme.py` (`_mac_glass_alpha`, `body_color_for`) |
-| Never-frameless-on-Mac gate | `dough/window.py` (`_resolve_chrome_mode`) |
-| Sandbox / MAS gate | `dough/platform_compat.py` (`is_macos_sandboxed`) |
-| Notifications / autostart backends | `dough/notifications/_macos.py`, `dough/autostart/_macos.py` |
+| Transparent titlebar + full-size content, position-sync | `trackerkeeper/macos_window.py` (`apply`, `TITLEBAR_INSET`, `_install_position_sync`) |
+| Native global menu bar + Dock reopen | `trackerkeeper/macos_menubar.py` (`install`, `set_app_name`, `_strip_app_menu_noise`) |
+| Vibrancy backend (sibling-below, Reduce-Transparency, ax observer) | `trackerkeeper/blur/_macos.py` (`apply`, `probe`, `install_accessibility_observer`) |
+| No-blur fallback texture | `trackerkeeper/blur/_faux_frost.py` (`FauxFrost`) |
+| macOS body alpha cap | `trackerkeeper/theme.py` (`_mac_glass_alpha`, `body_color_for`) |
+| Never-frameless-on-Mac gate | `trackerkeeper/window.py` (`_resolve_chrome_mode`) |
+| Sandbox / MAS gate | `trackerkeeper/platform_compat.py` (`is_macos_sandboxed`) |
+| Notifications / autostart backends | `trackerkeeper/notifications/_macos.py`, `trackerkeeper/autostart/_macos.py` |
 | Bundle metadata (templated) | `packaging/templates/macos/**`, release workflow `.github/workflows/macos.yml` |

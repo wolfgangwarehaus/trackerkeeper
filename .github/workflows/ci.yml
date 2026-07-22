@@ -26,14 +26,14 @@ jobs:
       - name: Install
         run: pip install ruff -e .
       - name: Lint
-        run: ruff check dough/
+        run: ruff check trackerkeeper/
       # The rig owns the smoke (one source — the same verb a maker or an AI
-      # runs locally): offscreen boot + settings dialog. See dough/rig.py.
+      # runs locally): offscreen boot + settings dialog. See trackerkeeper/rig.py.
       - name: Boot smoke (offscreen)
-        run: python -m dough.rig boot
+        run: python -m trackerkeeper.rig boot
 
   tests:
-    # Every platform dough claims to deliver to gets the suite run ON it — the
+    # Every platform trackerkeeper claims to deliver to gets the suite run ON it — the
     # rigging-and-testing direction: a Windows/macOS code bump should fail HERE,
     # not at release time. Linux stays the canonical leg (it also gates bake).
     strategy:
@@ -56,11 +56,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0
       - name: Install (core + dev extras)
         run: pip install -e .[dev]
-      - name: Packaging drift gate (dough bake --check)
+      - name: Packaging drift gate (trackerkeeper bake --check)
         # Linux-only: the gate validates exec bits on rendered .sh, which have
         # no meaning on the Windows filesystem.
         if: runner.os == 'Linux'
-        run: python -m dough.bake --check
+        run: python -m trackerkeeper.bake --check
       - name: Pytest (offscreen)
         env:
           QT_QPA_PLATFORM: offscreen

@@ -1,4 +1,4 @@
-"""dough.updates + dough.update_chip — the daily release check and its chip.
+"""trackerkeeper.updates + trackerkeeper.update_chip — the daily release check and its chip.
 
 Network never leaves the process: _on_finished is driven with a fake reply,
 and maybe_check's gates are tested via monkeypatched channel/settings.
@@ -11,15 +11,15 @@ import json
 import pytest
 from PySide6.QtCore import QSettings
 
-from dough import updates
-from dough.bus import AppBus
+from trackerkeeper import updates
+from trackerkeeper.bus import AppBus
 
 
 @pytest.fixture()
 def isolated_settings(tmp_path, monkeypatch):
     """A Settings instance backed by a throwaway INI, patched in as the
-    process singleton for both dough.settings and the updates module."""
-    import dough.settings as smod
+    process singleton for both trackerkeeper.settings and the updates module."""
+    import trackerkeeper.settings as smod
 
     s = smod.Settings.__new__(smod.Settings)
     s._s = QSettings(str(tmp_path / "store.ini"), QSettings.Format.IniFormat)
@@ -48,22 +48,22 @@ def test_is_newer():
 def test_channel_env_stamp(monkeypatch):
     monkeypatch.setattr(updates, "is_msix_packaged", lambda: False)
     monkeypatch.setattr(updates, "is_macos_sandboxed", lambda: False)
-    monkeypatch.delenv("DOUGH_CHANNEL", raising=False)
+    monkeypatch.delenv("TRACKERKEEPER_CHANNEL", raising=False)
     assert updates.get_channel() == "source"
-    monkeypatch.setenv("DOUGH_CHANNEL", "AUR")
+    monkeypatch.setenv("TRACKERKEEPER_CHANNEL", "AUR")
     assert updates.get_channel() == "aur"
     assert updates.is_auto_update_channel()
 
 
 def test_runtime_probe_wins_over_env(monkeypatch):
     monkeypatch.setattr(updates, "is_msix_packaged", lambda: True)
-    monkeypatch.setenv("DOUGH_CHANNEL", "deb")
+    monkeypatch.setenv("TRACKERKEEPER_CHANNEL", "deb")
     assert updates.get_channel() == "msix"
     assert updates.is_auto_update_channel()
 
 
 def test_auto_channel_suppresses_even_forced(isolated_settings, monkeypatch):
-    monkeypatch.setenv("DOUGH_CHANNEL", "aur")
+    monkeypatch.setenv("TRACKERKEEPER_CHANNEL", "aur")
     monkeypatch.setattr(updates, "is_msix_packaged", lambda: False)
     monkeypatch.setattr(updates, "is_macos_sandboxed", lambda: False)
     called = []
@@ -73,7 +73,7 @@ def test_auto_channel_suppresses_even_forced(isolated_settings, monkeypatch):
 
 
 def test_setting_off_suppresses_automatic_check(isolated_settings, monkeypatch):
-    monkeypatch.delenv("DOUGH_CHANNEL", raising=False)
+    monkeypatch.delenv("TRACKERKEEPER_CHANNEL", raising=False)
     monkeypatch.setattr(updates, "is_msix_packaged", lambda: False)
     monkeypatch.setattr(updates, "is_macos_sandboxed", lambda: False)
     isolated_settings.check_for_updates = False
@@ -87,7 +87,7 @@ def test_setting_off_suppresses_automatic_check(isolated_settings, monkeypatch):
 def test_daily_throttle(isolated_settings, monkeypatch):
     import time as _time
 
-    monkeypatch.delenv("DOUGH_CHANNEL", raising=False)
+    monkeypatch.delenv("TRACKERKEEPER_CHANNEL", raising=False)
     monkeypatch.setattr(updates, "is_msix_packaged", lambda: False)
     monkeypatch.setattr(updates, "is_macos_sandboxed", lambda: False)
     isolated_settings.update_last_check_time = int(_time.time()) - 60
@@ -101,20 +101,20 @@ def test_daily_throttle(isolated_settings, monkeypatch):
 
 
 def test_releases_api_uses_sidecar_repo():
-    # From this checkout the metadata sidecar names wolfgangwarehaus/dough.
+    # From this checkout the metadata sidecar names wolfgangwarehaus/trackerkeeper.
     assert updates._releases_api() == (
-        "https://api.github.com/repos/wolfgangwarehaus/dough/releases/latest"
+        "https://api.github.com/repos/wolfgangwarehaus/trackerkeeper/releases/latest"
     )
 
 
 def test_repo_falls_back_to_identity(monkeypatch):
-    import dough.metadata as md
+    import trackerkeeper.metadata as md
 
     def boom():
         raise md.MetadataError("no sidecar in a frozen build")
 
     monkeypatch.setattr(md, "load", boom)
-    from dough import identity
+    from trackerkeeper import identity
 
     assert updates._repo() == (identity.owner(), identity.app())
 
@@ -196,7 +196,7 @@ def test_older_release_stays_silent(qapp, isolated_settings):
 
 
 def test_chip_shows_on_bus_signal_and_dismiss_remembers(qapp, isolated_settings):
-    from dough.update_chip import UpdateChip
+    from trackerkeeper.update_chip import UpdateChip
 
     chip = UpdateChip()
     try:
@@ -213,11 +213,11 @@ def test_chip_shows_on_bus_signal_and_dismiss_remembers(qapp, isolated_settings)
 
 
 def test_top_bar_carries_the_chip(qapp):
-    from dough.top_bar import TopBar
-    from dough.update_chip import UpdateChip
-    from dough.window import AppWindow
+    from trackerkeeper.top_bar import TopBar
+    from trackerkeeper.update_chip import UpdateChip
+    from trackerkeeper.window import AppWindow
 
-    win = AppWindow(title="dough")
+    win = AppWindow(title="trackerkeeper")
     bar = TopBar(win, titlebar_mode=False)
     try:
         assert isinstance(bar.update_chip, UpdateChip)

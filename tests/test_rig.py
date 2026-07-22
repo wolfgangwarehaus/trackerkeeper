@@ -1,17 +1,17 @@
-"""The rig (dough/rig.py) — the probes must run where they can and decline
+"""The rig (trackerkeeper/rig.py) — the probes must run where they can and decline
 cleanly where they can't (exit 2, never a crash or a false PASS)."""
 
 from __future__ import annotations
 
 import pytest
 
-from dough import rig
+from trackerkeeper import rig
 
 
 def test_pkg_resolves_to_the_package() -> None:
     """_PKG must be the owning package (a fork's rename keeps this correct) —
-    and never '__main__' (the `python -m dough.rig` pitfall)."""
-    assert rig._PKG == "dough"
+    and never '__main__' (the `python -m trackerkeeper.rig` pitfall)."""
+    assert rig._PKG == "trackerkeeper"
 
 
 def test_probe_declines_off_kde(monkeypatch, capsys) -> None:
@@ -92,7 +92,7 @@ def test_baseline_goldens_anchor_to_the_repo_not_the_cwd(tmp_path, monkeypatch):
     """The visual-bump gate's goldens belong to the checkout — running the
     ritual from anywhere else must still find tests/baselines/ (a wrong-CWD
     --update used to bake goldens into $CWD, silently splitting truth)."""
-    from dough import rig
+    from trackerkeeper import rig
 
     monkeypatch.chdir(tmp_path)
     root = rig._repo_root()
@@ -103,7 +103,7 @@ def test_baseline_goldens_anchor_to_the_repo_not_the_cwd(tmp_path, monkeypatch):
 def test_grab_env_scrubs_stray_qt_vars(tmp_path, monkeypatch):
     """A shell's QT_SCALE_FACTOR=2 used to double the grab size → 100% false
     drift (or poisoned goldens via --update). Grabs run with QT_* scrubbed."""
-    from dough import rig
+    from trackerkeeper import rig
 
     seen: dict = {}
 

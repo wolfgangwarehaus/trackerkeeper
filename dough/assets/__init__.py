@@ -1,2 +1,0 @@
-# Package marker so importlib.resources.files("dough.assets") resolves the
-# bundled brand SVG in a built/installed wheel.
