@@ -4,7 +4,7 @@
 # The dough commit this loaf was last reconciled against. `--record` stamps it.
 # Seeded to dough HEAD at init; set it to the commit you actually forked from if
 # you want the first sync to surface everything dough changed since.
-synced_from = "66362e8"
+synced_from = "06e8316"
 
 # Files (relative to the trackerkeeper/ package dir) the fork OWNS — net-new app code or
 # modules it fully rewrote. Sync never reads or writes these.
