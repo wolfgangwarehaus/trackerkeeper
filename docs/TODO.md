@@ -53,14 +53,27 @@ committed to making the breadboard the moat and started building it.
     auto-arms a backing-off QTimer that re-runs _ChannelProbe; channels flip on
     their own, each stamped with its real go-live wall-clock; settle-latch +
     Watch toggle; home-only; probe cleanup on quit. The MVP-of-magic.
-- **Fixed a pre-existing macOS CI red** (not from this work — red since bf4bfc2,
-  the test-bridge landing): `test_bridge._widget_node` filtered children by
-  `hasattr(isVisible)` to mean "widgets only", but QAction has isVisible() too →
-  the walk crashed on `.accessibleName()`. macOS carries QActions in the tree
-  where Linux doesn't, so it only reddened the mac leg (green locally). Now
-  `isinstance(QWidget)` + a regression test. Also re-baked a stale settings
-  baseline in both repos (the dialog gained follow-accent/updates/diagnostics
-  rows in a prior foundation commit; render verified stable + complete).
+- **Fixed TWO pre-existing CI reds** the wind-down "land green" gate surfaced —
+  both from foundation commits that landed before this session and were never
+  3-OS-verified (a "CI green" claim that only checked local Linux):
+  - **dough, macOS red since bf4bfc2:** `test_bridge._widget_node` filtered
+    children by `hasattr(isVisible)` to mean "widgets only", but QAction has
+    isVisible() too → the walk crashed on `.accessibleName()`. macOS carries
+    QActions in the tree where Linux doesn't, so only the mac leg reddened. Now
+    `isinstance(QWidget)` + a regression test. dough is 3-OS green (cd38bea).
+  - **butterPDF, ALL 3 legs red since 5a46df6:** the forwarded-PDF test did
+    `from tests.test_viewer import _minimal_pdf` — resolves only when `tests`
+    is an importable package (true under `python -m pytest`, which puts cwd on
+    sys.path; FALSE under CI's plain `pytest`). Green locally, red in CI. Moved
+    the helper to a `minimal_pdf` conftest fixture (injected by name, no import).
+  - Also re-baked a stale settings baseline in both repos (the dialog gained
+    follow-accent/updates/diagnostics rows in a prior foundation commit; render
+    verified stable + complete).
+  - **LESSON (already in AGENTS.md, reinforced): "CI green" means ALL legs of
+    ALL workflows via `gh run list`, not a local `python -m pytest`.** Local
+    `python -m pytest` masks two whole failure classes — platform-specific
+    (macOS QActions) and invocation-specific (plain `pytest` sys.path). Check
+    the real matrix at every wind-down.
 
 **Resume sequence:**
 1. **Breadboard item 4 — Ship it + the [[requests]] queue** (promote the

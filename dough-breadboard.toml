@@ -173,6 +173,14 @@ priority = "now"
 by = "AI"
 date = "2026-07-21"
 
+[[baking]]
+id = "ebdb99"
+text = "Fix: butterPDF 3-OS CI red — forwarded-PDF test's `from tests.` import; moved to a conftest fixture"
+done = true
+priority = "now"
+by = "AI"
+date = "2026-07-21"
+
 [[delivery]]
 id = "0a0202"
 text = "August's in-person tail: feel verdicts + notification + autostart toggle"
