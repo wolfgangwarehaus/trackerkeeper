@@ -9,9 +9,15 @@ synced_from = "66362e8"
 # Files (relative to the trackerkeeper/ package dir) the fork OWNS — net-new app code or
 # modules it fully rewrote. Sync never reads or writes these.
 authored = [
+    "catalog.py",      # the tracked-fleet model + JSON persistence — net-new
+    "sources.py",      # the update-checker provider engine — net-new
+    "dashboard.py",    # the fleet dashboard UI — net-new
+    "item_dialog.py",  # the add/edit-item form — net-new
 ]
 
 # Files derived from dough but hand-customized. Sync shows dough's upstream diff
 # since `synced_from` so you port changes by hand (never blind-overwrites).
 manual = [
+    "app.py",       # main() wires the dashboard as run_app content (not the placeholder)
+    "identity.py",  # display_name "Tracker Keeper" — the whole-word transform would regress it
 ]

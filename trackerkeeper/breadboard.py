@@ -287,8 +287,10 @@ def _make_view(path: Path):
         "background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);"
         "border-radius:6px;padding:4px 8px;color:#ddd;"
     )
+    # `.QFrame` (exact type) not `QFrame` — a bare selector cascades the border
+    # into child QLabels (QLabel subclasses QFrame), boxing every line of text.
     _CARD_QSS = (
-        "QFrame{background:rgba(255,255,255,0.045);border:1px solid "
+        ".QFrame{background:rgba(255,255,255,0.045);border:1px solid "
         "rgba(255,255,255,0.10);border-radius:10px;}"
     )
 
@@ -665,7 +667,7 @@ def _make_view(path: Path):
             card = QFrame()
             done = col == "done"
             card.setStyleSheet(
-                "QFrame{background:rgba(255,255,255,0.06);border:1px solid "
+                ".QFrame{background:rgba(255,255,255,0.06);border:1px solid "
                 + ("rgba(140,255,140,0.25)" if done else "rgba(255,255,255,0.14)")
                 + ";border-radius:8px;}"
             )
@@ -914,7 +916,7 @@ def _make_view(path: Path):
             the payoff — a green nobody can fake, because it's detected."""
             card = QFrame()
             card.setStyleSheet(
-                "QFrame{background:rgba(86,196,141,0.10);border:1px solid "
+                ".QFrame{background:rgba(86,196,141,0.10);border:1px solid "
                 "rgba(86,196,141,0.45);border-radius:10px;}")
             cv = QVBoxLayout(card)
             cv.setContentsMargins(14, 11, 14, 12)

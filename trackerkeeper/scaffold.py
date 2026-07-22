@@ -30,7 +30,22 @@ from pathlib import Path
 from trackerkeeper import metadata
 
 # trackerkeeper's own dev scaffolding — a fork is an app, not the base, so these go.
-_STRIP = ["dev", "docs/SYNC.md", "docs/ROADMAP.md", "docs/TODO.md"]
+# Includes the tests for base-only tooling that `dev/` carries (sync_loaf, the
+# `trackerkeeper new` verb itself): once dev/ and the loaf AGENTS template are stripped,
+# those tests reference files that no longer exist, so they must go too — else
+# `trackerkeeper new`'s own validate step fails on the fresh loaf. docs/BREADBOARD.md is
+# trackerkeeper's internal moat strategy, not loaf-facing. The base's own
+# `<slug>-breadboard.toml` is stripped dynamically in `_scaffold` (its name
+# depends on the current slug) so the loaf starts with a fresh board.
+_STRIP = [
+    "dev",
+    "docs/SYNC.md",
+    "docs/ROADMAP.md",
+    "docs/TODO.md",
+    "docs/BREADBOARD.md",
+    "tests/test_sync_loaf.py",
+    "tests/test_scaffold.py",
+]
 # text suffixes whose identity references get rewritten.
 _TEXT_SUFFIXES = {".py", ".toml", ".md", ".yml", ".yaml", ".j2", ".svg", ".cfg", ".ini", ".txt", ".sh"}
 _SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", ".ruff_cache", ".venv", "venv", "dist", "build"}
@@ -148,8 +163,10 @@ def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str,
     agents_tpl_path = root / "dev" / "AGENTS.loaf.md"
     agents_tpl = agents_tpl_path.read_text(encoding="utf-8") if agents_tpl_path.is_file() else None
 
-    # 1. strip trackerkeeper's own dev scaffolding.
-    for rel in _STRIP:
+    # 1. strip trackerkeeper's own dev scaffolding + the base's own breadboard file
+    #    (named for the CURRENT slug — the loaf starts with a fresh board, which
+    #    `<slug>-breadboard --init` or the window seeds on first open).
+    for rel in [*_STRIP, f"{old_slug}-breadboard.toml"]:
         _remove(root, rel)
 
     # 2. rename the package dir + the brand asset.

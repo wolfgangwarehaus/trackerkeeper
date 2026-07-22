@@ -1,5 +1,5 @@
 /*
-    dough — full-repaint-on-drag KWin scripted effect.
+    trackerkeeper — full-repaint-on-drag KWin scripted effect.
 
     While one of this app's windows is being interactively moved, hold it under
     an in-progress transform. KWin renders any *transformed* window through
@@ -23,7 +23,7 @@
     the built-in `maximize` effect uses — and clear it when the drag ends.
 
     {{app_id}} is substituted from the running app's identity when the effect is
-    installed (dough/drag_repaint/_kwin.py), so a fork matches its own windows
+    installed (trackerkeeper/drag_repaint/_kwin.py), so a fork matches its own windows
     with no source edit — see the module docstring.
 
     SPDX-License-Identifier: MIT
