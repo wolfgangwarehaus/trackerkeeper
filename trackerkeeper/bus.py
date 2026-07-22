@@ -75,3 +75,31 @@ class AppBus(QObject):
 def get_bus() -> AppBus:
     """Convenience accessor — equivalent to ``AppBus.get()``."""
     return AppBus.get()
+
+
+def register_for_theme(widget, restyle_fn) -> None:
+    """Make a surface's OWN stylesheet track live accent/theme changes.
+
+    Calls ``restyle_fn`` now, again on every ``theme_changed``, and auto-
+    disconnects when ``widget`` is destroyed — the one-line way to fix the
+    "accent didn't apply live" class (a surface that bakes ``ui_helpers.ACCENT``
+    into its own ``setStyleSheet`` and never re-stamps). ``restyle_fn`` MUST read
+    the accent FRESH each call via a module-attribute read (``ui_helpers.ACCENT``
+    / a fresh ``selector_qss()``), never a value captured at construction — see
+    ``update_chip._accent_rgb``. The ``destroyed`` teardown keeps the bus from
+    holding a dangling slot into a deleted C++ widget (segfault-safe)."""
+    bus = AppBus.get()
+    bus.theme_changed.connect(restyle_fn)
+
+    def _drop(*_):
+        # Best-effort: Qt already auto-disconnects a bound-method slot when its
+        # QObject dies, so this often finds nothing — and disconnecting a slot
+        # bound to an already-deleted C++ object raises (RuntimeError chained to
+        # SystemError). Swallow everything; teardown must never surface.
+        try:
+            bus.theme_changed.disconnect(restyle_fn)
+        except Exception:
+            pass
+
+    widget.destroyed.connect(_drop)
+    restyle_fn()

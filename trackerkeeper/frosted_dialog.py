@@ -106,6 +106,28 @@ class FrostedDialog(QDialog):
         self.content_layout.setSpacing(16)
         outer.addWidget(body, 1)
 
+        # Live accent/theme: a dialog is open DURING a Settings accent change
+        # (that's literally where you change it), but the window's re-apply of
+        # GLOBAL_STYLE reaches the main window only — not a live top-level
+        # dialog. Re-stamp our own sheet on theme_changed so the frozen
+        # GLOBAL_STYLE snapshot above (and any subclass QSS) tracks the accent.
+        from trackerkeeper.bus import register_for_theme
+
+        register_for_theme(self, self._restyle)
+
+    def _restyle(self) -> None:
+        """Re-apply the current GLOBAL_STYLE + any subclass QSS with the live
+        accent. Runs once at construction and on every theme_changed."""
+        from trackerkeeper import ui_helpers
+
+        self.setStyleSheet(ui_helpers.GLOBAL_STYLE + self._extra_qss())
+        self.update()
+
+    def _extra_qss(self) -> str:
+        """Subclass QSS appended after GLOBAL_STYLE on every restyle (e.g. the
+        Selector rules). Default none; MUST read accent fresh if it uses it."""
+        return ""
+
     def _build_titlebar(self, title: str, icon_name: str) -> QWidget:
         from trackerkeeper.design_tokens import TYPE_CAPTION, TYPE_SUBHEAD, type_qss
         from trackerkeeper.ui_helpers import TEXT, TEXT_DIM, WASH_HOVER

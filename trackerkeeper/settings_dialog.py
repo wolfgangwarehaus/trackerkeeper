@@ -42,8 +42,10 @@ class SettingsDialog(FrostedDialog):
     def __init__(self, parent=None):
         super().__init__(parent, title="Settings", icon_name="settings", min_width=420)
         self.s = get_settings()
-        # Merge the Selector QSS into the dialog's sheet so the dropdowns style.
-        self.setStyleSheet(self.styleSheet() + selector_qss())
+        # The Selector QSS is folded in by _extra_qss() (below), re-stamped with
+        # the live accent on every theme_changed — so changing the accent while
+        # THIS dialog is open updates its own dropdowns too. (The base already
+        # applied it once via register_for_theme in super().__init__.)
 
         self.content_layout.addWidget(self._label("THEME"))
         self.theme_sel = Selector(accessible_name=self.tr("Theme"))
@@ -173,6 +175,21 @@ class SettingsDialog(FrostedDialog):
             f"color: {ui_helpers.WARN_FG}; {type_qss(TYPE_CAPTION)}"
         )
         self.content_layout.addWidget(self._restart_note)
+
+    # ── Live accent ─────────────────────────────────────────────────────────
+    def _extra_qss(self) -> str:
+        # a FRESH selector_qss() (reads the current accent) folded in after
+        # GLOBAL_STYLE on every restyle — so the dropdown accent borders track
+        # a change made in THIS dialog.
+        return selector_qss()
+
+    def _restyle(self) -> None:
+        super()._restyle()  # GLOBAL_STYLE + selector_qss(), live accent
+        # the "Copy diagnostics" button carries a hover-accent of its own.
+        if hasattr(self, "diagnostics_btn"):
+            from trackerkeeper.design_tokens import BTN_SECONDARY, button_qss
+
+            self.diagnostics_btn.setStyleSheet(button_qss(BTN_SECONDARY))
 
     # ── Builders ───────────────────────────────────────────────────────────
     def _label(self, text: str) -> QLabel:
