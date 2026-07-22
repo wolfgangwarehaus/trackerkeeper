@@ -165,6 +165,14 @@ priority = "later"
 by = "AI"
 date = "2026-07-21"
 
+[[baking]]
+id = "a66662"
+text = "Fix: test-bridge tree walk crashed on QAction children (macOS CI red since bf4bfc2)"
+done = true
+priority = "now"
+by = "AI"
+date = "2026-07-21"
+
 [[delivery]]
 id = "0a0202"
 text = "August's in-person tail: feel verdicts + notification + autostart toggle"

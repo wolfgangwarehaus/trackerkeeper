@@ -30,6 +30,48 @@ moved: `dev/shared.toml` `synced_from` is now `7357dad` and most shared modules 
     "live" (artifact + account + secret + submission). The machinery exists; the
     guided activation doesn't.
 
+## ▶ Wind-down 2026-07-21 — the audit, the moat, and the breadboard grows magical
+
+**The strategy day.** A competitive audit (docs/… + artifact) found the delivery
+pipeline is table-stakes-plus (copyable) and dough's moat is the COMBINATION —
+with the design system and **the breadboard** the hardest-to-clone parts. We
+committed to making the breadboard the moat and started building it.
+
+- **The thesis (docs/BREADBOARD.md):** the breadboard is a TRUST INSTRUMENT —
+  every green is DETECTED from the real machine/internet, never a typed
+  checkbox (extending deliver.py's "state is detected, never recorded" to the
+  whole board), and the maker WATCHES it happen. Pitch sharpened to "AI + one
+  person → a native desktop app in the stores by Friday" (fast lane). Full
+  8-item build ladder in that doc + the AI memory [[breadboard-moat-direction]].
+- **Built + shipped (both repos, 3-OS CI green):**
+  - Item 1 — stable item ids + omit-empty serializer (schema 1→2). Ids survive
+    reorders; empty fields write no line (keeps the TOML hand-editable).
+  - Item 2 — the LIVE card: deliver.py Channels gained store_url + install_cmd;
+    a fully-✓ channel collapses into a green card with the real URL + a copyable
+    install command.
+  - Item 3 — launch mode: when a v* tag isn't all-LIVE, the Delivery tab
+    auto-arms a backing-off QTimer that re-runs _ChannelProbe; channels flip on
+    their own, each stamped with its real go-live wall-clock; settle-latch +
+    Watch toggle; home-only; probe cleanup on quit. The MVP-of-magic.
+- **Fixed a pre-existing macOS CI red** (not from this work — red since bf4bfc2,
+  the test-bridge landing): `test_bridge._widget_node` filtered children by
+  `hasattr(isVisible)` to mean "widgets only", but QAction has isVisible() too →
+  the walk crashed on `.accessibleName()`. macOS carries QActions in the tree
+  where Linux doesn't, so it only reddened the mac leg (green locally). Now
+  `isinstance(QWidget)` + a regression test. Also re-baked a stale settings
+  baseline in both repos (the dialog gained follow-accent/updates/diagnostics
+  rows in a prior foundation commit; render verified stable + complete).
+
+**Resume sequence:**
+1. **Breadboard item 4 — Ship it + the [[requests]] queue** (promote the
+   agent_request scalar to an ordered queue; the project-bar gets one-click
+   "Ship v0.1.0" / "Advance Delivery" templates). Then items 5–8 (ledger +
+   green-flip receipt, the "since you left" ribbon, proof marks, the Bake gate).
+2. **The still-open ship path** (unchanged, now demoable via launch mode):
+   August's last feel verdicts → S1/S2 (HIGH) in butterPDF → roll a [0.1.0]
+   CHANGELOG → `git tag v0.1.0` → C3. Tagging v0.1.0 is now also the first real
+   test of launch mode against a live release.
+
 ## ★ NEW product direction 2026-07-08 (user): THE BREADBOARD — a live maker surface (named by August: a breadboard is where you prototype)
 
 **The insight:** dough needs something the maker INTERACTS WITH during each step
