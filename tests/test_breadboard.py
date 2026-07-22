@@ -222,3 +222,57 @@ def test_set_project_switches_the_bench(tmp_path: Path) -> None:
     view._set_done(view._board["ingredients"][0], True)
     assert board.load(pb)["ingredients"][0]["done"] is True
     assert board.load(pa)["ingredients"][0]["done"] is False
+
+
+# ── v2: stable ids + omit-empty serializer (the moat's foundation) ───────────
+
+
+def test_every_item_gets_a_stable_id(tmp_path: Path) -> None:
+    p = tmp_path / board.FILENAME
+    b = board.default_board("x")
+    board.save(p, b)
+    loaded = board.load(p)
+    ids = [it["id"] for ph in board.PHASES for it in loaded[ph]]
+    assert all(ids) and len(ids) == len(set(ids))  # present + unique
+
+
+def test_ids_survive_edits_and_reorder(tmp_path: Path) -> None:
+    p = tmp_path / board.FILENAME
+    b = board.default_board("x")
+    board.save(p, b)
+    b = board.load(p)
+    first = b["baking"][0]["id"]
+    b["baking"].reverse()            # reorder
+    b["baking"][0]["note"] = "edit"  # edit another
+    board.save(p, b)
+    after = {it["id"] for it in board.load(p)["baking"]}
+    assert first in after  # the id followed its item, not its position
+
+
+def test_omit_empty_keeps_the_file_skimmable(tmp_path: Path) -> None:
+    p = tmp_path / board.FILENAME
+    b = board.default_board("x")
+    b["ingredients"][0]["note"] = "keep me"
+    board.save(p, b)
+    text = p.read_text()
+    # a blank by/date/note writes NO line; the one real note survives
+    assert 'note = "keep me"' in text
+    assert 'note = ""' not in text and 'by = ""' not in text
+    assert board.load(p)["ingredients"][0]["note"] == "keep me"
+
+
+def test_schema1_file_upgrades_on_next_save(tmp_path: Path) -> None:
+    """A hand-written schema-1 board (no ids) loads, then gains ids + schema 2
+    the first time it's saved — no migration step, no data loss."""
+    p = tmp_path / board.FILENAME
+    p.write_text(
+        'schema = 1\ngoal = "g"\n[[baking]]\ntext = "old item"\ndone = false\n',
+        encoding="utf-8",
+    )
+    b = board.load(p)
+    assert b["baking"][0].get("id") in (None, "")  # not yet minted
+    board.save(p, b)
+    reloaded = board.load(p)
+    assert reloaded["schema"] == 2
+    assert reloaded["baking"][0]["id"]
+    assert reloaded["baking"][0]["text"] == "old item"

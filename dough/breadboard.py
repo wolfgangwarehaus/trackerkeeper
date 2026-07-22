@@ -33,11 +33,13 @@ it; :func:`save` emits it deterministically (no TOML-writer dependency).
 from __future__ import annotations
 
 import argparse
+import secrets
 import sys
 import tomllib
 from datetime import date
 from pathlib import Path
 
+SCHEMA = 2  # v2: every item carries a stable `id`; empty fields are omitted
 PHASES = ("ingredients", "baking", "delivery", "improvements")
 _PHASE_TITLES = {
     "ingredients": "Ingredients",
@@ -74,11 +76,12 @@ def board_path() -> Path:
 
 def load(path: Path) -> dict:
     """The parsed board, with every phase key present (missing → empty) and
-    baking items carrying a priority."""
+    baking items carrying a priority. A schema-1 file (no ids) loads fine —
+    ids are minted on the next :func:`save`."""
     data = tomllib.loads(Path(path).read_text(encoding="utf-8"))
     for phase in PHASES:
         data.setdefault(phase, [])
-    data.setdefault("schema", 1)
+    data.setdefault("schema", SCHEMA)
     data.setdefault("product", _PKG)
     data.setdefault("goal", "")
     data.setdefault("purpose", "")
@@ -87,6 +90,26 @@ def load(path: Path) -> dict:
         if item.get("priority") not in PRIORITIES:
             item["priority"] = "next"
     return data
+
+
+def _new_id() -> str:
+    """A short, collision-improbable item id (6 hex chars) — the stable handle
+    the agent and git history reference an item by, immune to reordering."""
+    return secrets.token_hex(3)
+
+
+def _ensure_ids(board: dict) -> None:
+    """Mint a stable `id` for every item that lacks one (or collides), in
+    place. Idempotent: an item that already has a unique id keeps it, so
+    ids survive edits, reorders, and round-trips."""
+    seen: set[str] = set()
+    for phase in PHASES:
+        for item in board.get(phase, []):
+            iid = item.get("id")
+            while not iid or iid in seen:
+                iid = _new_id()
+            item["id"] = iid
+            seen.add(iid)
 
 
 def discover_projects(home: Path | None = None) -> list[tuple[str, Path]]:
@@ -119,14 +142,20 @@ def _toml_str(s: str) -> str:
 
 
 def save(path: Path, board: dict) -> None:
-    """Deterministic emit of the v1 schema — same input, same bytes, so git
-    diffs stay honest and the agent/window never fight over formatting."""
+    """Deterministic emit — same input, same bytes, so git diffs stay honest
+    and the agent/window never fight over formatting. Mints stable ids first
+    (see :func:`_ensure_ids`) and OMITS empty ``by``/``date``/``note`` so the
+    file stays skimmable and hand-editable — "the file IS the API" only holds
+    while a human still wants to open it."""
+    _ensure_ids(board)
     lines = [
         "# The breadboard — the live maker surface. The WINDOW (`{0}-breadboard`) and".format(_PKG),
         "# the AI AGENT both read and write this file; your edits here are directives",
         "# the agent re-ingests (see AGENTS.md). Git-tracked on purpose.",
         "",
-        f"schema = {int(board.get('schema', 1))}",
+        # a save always emits the CURRENT format, so it declares the current
+        # schema — this is how a hand-written schema-1 file upgrades on write
+        f"schema = {SCHEMA}",
         f"product = {_toml_str(board.get('product', _PKG))}",
         f"goal = {_toml_str(board.get('goal', ''))}",
         f"purpose = {_toml_str(board.get('purpose', ''))}",
@@ -138,6 +167,7 @@ def save(path: Path, board: dict) -> None:
             lines += [
                 "",
                 f"[[{phase}]]",
+                f"id = {_toml_str(item['id'])}",
                 f"text = {_toml_str(item.get('text', ''))}",
                 f"done = {'true' if item.get('done') else 'false'}",
             ]
@@ -146,11 +176,10 @@ def save(path: Path, board: dict) -> None:
                 lines.append(
                     f"priority = {_toml_str(prio if prio in PRIORITIES else 'next')}"
                 )
-            lines += [
-                f"by = {_toml_str(item.get('by', ''))}",
-                f"date = {_toml_str(item.get('date', ''))}",
-                f"note = {_toml_str(item.get('note', ''))}",
-            ]
+            for key in ("by", "date", "note"):
+                val = item.get(key, "")
+                if val:  # omit-empty: a blank stamp/note writes no line
+                    lines.append(f"{key} = {_toml_str(val)}")
     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -166,7 +195,7 @@ def default_board(product: str) -> dict:
         return out
 
     return {
-        "schema": 1,
+        "schema": SCHEMA,
         "product": product,
         "goal": f"Ship {product} to real users through the Delivery matrix.",
         "purpose": "",
