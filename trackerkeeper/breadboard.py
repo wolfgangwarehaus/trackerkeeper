@@ -1368,14 +1368,145 @@ def _make_view(path: Path, restore: dict | None = None):
     return BoardView()
 
 
-def main(argv: list[str] | None = None) -> int:
+# ── the headless CLI (agent-facing: edit the board without hand-writing TOML) ──
+
+
+def _find_item(board: dict, iid: str) -> "tuple[str | None, dict | None]":
+    """(phase, item) for the item whose id is ``iid``, or (None, None)."""
+    for phase in PHASES:
+        for item in board.get(phase, []):
+            if item.get("id") == iid:
+                return phase, item
+    return None, None
+
+
+def _print_board(board: dict, only: str | None = None) -> None:
+    """A readable dump — the ids + state every other subcommand takes as input."""
+    req = board.get("agent_request", "")
+    if req and not only:
+        print(f"! agent_request: {req}")
+    for phase in ([only] if only else PHASES):
+        items = board.get(phase, [])
+        openn = sum(1 for i in items if not i.get("done"))
+        print(f"# {phase}  ({openn} open / {len(items)})")
+        for it in items:
+            box = "x" if it.get("done") else " "
+            prio = (f" [{it.get('priority')}]"
+                    if phase == "baking" and it.get("priority") else "")
+            note = f"  — {it['note']}" if it.get("note") else ""
+            print(f"  [{box}] {it.get('id', '??????')}  {it.get('text', '')}{prio}{note}")
+
+
+def _apply_cmd(args, path: Path) -> int:
+    """Run one headless subcommand: load → mutate → byte-stable save. The open
+    window's file-watch live-reloads each change, so the maker sees it land."""
+    if not path.is_file():
+        print(f"no board at {path} — seed one with `{_PKG}-breadboard --init`",
+              file=sys.stderr)
+        return 1
+    board = load(path)
+
+    if args.cmd == "list":
+        _print_board(board, args.phase)
+        return 0
+
+    if args.cmd == "add":
+        item = {
+            "text": args.text, "done": bool(args.done),
+            "by": args.by, "date": date.today().isoformat(), "note": args.note or "",
+        }
+        if args.phase == "baking":
+            item["priority"] = args.priority or "next"
+        board.setdefault(args.phase, []).append(item)
+        save(path, board)  # mints the stable id in place
+        print(item["id"])  # the handle for a later check/note/rm
+        return 0
+
+    if args.cmd == "request":
+        board["agent_request"] = "" if args.clear else args.text
+        save(path, board)
+        print("agent_request cleared" if args.clear or not args.text
+              else f"agent_request set: {board['agent_request']}")
+        return 0
+
+    # everything below addresses one existing item by its id
+    phase, item = _find_item(board, args.id)
+    if item is None:
+        print(f"no breadboard item with id {args.id!r} "
+              f"(run `{_PKG}-breadboard list` to see ids)", file=sys.stderr)
+        return 1
+    if args.cmd == "check":
+        item["done"] = not args.off
+        item["by"] = args.by
+        item["date"] = date.today().isoformat()
+        if args.note is not None:
+            item["note"] = args.note
+        msg = "reopened" if args.off else "done"
+    elif args.cmd == "note":
+        item["note"] = args.text
+        msg = "note set"
+    elif args.cmd == "priority":
+        if phase != "baking":
+            print(f"priority applies to baking items; {args.id} is in {phase}",
+                  file=sys.stderr)
+            return 1
+        item["priority"] = args.priority
+        msg = f"priority → {args.priority}"
+    elif args.cmd == "rm":
+        board[phase].remove(item)
+        msg = "removed"
+    save(path, board)
+    print(f"{args.id}: {msg}")
+    return 0
+
+
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=f"{_PKG}-breadboard",
         description="The live maker board: goals + phase checklists, shared with the AI agent.",
     )
     parser.add_argument("--init", action="store_true",
                         help=f"seed a fresh {FILENAME} (refuses to overwrite)")
-    args = parser.parse_args(argv)
+    sub = parser.add_subparsers(
+        dest="cmd", metavar="<command>",
+        help="edit the board headlessly (no window); omit to open the window")
+
+    p = sub.add_parser("list", help="print items with their ids + state")
+    p.add_argument("phase", nargs="?", choices=PHASES, help="only this phase")
+
+    p = sub.add_parser("add", help="add an item to a phase; prints its new id")
+    p.add_argument("phase", choices=PHASES)
+    p.add_argument("text")
+    p.add_argument("--priority", choices=PRIORITIES, help="baking column (default next)")
+    p.add_argument("--by", default="agent", help="who added it (default agent)")
+    p.add_argument("--note", default="", help="a note on the item")
+    p.add_argument("--done", action="store_true", help="add it already checked")
+
+    p = sub.add_parser("check", help="mark an item done (--off to reopen)")
+    p.add_argument("id")
+    p.add_argument("--off", action="store_true", help="uncheck instead of check")
+    p.add_argument("--by", default="agent")
+    p.add_argument("--note", default=None, help="also set the item's note")
+
+    p = sub.add_parser("note", help="set an item's note")
+    p.add_argument("id")
+    p.add_argument("text")
+
+    p = sub.add_parser("priority", help="move a baking item between kanban columns")
+    p.add_argument("id")
+    p.add_argument("priority", choices=PRIORITIES)
+
+    p = sub.add_parser("rm", help="remove an item")
+    p.add_argument("id")
+
+    p = sub.add_parser("request", help="set / clear the top-level agent_request")
+    p.add_argument("text", nargs="?", default="")
+    p.add_argument("--clear", action="store_true", help="clear it (once you've fulfilled it)")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
 
     path = board_path()
     if args.init:
@@ -1385,6 +1516,8 @@ def main(argv: list[str] | None = None) -> int:
         save(path, default_board(_PKG))
         print(f"seeded {path}. Open it with `{_PKG}-breadboard`.")
         return 0
+    if getattr(args, "cmd", None):  # a headless subcommand → no window
+        return _apply_cmd(args, path)
     if not path.is_file():
         save(path, default_board(_PKG))
         print(f"(no board yet — seeded {path})")
