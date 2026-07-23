@@ -33,6 +33,7 @@ it; :func:`save` emits it deterministically (no TOML-writer dependency).
 from __future__ import annotations
 
 import argparse
+import os
 import secrets
 import sys
 import tomllib
@@ -255,9 +256,12 @@ def _project_info(root: Path) -> dict:
 # ── the window half ──────────────────────────────────────────────────────────
 
 
-def _make_view(path: Path):
+def _make_view(path: Path, restore: dict | None = None):
     """The breadboard window content. Imported lazily so the file half stays
-    importable headless (tests, agents)."""
+    importable headless (tests, agents).
+
+    ``restore`` (set only by a self-reload relaunch) re-opens the same phase +
+    agent drawer and resumes the agent conversation once the window is live."""
     import re
 
     from PySide6.QtCore import QFileSystemWatcher, Qt, QThread, QTimer, Signal
@@ -416,6 +420,16 @@ def _make_view(path: Path):
             self._agent_btn.clicked.connect(lambda _=False: self._toggle_agent())
             self._prime_agent_button()
             projbar.addWidget(self._agent_btn)
+            # ⟳ Reload — restart the breadboard onto the code now on disk (after
+            # the agent edits trackerkeeper), keeping your place + the agent session.
+            self._reload_btn = ui_helpers.RoundedButton("⟳ Reload", variant="ghost")
+            self._reload_btn.setToolTip(
+                "Restart the breadboard on the latest trackerkeeper code without losing\n"
+                "your place. Validates the code imports first, saves which project\n"
+                "and phase you're on, and resumes the agent conversation "
+                "(claude --continue).")
+            self._reload_btn.clicked.connect(lambda _=False: self._request_reload())
+            projbar.addWidget(self._reload_btn)
             root.addLayout(projbar)
 
             # ── board (top) + agent terminal drawer (bottom), splittable ──
@@ -458,6 +472,7 @@ def _make_view(path: Path):
             self._term_host = self._build_agent_drawer()
             self._term_host.setVisible(False)
             self._term = None  # the live TerminalWidget, spawned on first open
+            self._resume_agent = False  # one-shot: next spawn does claude --continue
             self._split.addWidget(self._term_host)
             root.addWidget(self._split, 1)
             # apply orientation + board↔terminal order now; sizes wait for open
@@ -487,6 +502,11 @@ def _make_view(path: Path):
             from trackerkeeper.bus import register_for_theme
 
             register_for_theme(self, self._on_theme)
+
+            # a self-reload relaunch restores its place once the window is live
+            # (after show + layout, so the split sizes for the real geometry)
+            if restore:
+                QTimer.singleShot(0, lambda: self._apply_restore(restore))
 
         def _on_theme(self) -> None:
             nonlocal accent
@@ -617,8 +637,12 @@ def _make_view(path: Path):
             from trackerkeeper import terminal
 
             slug = _project_info(self._root)["slug"]
-            self._agent_title.setText(f"⌨ claude · {slug}  ({self._root})")
-            self._term = terminal.TerminalWidget(terminal.claude_argv(), cwd=self._root)
+            resume, self._resume_agent = self._resume_agent, False  # consume one-shot
+            self._agent_title.setText(
+                f"⌨ claude · {slug}  ({self._root})"
+                + ("  — resuming" if resume else ""))
+            self._term = terminal.TerminalWidget(
+                terminal.claude_argv(resume=resume), cwd=self._root)
             self._term.exited.connect(self._on_agent_exit)
             self._term_slot.addWidget(self._term)
 
@@ -638,6 +662,73 @@ def _make_view(path: Path):
             if self._term is not None:
                 self._agent_title.setText(
                     self._agent_title.text() + f"  — exited ({code}); press restart")
+
+        # ── self-reload: restart onto the code now on disk ────────────────
+        def _current_phase(self) -> str:
+            for ph, b in self._pill_buttons.items():
+                if b.isChecked():
+                    return ph
+            return self._first_open_phase()
+
+        @staticmethod
+        def _validate_reload() -> tuple[bool, str]:
+            """Prove the on-disk code still imports BEFORE we exec into it — a
+            syntax error the agent just left would otherwise crash-loop the
+            relaunch. A fresh subprocess imports the surfaces a relaunch needs;
+            non-zero means don't reload (stay on the good in-memory code)."""
+            import subprocess
+
+            mods = ("app", "window", "breadboard", "terminal", "ui_helpers")
+            code = "import " + ", ".join(f"{_PKG}.{m}" for m in mods)
+            try:
+                r = subprocess.run(
+                    [sys.executable, "-c", code],
+                    capture_output=True, text=True, timeout=60)
+            except Exception as e:  # pragma: no cover - subprocess spawn failure
+                return False, str(e)
+            return r.returncode == 0, (r.stderr.strip() or r.stdout.strip())
+
+        def _apply_restore(self, r: dict) -> None:
+            """Re-open the saved phase + agent drawer after a self-reload."""
+            phase = r.get("phase")
+            if phase in PHASES:
+                self._show_phase(phase)
+            if r.get("agent") and self._agent_btn.isEnabled():
+                self._resume_agent = bool(r.get("resume"))  # → claude --continue
+                self._agent_btn.setChecked(True)
+                self._toggle_agent()
+
+        def _request_reload(self) -> None:
+            from PySide6.QtWidgets import QMessageBox
+
+            ok, err = self._validate_reload()
+            if not ok:
+                QMessageBox.warning(
+                    self, "Reload blocked",
+                    "The code on disk didn't import — not restarting (your running "
+                    "app is untouched). Fix this, then reload again:\n\n"
+                    + (err or "(no detail)")[-1500:])
+                return
+            restore = {
+                "project": str(self._path),
+                "phase": self._current_phase(),
+                # resume the agent only if a terminal is live right now
+                "agent": self._term is not None and not self._term_host.isHidden(),
+                "resume": self._term is not None,
+            }
+            get_settings().save_geometry(self.window())  # execv skips closeEvent
+            self._cleanup()  # stop probes/timers + close the pty (claude flushed)
+            import json
+
+            os.environ["TRACKERKEEPER_BREADBOARD_RESTORE"] = json.dumps(restore)
+            argv = [sys.executable, "-m", f"{_PKG}.breadboard", *sys.argv[1:]]
+            try:
+                os.execve(sys.executable, argv, os.environ)
+            except OSError as e:  # exec failed → we're still alive; report it
+                os.environ.pop("TRACKERKEEPER_BREADBOARD_RESTORE", None)
+                from PySide6.QtWidgets import QMessageBox
+
+                QMessageBox.critical(self, "Reload failed", f"Couldn't relaunch:\n{e}")
 
         # ── project switching + the wind-down request ─────────────────────
         def _on_project_pick(self, _idx: int) -> None:
@@ -1298,9 +1389,32 @@ def main(argv: list[str] | None = None) -> int:
         save(path, default_board(_PKG))
         print(f"(no board yet — seeded {path})")
 
+    # a self-reload relaunch hands us its place back through the environment;
+    # pop it so it never leaks into the agent subprocess or a later reload
+    restore = _read_restore_env()
+    if restore and restore.get("project"):
+        rp = Path(restore["project"])
+        if rp.is_file():
+            path = rp  # re-open the SAME project the maker was on
+
     from trackerkeeper.app import run_app
 
-    return run_app(lambda window: _make_view(path), single_instance=False)
+    return run_app(lambda window: _make_view(path, restore), single_instance=False)
+
+
+def _read_restore_env() -> dict | None:
+    """Decode + consume the self-reload restore token (see BoardView._request_
+    reload). Popped from the environment so it can't leak downstream."""
+    import json
+
+    raw = os.environ.pop("TRACKERKEEPER_BREADBOARD_RESTORE", None)
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else None
+    except (ValueError, TypeError):
+        return None
 
 
 if __name__ == "__main__":  # pragma: no cover

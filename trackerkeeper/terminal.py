@@ -288,15 +288,20 @@ class TerminalWidget(QWidget):
         super().closeEvent(e)
 
 
-def claude_argv() -> list[str]:
+def claude_argv(resume: bool = False) -> list[str]:
     """The command the breadboard runs — the Claude Code CLI. Overridable via
-    TRACKERKEEPER_AGENT_CMD (e.g. a wrapper, or a plain shell to try the terminal)."""
+    TRACKERKEEPER_AGENT_CMD (e.g. a wrapper, or a plain shell to try the terminal).
+
+    ``resume`` adds ``--continue`` so a relaunched breadboard picks the last
+    conversation in the project dir back up — the seam that lets trackerkeeper reload
+    its own code without dropping the agent session. Only the default ``claude``
+    path gets the flag; an explicit override is always run verbatim."""
     import shlex
 
     override = os.environ.get("TRACKERKEEPER_AGENT_CMD")
     if override:
         return shlex.split(override)
-    return ["claude"]
+    return ["claude", "--continue"] if resume else ["claude"]
 
 
 def agent_available() -> bool:
