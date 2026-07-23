@@ -30,6 +30,40 @@ aesthetic, delivery targets — the `[tool.trackerkeeper.metadata]` sidecar in
 **Delivery** (per-channel release via the rendered `packaging/` tree) — then
 the **Improvements loop**: Baking ⇄ Delivery, forever.
 
+## Working the breadboard (the surface you share with the maker)
+
+`trackerkeeper-breadboard.toml` is the contract between three parties — the
+maker, the breadboard **window**, and you. All three read AND write it, and it's
+git-tracked so its history is the project's. The window (`trackerkeeper-breadboard`)
+watches the file and **live-reloads the instant you save it**, so the maker
+watches your edits land. It is the source of truth for *what to do next* — keep
+it honest as you work, don't let it drift behind reality.
+
+**The contract**
+
+- Maker edits are **directives** — re-ingest before continuing: an unchecked item
+  is work, a check you didn't make is a decision, a `note` is the maker steering.
+- **`agent_request`** (top-level) is the maker's direct line — the window's
+  Wind down… / Ship it buttons write it. FULFIL it, then **clear it in the same
+  commit** that lands the work.
+- As you land work: flip `done = true`, stamp `by = "agent"` + today's `date`,
+  and leave a one-line `note` on what happened. Add items for work you discover.
+  Commit the board **in the same commit** as the code it describes.
+
+**The file format** — schema 2; mirror it exactly. The window re-emits a
+byte-stable form on every save, so keep your edits minimal and valid TOML and the
+diffs stay clean:
+
+- Top level: `schema`, `product`, `goal`, `purpose`, `agent_request`.
+- Four phase arrays of tables: `[[ingredients]]`, `[[baking]]`, `[[delivery]]`,
+  `[[improvements]]`.
+- Each item: `id` (6 hex — a **stable handle; never change or drop it**), `text`,
+  `done` (bool); optional `by` / `date` (ISO `YYYY-MM-DD`) / `note` (omit when
+  empty). Edit items **in place** by their `id` — don't reorder gratuitously.
+- **Baking items also carry `priority`** = `now` | `next` | `later` (the kanban
+  columns); new baking work defaults to `next`. `trackerkeeper-breadboard --init`
+  seeds a fresh board.
+
 ## Conventions inherited from the base (hard-earned — keep them)
 
 - **Identity flows from ONE seam**: `trackerkeeper/identity.py` (runtime) and the
