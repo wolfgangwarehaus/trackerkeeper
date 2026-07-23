@@ -57,8 +57,10 @@ dependencies = [
 # shipped app never imports it. dev includes it so the generate-then-verify gate
 # (tests/test_bake.py) runs in the default test pass.
 bake = ["jinja2>=3"]
+# the breadboard's embedded Claude Code terminal (pyte VT emulation); POSIX-only, optional
+terminal = ["pyte>=0.8"]
 dev = [
-    "ruff", "pytest", "pytest-xdist", "setuptools-scm>=8", "jinja2>=3",
+    "ruff", "pytest", "pytest-xdist", "setuptools-scm>=8", "jinja2>=3", "pyte>=0.8",
     # the credentials-store test surface (keyring is mocked; AES-GCM is real)
     "keyring>=24",
     "cryptography>=42 ; sys_platform != 'win32'",
