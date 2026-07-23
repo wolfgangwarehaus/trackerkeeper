@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import QSize, QSocketNotifier, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter
@@ -105,6 +106,7 @@ class TerminalWidget(QWidget):
 
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.IBeamCursor)
+        self.setAcceptDrops(True)  # drag an image in → its path reaches the agent
         # No opaque autofill: paintEvent lays down a translucent glass panel so
         # the window's frost shows through (the terminal reads like a card).
 
@@ -223,30 +225,120 @@ class TerminalWidget(QWidget):
         # leave the terminal by clicking out, like any real terminal.)
         return False
 
+    def _write(self, data: bytes) -> None:
+        """Forward bytes to the child pty (keystrokes, pastes, dropped paths)."""
+        if self._dead or self._fd < 0:
+            return
+        try:
+            os.write(self._fd, data)
+        except OSError:
+            pass
+
     def keyPressEvent(self, e) -> None:  # noqa: N802
         if self._dead or self._fd < 0:
             return
         mods = e.modifiers()
         key, text = e.key(), e.text()
+        ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+        shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
+        # Paste — Ctrl+V, Ctrl+Shift+V, or Shift+Insert. A clipboard IMAGE is
+        # materialised to a temp file and its PATH is sent (how the agent ingests
+        # a pasted image); text is sent as a bracketed paste.
+        if (ctrl and key == Qt.Key.Key_V) or (shift and key == Qt.Key.Key_Insert):
+            self._paste()
+            return
         payload: bytes | None = None
-        seq = _special_key(key, text, bool(mods & Qt.KeyboardModifier.ShiftModifier))
+        seq = _special_key(key, text, shift)
         if seq is not None:
             payload = seq
-        elif (mods & Qt.KeyboardModifier.ControlModifier) and text and text.isalpha():
+        elif ctrl and text and text.isalpha():
             payload = bytes([ord(text.lower()) & 0x1F])  # Ctrl+C → \x03, etc.
         elif text:
             payload = text.encode("utf-8")
         if payload:
-            try:
-                os.write(self._fd, payload)
-            except OSError:
-                pass
+            self._write(payload)
         else:
             super().keyPressEvent(e)
 
     def mousePressEvent(self, e) -> None:  # noqa: N802
         self.setFocus()
         super().mousePressEvent(e)
+
+    # ── images: drag an image in, or paste one (Ctrl+V) ──────────────────
+    def dragEnterEvent(self, e) -> None:  # noqa: N802
+        if e.mimeData().hasUrls() or e.mimeData().hasImage():
+            e.acceptProposedAction()
+
+    def dragMoveEvent(self, e) -> None:  # noqa: N802
+        if e.mimeData().hasUrls() or e.mimeData().hasImage():
+            e.acceptProposedAction()
+
+    def dropEvent(self, e) -> None:  # noqa: N802
+        md = e.mimeData()
+        paths: list[str] = []
+        if md.hasUrls():  # a real file (the common case) → send its path verbatim
+            paths = [u.toLocalFile() for u in md.urls() if u.isLocalFile()]
+        if not paths and md.hasImage():  # raw image data (e.g. from a browser)
+            saved = self._materialize_image(md.imageData())
+            if saved:
+                paths = [saved]
+        if paths:
+            self.setFocus()
+            self._insert_paths(paths)
+            e.acceptProposedAction()
+
+    def _paste(self) -> None:
+        from PySide6.QtWidgets import QApplication
+
+        md = QApplication.clipboard().mimeData()
+        if md.hasImage():
+            saved = self._materialize_image(QApplication.clipboard().image())
+            if saved:
+                self._insert_paths([saved])
+                return
+        if md.hasUrls():  # a file copied in the file manager
+            paths = [u.toLocalFile() for u in md.urls() if u.isLocalFile()]
+            if paths:
+                self._insert_paths(paths)
+                return
+        if md.hasText():
+            self._write(self._bracketed(md.text()))
+
+    def _insert_paths(self, paths) -> None:
+        """Write image/file PATHS into the prompt (space-separated, shell-quoted
+        so spaces survive) with a trailing space and NO newline — the agent picks
+        the path up as input and attaches the image; the maker keeps typing."""
+        import shlex
+
+        self._write((" ".join(shlex.quote(p) for p in paths) + " ").encode("utf-8"))
+
+    @staticmethod
+    def _materialize_image(img) -> "str | None":
+        """Save a QImage (clipboard/drag data) to a temp PNG; return its path.
+        Lets a pasted screenshot reach the agent with zero external clipboard
+        tools. Returns None if there's no usable image."""
+        from PySide6.QtGui import QImage
+
+        if not isinstance(img, QImage) or img.isNull():
+            return None
+        import tempfile
+
+        out = Path(tempfile.gettempdir()) / "trackerkeeper-terminal-images"
+        out.mkdir(parents=True, exist_ok=True)
+        fd, path = tempfile.mkstemp(prefix="paste-", suffix=".png", dir=str(out))
+        os.close(fd)
+        return path if img.save(path, "PNG") else None
+
+    def _bracketed(self, text: str) -> bytes:
+        # Wrap pasted text in bracketed-paste markers when the child turned the
+        # mode on (Claude Code does) so a multi-line paste doesn't submit
+        # line-by-line; otherwise send it raw. pyte stores private DECSET modes
+        # shifted left 5 bits, so 2004 lands as 2004<<5 — accept either form.
+        raw = text.encode("utf-8")
+        mode = getattr(self._screen, "mode", ())
+        if 2004 in mode or (2004 << 5) in mode:
+            return b"\x1b[200~" + raw + b"\x1b[201~"
+        return raw
 
     # ── paint ────────────────────────────────────────────────────────────
     def paintEvent(self, e) -> None:  # noqa: N802
