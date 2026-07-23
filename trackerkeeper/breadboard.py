@@ -414,7 +414,9 @@ def _make_view(path: Path):
             self._agent_btn.setCheckable(True)
             self._agent_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             self._agent_btn.setStyleSheet(self._ghost_btn_qss())
-            self._agent_btn.clicked.connect(self._toggle_agent)
+            # drop clicked(checked)'s bool arg — it must NOT land in force_off,
+            # which would force the drawer closed the instant you open it.
+            self._agent_btn.clicked.connect(lambda _=False: self._toggle_agent())
             self._prime_agent_button()
             projbar.addWidget(self._agent_btn)
             root.addLayout(projbar)
