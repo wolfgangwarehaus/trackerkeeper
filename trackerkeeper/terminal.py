@@ -44,8 +44,12 @@ _ANSI = {
     "brightbrown": "#f0c988", "brightblue": "#7cc0ff", "brightmagenta": "#d79bec",
     "brightcyan": "#74d3de", "brightwhite": "#ffffff",
 }
-_DEFAULT_FG = "#d6d8e0"
-_DEFAULT_BG = "#15151d"
+_DEFAULT_FG = "#e2e4ec"
+# The terminal sits ON GLASS like the kanban cards: a faint translucent panel
+# over the window's frost, not an opaque box. Default cells fill nothing (the
+# frost shows through); only cells with an explicit colour paint a background.
+_PANEL = QColor(14, 15, 22, 96)          # ~38% — dims the frost enough for text
+_REVERSE_TEXT = QColor("#14151c")        # dark text for reverse-video cells
 
 
 def _qcolor(token: str, default: QColor) -> QColor:
@@ -96,7 +100,8 @@ class TerminalWidget(QWidget):
 
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.IBeamCursor)
-        self.setAutoFillBackground(True)
+        # No opaque autofill: paintEvent lays down a translucent glass panel so
+        # the window's frost shows through (the terminal reads like a card).
 
         self._font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         self._font.setStyleHint(QFont.StyleHint.TypeWriter)
@@ -234,9 +239,10 @@ class TerminalWidget(QWidget):
     # ── paint ────────────────────────────────────────────────────────────
     def paintEvent(self, e) -> None:  # noqa: N802
         p = QPainter(self)
-        default_bg = QColor(_DEFAULT_BG)
         default_fg = QColor(_DEFAULT_FG)
-        p.fillRect(self.rect(), default_bg)
+        # The glass panel — translucent, so the frost behind the window blends
+        # through (matches the kanban cards). No opaque box.
+        p.fillRect(self.rect(), _PANEL)
         p.setFont(self._font)
         buf = self._screen.buffer
         cur = self._screen.cursor
@@ -248,11 +254,17 @@ class TerminalWidget(QWidget):
                 cell = row[x]
                 data = cell.data or " "
                 fg = _qcolor(cell.fg, default_fg)
-                bg = _qcolor(cell.bg, default_bg)
-                if cell.reverse:
-                    fg, bg = bg, fg
+                # A "default" bg means transparent — the panel/frost shows. Only
+                # an explicitly-coloured cell paints a background block.
+                explicit_bg = cell.bg != "default"
+                bg = _qcolor(cell.bg, default_fg) if explicit_bg else None
                 xx = x * cw
-                if bg != default_bg:
+                if cell.reverse:
+                    # Reverse video: the fg colour becomes the block; text flips
+                    # to a dark ink that reads on it (default cells included).
+                    p.fillRect(int(xx), int(yy), int(cw) + 1, int(chh) + 1, fg)
+                    fg = _REVERSE_TEXT
+                elif bg is not None:
                     p.fillRect(int(xx), int(yy), int(cw) + 1, int(chh) + 1, bg)
                 if data != " ":
                     if cell.bold:

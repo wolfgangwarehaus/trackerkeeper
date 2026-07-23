@@ -84,6 +84,18 @@ class Settings:
     def font_family(self, v: str) -> None:
         self._set("ui/font_family", v)
 
+    # ── Breadboard ────────────────────────────────────────────────────
+    @property
+    def agent_dock(self) -> str:  # bottom | left | right
+        """Where the breadboard parks the agent terminal relative to the board.
+        Remembered across launches; the drawer's dock button cycles it."""
+        v = str(self._s.value("breadboard/agent_dock", "bottom"))
+        return v if v in ("bottom", "left", "right") else "bottom"
+
+    @agent_dock.setter
+    def agent_dock(self, v: str) -> None:
+        self._set("breadboard/agent_dock", v)
+
     # ── Window chrome ─────────────────────────────────────────────────
     @property
     def native_window_border(self) -> bool:

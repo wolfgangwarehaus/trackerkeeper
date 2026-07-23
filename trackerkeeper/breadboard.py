@@ -280,6 +280,7 @@ def _make_view(path: Path):
 
     from trackerkeeper import ui_helpers
     from trackerkeeper.design_tokens import TYPE_BODY, TYPE_DISPLAY, type_qss
+    from trackerkeeper.settings import get_settings
 
     accent = ui_helpers.ACCENT
 
@@ -424,6 +425,7 @@ def _make_view(path: Path):
             self._split.setChildrenCollapsible(False)
             self._split.setHandleWidth(6)
             board_pane = QWidget()
+            self._board_pane = board_pane
             bp = QVBoxLayout(board_pane)
             bp.setContentsMargins(0, 0, 0, 0)
             bp.setSpacing(10)
@@ -450,11 +452,16 @@ def _make_view(path: Path):
             bp.addWidget(self._stack, 1)
             self._split.addWidget(board_pane)
 
+            # remembered dock (bottom / left / right) — read before the drawer
+            # is built so its dock button can label the current side
+            self._agent_dock = get_settings().agent_dock
             self._term_host = self._build_agent_drawer()
             self._term_host.setVisible(False)
             self._term = None  # the live TerminalWidget, spawned on first open
             self._split.addWidget(self._term_host)
             root.addWidget(self._split, 1)
+            # apply orientation + board↔terminal order now; sizes wait for open
+            self._apply_agent_dock(resize=False)
 
             self._pages: dict[str, QWidget] = {}
             self._rebuild_pages()
@@ -527,6 +534,12 @@ def _make_view(path: Path):
             self._agent_title.setStyleSheet("color:#999;font-size:11px;")
             bar.addWidget(self._agent_title)
             bar.addStretch(1)
+            self._dock_btn = QPushButton(self._dock_label())
+            self._dock_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._dock_btn.setStyleSheet(self._mini_agent_qss())
+            self._dock_btn.setToolTip("Dock the agent bottom / right / left of the board")
+            self._dock_btn.clicked.connect(self._cycle_agent_dock)
+            bar.addWidget(self._dock_btn)
             restart = QPushButton("restart")
             restart.setCursor(Qt.CursorShape.PointingHandCursor)
             restart.setStyleSheet(self._mini_agent_qss())
@@ -549,6 +562,46 @@ def _make_view(path: Path):
                     "background:rgba(255,255,255,0.06);color:#bbb;font-size:11px;}"
                     "QPushButton:hover{background:rgba(255,255,255,0.14);color:#fff;}")
 
+        # ── agent dock: bottom / right / left of the board ────────────────
+        _DOCK_LABELS = {"bottom": "⬓ bottom", "right": "◨ right", "left": "◧ left"}
+
+        def _dock_label(self) -> str:
+            return self._DOCK_LABELS.get(self._agent_dock, "⬓ bottom")
+
+        def _apply_agent_dock(self, resize: bool = True) -> None:
+            """Reorient the splitter and order the board/terminal panes for the
+            current dock. Horizontal for left/right, vertical for bottom; the
+            terminal leads the pair only when docked left."""
+            pos = self._agent_dock
+            horizontal = pos in ("left", "right")
+            self._split.setOrientation(
+                Qt.Orientation.Horizontal if horizontal else Qt.Orientation.Vertical)
+            first, second = (
+                (self._term_host, self._board_pane) if pos == "left"
+                else (self._board_pane, self._term_host))
+            self._split.insertWidget(0, first)   # moves the existing widgets —
+            self._split.insertWidget(1, second)  # QSplitter re-parents in place
+            if getattr(self, "_dock_btn", None) is not None:
+                self._dock_btn.setText(self._dock_label())
+            if resize and self._term_host.isVisible():
+                self._resize_agent_split()
+
+        def _resize_agent_split(self) -> None:
+            """Give the terminal a comfortable slice — ~40% tall docked bottom,
+            ~42% wide docked to a side — with the board taking the rest."""
+            horizontal = self._agent_dock in ("left", "right")
+            total = max(1, self._split.width() if horizontal else self._split.height())
+            term = int(total * (0.42 if horizontal else 0.40))
+            board = max(1, total - term)
+            self._split.setSizes(
+                [term, board] if self._agent_dock == "left" else [board, term])
+
+        def _cycle_agent_dock(self) -> None:
+            order = ("bottom", "right", "left")
+            self._agent_dock = order[(order.index(self._agent_dock) + 1) % len(order)]
+            get_settings().agent_dock = self._agent_dock
+            self._apply_agent_dock(resize=True)
+
         def _toggle_agent(self, force_off: bool = False) -> None:
             show = self._agent_btn.isChecked() and not force_off
             self._agent_btn.setChecked(show)
@@ -556,9 +609,7 @@ def _make_view(path: Path):
             if show:
                 if self._term is None:
                     self._spawn_agent()
-                # give the terminal ~40% of the height on first reveal
-                total = max(1, self._split.height())
-                self._split.setSizes([int(total * 0.6), int(total * 0.4)])
+                self._resize_agent_split()  # size for the current dock
                 if self._term is not None:
                     self._term.setFocus()
 
