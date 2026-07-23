@@ -65,9 +65,14 @@ def _qcolor(token: str, default: QColor) -> QColor:
 
 # Qt key → terminal byte sequence (the non-text keys). Text keys go through
 # e.text(); Ctrl+letter is handled separately (the C0 control char).
-def _special_key(key, text) -> bytes | None:
+def _special_key(key, text, shift: bool = False) -> bytes | None:
     from PySide6.QtCore import Qt as _Qt
 
+    # Shift+Tab reaches us either as Key_Backtab or as Key_Tab+Shift (platform-
+    # dependent). Both must send the terminal back-tab (CBT) sequence ESC [ Z —
+    # what TUIs read as shift-tab, e.g. Claude Code's "cycle permission mode".
+    if key == _Qt.Key.Key_Backtab or (key == _Qt.Key.Key_Tab and shift):
+        return b"\x1b[Z"
     table = {
         _Qt.Key.Key_Return: b"\r", _Qt.Key.Key_Enter: b"\r",
         _Qt.Key.Key_Backspace: b"\x7f", _Qt.Key.Key_Tab: b"\t",
@@ -211,13 +216,20 @@ class TerminalWidget(QWidget):
         return QSize(int(self._cw * 80) + 4, int(self._ch * 20) + 4)
 
     # ── input ────────────────────────────────────────────────────────────
+    def focusNextPrevChild(self, nxt) -> bool:  # noqa: N802, ARG002
+        # A terminal owns Tab and Shift+Tab (completion; TUI mode-cycling). Qt's
+        # default steals both for focus traversal BEFORE keyPressEvent — return
+        # False so they fall through to us and reach the child instead. (You
+        # leave the terminal by clicking out, like any real terminal.)
+        return False
+
     def keyPressEvent(self, e) -> None:  # noqa: N802
         if self._dead or self._fd < 0:
             return
         mods = e.modifiers()
         key, text = e.key(), e.text()
         payload: bytes | None = None
-        seq = _special_key(key, text)
+        seq = _special_key(key, text, bool(mods & Qt.KeyboardModifier.ShiftModifier))
         if seq is not None:
             payload = seq
         elif (mods & Qt.KeyboardModifier.ControlModifier) and text and text.isalpha():

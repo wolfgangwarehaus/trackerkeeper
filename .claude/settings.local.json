@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls -la /home/august/Projects/ && ls -la /home/august/Projects/dough)"
+      "Bash(ls -la /home/august/Projects/ && ls -la /home/august/Projects/dough)",
+      "Bash(xargs -n1 basename)",
+      "Bash(timeout 300 bash -lc 'ruff check . >/tmp/ruff.txt 2>&1; echo \"ruff exit=$?\"; python -m trackerkeeper.bake --check >/tmp/bake.txt 2>&1; echo \"bake exit=$?\"')",
+      "Bash(timeout 400 pytest -q)",
+      "Bash(timeout 120 pytest -q tests/test_imports.py)",
+      "Bash(python -c \"import sys; print\\(sys.prefix\\)\")",
+      "Read(//usr/bin/**)",
+      "Bash(.venv/bin/python -c \"import trackerkeeper; print\\('ok', trackerkeeper.__file__\\)\")",
+      "Bash(timeout 400 .venv/bin/python -m pytest -q)",
+      "Bash(timeout 500 xvfb-run -a .venv/bin/python -m pytest -q)",
+      "Bash(timeout 500 .venv/bin/python -m pytest -q -p no:cacheprovider)",
+      "Bash(QT_QPA_PLATFORM=offscreen timeout 500 .venv/bin/python -m pytest -q)"
     ]
   }
 }
