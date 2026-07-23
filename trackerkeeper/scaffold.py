@@ -46,6 +46,16 @@ _STRIP = [
     "tests/test_sync_loaf.py",
     "tests/test_scaffold.py",
 ]
+# CLAUDE.md — Claude Code auto-loads this, not AGENTS.md. A one-line @-import
+# pulls the AGENTS.md front door (breadboard protocol and all) into every
+# session, keeping AGENTS.md the single source of truth. Every loaf gets it.
+_CLAUDE_MD = (
+    "@AGENTS.md\n\n"
+    "<!-- Claude Code auto-loads CLAUDE.md, not AGENTS.md; the @-import above\n"
+    "     pulls the AGENTS.md front door in so the agent boots knowing the\n"
+    "     project + the breadboard protocol. Put Claude-only notes below. -->\n"
+)
+
 # text suffixes whose identity references get rewritten.
 _TEXT_SUFFIXES = {".py", ".toml", ".md", ".yml", ".yaml", ".j2", ".svg", ".cfg", ".ini", ".txt", ".sh"}
 _SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", ".ruff_cache", ".venv", "venv", "dist", "build"}
@@ -188,6 +198,12 @@ def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str,
             agents_tpl.replace("{{slug}}", slug).replace("{{display}}", display),
             encoding="utf-8",
         )
+
+    # 3.6 CLAUDE.md — Claude Code auto-loads CLAUDE.md, NOT AGENTS.md, so without
+    #     this the embedded terminal's agent would boot without the front door
+    #     (breadboard protocol included). A one-line @-import keeps AGENTS.md the
+    #     single source of truth and loads it on every launch.
+    (root / "CLAUDE.md").write_text(_CLAUDE_MD, encoding="utf-8")
 
     # 4. fix the fields the whole-word replace can't: the display name (it was set to
     #    the slug by the slug-replace), a freshly-minted immutable installer GUID, and
