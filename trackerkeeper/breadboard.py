@@ -409,9 +409,27 @@ def _make_view(path: Path):
             wind.setStyleSheet(self._ghost_btn_qss())
             wind.clicked.connect(self._request_wind_down)
             projbar.addWidget(wind)
+            # ⌨ Agent — a real Claude Code terminal beside the board it drives.
+            self._agent_btn = QPushButton("⌨ Agent")
+            self._agent_btn.setCheckable(True)
+            self._agent_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._agent_btn.setStyleSheet(self._ghost_btn_qss())
+            self._agent_btn.clicked.connect(self._toggle_agent)
+            self._prime_agent_button()
+            projbar.addWidget(self._agent_btn)
             root.addLayout(projbar)
 
-            # ── the tabs, ACROSS THE TOP, sharing the full width ─────────
+            # ── board (top) + agent terminal drawer (bottom), splittable ──
+            from PySide6.QtWidgets import QSplitter
+
+            self._split = QSplitter(Qt.Orientation.Vertical)
+            self._split.setChildrenCollapsible(False)
+            self._split.setHandleWidth(6)
+            board_pane = QWidget()
+            bp = QVBoxLayout(board_pane)
+            bp.setContentsMargins(0, 0, 0, 0)
+            bp.setSpacing(10)
+
             pills = QHBoxLayout()
             pills.setSpacing(6)
             self._pill_buttons: dict[str, QPushButton] = {}
@@ -425,15 +443,22 @@ def _make_view(path: Path):
                 b.clicked.connect(lambda _=False, ph=phase: self._show_phase(ph))
                 pills.addWidget(b, 1)
                 self._pill_buttons[phase] = b
-            root.addLayout(pills)
+            bp.addLayout(pills)
 
             self._goal = QLabel(self._board.get("goal", ""))
             self._goal.setWordWrap(True)
             self._goal.setStyleSheet(type_qss(TYPE_DISPLAY) + "color:#ddd;")
-            root.addWidget(self._goal)
+            bp.addWidget(self._goal)
 
             self._stack = QStackedWidget()
-            root.addWidget(self._stack, 1)
+            bp.addWidget(self._stack, 1)
+            self._split.addWidget(board_pane)
+
+            self._term_host = self._build_agent_drawer()
+            self._term_host.setVisible(False)
+            self._term = None  # the live TerminalWidget, spawned on first open
+            self._split.addWidget(self._term_host)
+            root.addWidget(self._split, 1)
 
             self._pages: dict[str, QWidget] = {}
             self._rebuild_pages()
@@ -480,6 +505,7 @@ def _make_view(path: Path):
             for b in self._pill_buttons.values():
                 b.setStyleSheet(self._pill_qss())
             self._wind_btn.setStyleSheet(self._ghost_btn_qss())
+            self._agent_btn.setStyleSheet(self._ghost_btn_qss())
             from trackerkeeper.selector import selector_qss
 
             self._project_sel.setStyleSheet(selector_qss())
@@ -489,6 +515,97 @@ def _make_view(path: Path):
             self._launch_timer.stop()
             if self._probe is not None and self._probe.isRunning():
                 self._probe.wait(3000)
+            self._stop_agent()
+
+        # ── the agent terminal (⌨) ────────────────────────────────────────
+        def _prime_agent_button(self) -> None:
+            from trackerkeeper import terminal
+
+            if not terminal.is_supported():
+                self._agent_btn.setEnabled(False)
+                self._agent_btn.setToolTip(
+                    "The embedded terminal needs a POSIX pty + pyte "
+                    "(pip install 'trackerkeeper-base[terminal]'); not available here.")
+            elif not terminal.agent_available():
+                self._agent_btn.setEnabled(False)
+                self._agent_btn.setToolTip(
+                    "Claude Code (`claude`) isn't on PATH — install it, or set "
+                    "TRACKERKEEPER_AGENT_CMD to the command to run.")
+            else:
+                self._agent_btn.setToolTip(
+                    "Open a Claude Code terminal in this project — talk to the "
+                    "agent right beside the board it edits.")
+
+        def _build_agent_drawer(self) -> QWidget:
+            host = QWidget()
+            v = QVBoxLayout(host)
+            v.setContentsMargins(0, 6, 0, 0)
+            v.setSpacing(4)
+            bar = QHBoxLayout()
+            self._agent_title = QLabel("")
+            self._agent_title.setStyleSheet("color:#999;font-size:11px;")
+            bar.addWidget(self._agent_title)
+            bar.addStretch(1)
+            restart = QPushButton("restart")
+            restart.setCursor(Qt.CursorShape.PointingHandCursor)
+            restart.setStyleSheet(self._mini_agent_qss())
+            restart.clicked.connect(self._restart_agent)
+            bar.addWidget(restart)
+            close = QPushButton("hide ✕")
+            close.setCursor(Qt.CursorShape.PointingHandCursor)
+            close.setStyleSheet(self._mini_agent_qss())
+            close.clicked.connect(lambda: self._toggle_agent(force_off=True))
+            bar.addWidget(close)
+            v.addLayout(bar)
+            self._term_slot = QVBoxLayout()
+            self._term_slot.setContentsMargins(0, 0, 0, 0)
+            v.addLayout(self._term_slot, 1)
+            return host
+
+        @staticmethod
+        def _mini_agent_qss() -> str:
+            return ("QPushButton{border:none;border-radius:6px;padding:3px 10px;"
+                    "background:rgba(255,255,255,0.06);color:#bbb;font-size:11px;}"
+                    "QPushButton:hover{background:rgba(255,255,255,0.14);color:#fff;}")
+
+        def _toggle_agent(self, force_off: bool = False) -> None:
+            show = self._agent_btn.isChecked() and not force_off
+            self._agent_btn.setChecked(show)
+            self._term_host.setVisible(show)
+            if show:
+                if self._term is None:
+                    self._spawn_agent()
+                # give the terminal ~40% of the height on first reveal
+                total = max(1, self._split.height())
+                self._split.setSizes([int(total * 0.6), int(total * 0.4)])
+                if self._term is not None:
+                    self._term.setFocus()
+
+        def _spawn_agent(self) -> None:
+            from trackerkeeper import terminal
+
+            slug = _project_info(self._root)["slug"]
+            self._agent_title.setText(f"⌨ claude · {slug}  ({self._root})")
+            self._term = terminal.TerminalWidget(terminal.claude_argv(), cwd=self._root)
+            self._term.exited.connect(self._on_agent_exit)
+            self._term_slot.addWidget(self._term)
+
+        def _stop_agent(self) -> None:
+            if self._term is not None:
+                self._term.stop()
+                self._term.setParent(None)
+                self._term.deleteLater()
+                self._term = None
+
+        def _restart_agent(self) -> None:
+            self._stop_agent()
+            self._spawn_agent()
+            self._term.setFocus()
+
+        def _on_agent_exit(self, code: int) -> None:
+            if self._term is not None:
+                self._agent_title.setText(
+                    self._agent_title.text() + f"  — exited ({code}); press restart")
 
         # ── project switching + the wind-down request ─────────────────────
         def _on_project_pick(self, _idx: int) -> None:
@@ -506,6 +623,9 @@ def _make_view(path: Path):
             self._last_state_sig = None
             self._settled_sig = None
             self._live_since = {}
+            self._stop_agent()  # the terminal is scoped to a project dir
+            self._agent_btn.setChecked(False)
+            self._term_host.setVisible(False)
             self._watcher.removePath(str(self._path))
             self._path = Path(new_path)
             self._root = self._path.parent
