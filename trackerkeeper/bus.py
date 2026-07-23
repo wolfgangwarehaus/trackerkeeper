@@ -93,13 +93,18 @@ def register_for_theme(widget, restyle_fn) -> None:
 
     def _drop(*_):
         # Best-effort: Qt already auto-disconnects a bound-method slot when its
-        # QObject dies, so this often finds nothing — and disconnecting a slot
-        # bound to an already-deleted C++ object raises (RuntimeError chained to
-        # SystemError). Swallow everything; teardown must never surface.
-        try:
-            bus.theme_changed.disconnect(restyle_fn)
-        except Exception:
-            pass
+        # QObject dies, so this often finds nothing — the disconnect then raises
+        # (deleted C++ object) OR merely emits a libpyside "Failed to disconnect"
+        # RuntimeWarning. Swallow the exception AND silence the warning; teardown
+        # must never surface either.
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            try:
+                bus.theme_changed.disconnect(restyle_fn)
+            except Exception:
+                pass
 
     widget.destroyed.connect(_drop)
     restyle_fn()

@@ -399,21 +399,17 @@ def _make_view(path: Path):
             self._winddown_note = QLabel("")
             self._winddown_note.setStyleSheet("color:#8f8;font-size:11px;")
             projbar.addWidget(self._winddown_note)
-            wind = QPushButton("Wind down…")
+            wind = ui_helpers.RoundedButton("Wind down…", variant="ghost")
             wind.setToolTip(
                 "Ask the agent to run the wind-down ritual for this project\n"
                 "(land green → update the handoff → commit + push). Written into\n"
                 "the board as agent_request — the agent fulfils it and clears it.")
-            wind.setCursor(Qt.CursorShape.PointingHandCursor)
             self._wind_btn = wind
-            wind.setStyleSheet(self._ghost_btn_qss())
             wind.clicked.connect(self._request_wind_down)
             projbar.addWidget(wind)
             # ⌨ Agent — a real Claude Code terminal beside the board it drives.
-            self._agent_btn = QPushButton("⌨ Agent")
+            self._agent_btn = ui_helpers.RoundedButton("⌨ Agent", variant="ghost")
             self._agent_btn.setCheckable(True)
-            self._agent_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            self._agent_btn.setStyleSheet(self._ghost_btn_qss())
             # drop clicked(checked)'s bool arg — it must NOT land in force_off,
             # which would force the drawer closed the instant you open it.
             self._agent_btn.clicked.connect(lambda _=False: self._toggle_agent())
@@ -436,12 +432,10 @@ def _make_view(path: Path):
             pills.setSpacing(6)
             self._pill_buttons: dict[str, QPushButton] = {}
             for phase in PHASES:
-                b = QPushButton(_PHASE_TITLES[phase])
-                b.setCheckable(True)
-                b.setCursor(Qt.CursorShape.PointingHandCursor)
+                b = ui_helpers.RoundedButton(_PHASE_TITLES[phase], variant="pill",
+                                             radius=15)
                 b.setMinimumHeight(30)
                 b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-                b.setStyleSheet(self._pill_qss())
                 b.clicked.connect(lambda _=False, ph=phase: self._show_phase(ph))
                 pills.addWidget(b, 1)
                 self._pill_buttons[phase] = b
@@ -487,27 +481,12 @@ def _make_view(path: Path):
 
             register_for_theme(self, self._on_theme)
 
-        def _pill_qss(self) -> str:
-            return (
-                "QPushButton{border:1px solid rgba(255,255,255,0.16);"
-                "border-radius:15px;padding:5px 10px;background:transparent;color:#bbb;}"
-                f"QPushButton:checked{{background:{accent};color:#fff;"
-                f"border-color:{accent};}}"
-            )
-
-        def _ghost_btn_qss(self) -> str:
-            return (
-                "QPushButton{border:1px solid rgba(255,255,255,0.2);border-radius:8px;"
-                "padding:5px 14px;background:transparent;color:#ccc;}"
-                f"QPushButton:hover{{border-color:{accent};color:#fff;}}")
-
         def _on_theme(self) -> None:
             nonlocal accent
             accent = ui_helpers.ACCENT  # refresh the frozen closure local
-            for b in self._pill_buttons.values():
-                b.setStyleSheet(self._pill_qss())
-            self._wind_btn.setStyleSheet(self._ghost_btn_qss())
-            self._agent_btn.setStyleSheet(self._ghost_btn_qss())
+            # pills + wind + agent are painted RoundedButtons — they read ACCENT
+            # live and repaint themselves (register_for_theme). Only the QSS
+            # surfaces (the project Selector + the rebuilt cards) need re-stamp.
             from trackerkeeper.selector import selector_qss
 
             self._project_sel.setStyleSheet(selector_qss())

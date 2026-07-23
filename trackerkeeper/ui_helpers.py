@@ -1599,6 +1599,87 @@ class CircleSwatch(QPushButton):
         p.end()
 
 
+class RoundedButton(QPushButton):
+    """A button that PAINTS its rounded fill + border with antialiased
+    QPainter, so it has none of the QSS ``border-radius`` stippling that
+    stipples a thin border along rounded corners (worst under fractional
+    display scaling — same reason CircleSwatch paints its circle). Reads
+    ``ACCENT`` LIVE in paint, so it also tracks an accent change with a repaint
+    (no stylesheet to re-stamp).
+
+    Two variants: ``"pill"`` (a checkable segment — accent fill when checked)
+    and ``"ghost"`` (a bordered action — accent border/text on hover)."""
+
+    def __init__(self, text: str = "", *, variant: str = "ghost", radius: int = 8,
+                 hpad: int = 14, vpad: int = 6, parent=None) -> None:
+        super().__init__(text, parent)
+        self._variant = variant
+        self._radius = radius
+        self._hpad = hpad
+        self._vpad = vpad
+        from PySide6.QtCore import Qt as _Qt
+
+        self.setCursor(_Qt.CursorShape.PointingHandCursor)
+        self.setAttribute(_Qt.WidgetAttribute.WA_Hover, True)
+        if variant == "pill":
+            self.setCheckable(True)
+        try:
+            from trackerkeeper.bus import register_for_theme
+
+            register_for_theme(self, self.update)  # repaint on live accent change
+        except Exception:
+            pass
+
+    def sizeHint(self):  # noqa: N802
+        from PySide6.QtCore import QSize
+
+        fm = self.fontMetrics()
+        return QSize(fm.horizontalAdvance(self.text()) + 2 * self._hpad,
+                     fm.height() + 2 * self._vpad)
+
+    def enterEvent(self, e):  # noqa: N802
+        self.update()
+        super().enterEvent(e)
+
+    def leaveEvent(self, e):  # noqa: N802
+        self.update()
+        super().leaveEvent(e)
+
+    def _state_colors(self):
+        accent = QColor(ACCENT)
+        enabled = self.isEnabled()
+        hover = self.underMouse() and enabled
+        if self._variant == "pill":
+            if self.isChecked():
+                return accent, None, QColor("#ffffff")
+            fg = QColor("#cfcfcf") if hover else QColor("#b9b9b9")
+            return None, QColor(255, 255, 255, 55 if hover else 40), fg
+        # ghost
+        if not enabled:
+            return None, QColor(255, 255, 255, 20), QColor("#666666")
+        if hover or self.isChecked():  # checked = active (e.g. the Agent drawer open)
+            return None, accent, QColor("#ffffff")
+        return None, QColor(255, 255, 255, 51), QColor("#cccccc")
+
+    def paintEvent(self, e):  # noqa: N802
+        from PySide6.QtCore import QRectF, Qt
+        from PySide6.QtGui import QPainter, QPainterPath, QPen
+
+        bg, border, fg = self._state_colors()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0.75, 0.75, -0.75, -0.75)
+        path = QPainterPath()
+        path.addRoundedRect(r, self._radius, self._radius)
+        if bg is not None:
+            p.fillPath(path, bg)
+        if border is not None:
+            p.strokePath(path, QPen(border, 1.2))
+        p.setPen(fg)
+        p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.text())
+        p.end()
+
+
 def opaque_menu(parent=None, *, menu_cls=None, blur_corner_radius: int = 4) -> "QMenu":
     """``QMenu`` that's guaranteed opaque even when the parent window
     has ``WA_TranslucentBackground`` set. On Wayland a popup-class
