@@ -40,7 +40,8 @@ _CARD_NEW = (".QFrame{background:rgba(86,196,141,0.08);border:1px solid "
 
 # the release channel a kind maps to — the column + a sort axis
 _CHANNEL = {"github": "GitHub", "arch": "Arch", "appstore": "App Store",
-            "cachyos": "CachyOS", "appledev": "Apple", "manual": "Manual"}
+            "cachyos": "CachyOS", "appledev": "Apple", "steam": "Steam",
+            "manual": "Manual"}
 
 
 def channel_label(item: catalog.Item) -> str:

@@ -19,7 +19,7 @@ from pathlib import Path
 
 # source KINDS the app knows how to check (sources.py owns the checkers). A
 # manual item has no checker — you set `installed` yourself and it never fetches.
-KINDS = ("github", "arch", "appstore", "cachyos", "appledev", "manual")
+KINDS = ("github", "arch", "appstore", "cachyos", "appledev", "steam", "manual")
 
 
 @dataclass
@@ -152,7 +152,7 @@ def default_fleet() -> list[Item]:
              changelog_url="https://github.com/ghostty-org/ghostty/releases"),
         Item(name="CachyOS", platform="Linux", kind="cachyos", ref="desktop",
              changelog_url="https://cachyos.org/blog/"),
-        Item(name="Slay the Spire 2", platform="Steam", kind="manual", installed="",
+        Item(name="Slay the Spire 2", platform="Steam", kind="steam", ref="2868840",
              changelog_url="https://store.steampowered.com/news/app/2868840"),
         Item(name="SteamOS (Armada)", platform="Handheld", kind="manual", installed="",
              changelog_url="https://store.steampowered.com/steamos"),

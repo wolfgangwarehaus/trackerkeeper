@@ -228,6 +228,65 @@ def _appledev(item, http, http_text) -> CheckResult | None:
     return None
 
 
+def _steam(item, http, http_text) -> CheckResult | None:
+    """Latest update for a Steam game via the public (no-auth) news API.
+    ``item.ref`` is the numeric appid (e.g. Slay the Spire 2 = ``2868840``). The
+    feed carries sales and press alongside patches, so prefer entries tagged
+    ``patchnotes``, then the developer's own announcements, then whatever's
+    newest. A version in the title ("… v0.109.0") becomes the version; else the
+    title stands in. Covers the whole Steam library — games AND apps."""
+    appid = (item.ref or "").strip()
+    if not appid.isdigit():
+        return None
+    data = http("https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/"
+                f"?appid={appid}&count=20&maxlength=1")
+    if not isinstance(data, dict):
+        return None
+    items = (data.get("appnews") or {}).get("newsitems") or []
+    if not items:
+        return None
+
+    def first(pred):
+        return next((it for it in items if pred(it)), None)
+
+    chosen = (first(lambda it: "patchnotes" in (it.get("tags") or []))
+              or first(lambda it: it.get("feedname") == "steam_community_announcements")
+              or items[0])  # feed is newest-first
+    title = chosen.get("title") or ""
+    ver = re.search(r"v?(\d+(?:\.\d+)+)", title)
+    ts = chosen.get("date")
+    gid = chosen.get("gid")
+    # the canonical store news page beats the raw (Akamai CDN) url the feed gives
+    url = (f"https://store.steampowered.com/news/app/{appid}/view/{gid}" if gid
+           else chosen.get("url") or item.changelog_url)
+    return CheckResult(
+        latest=ver.group(1) if ver else title,
+        url=url,
+        date=_unix_date(ts),
+        at=_unix_iso(ts),
+    )
+
+
+def _unix_date(ts) -> str:
+    """A Unix timestamp (seconds) → ISO date, or "" if falsy/bad."""
+    return _unix(ts, "%Y-%m-%d")
+
+
+def _unix_iso(ts) -> str:
+    """A Unix timestamp (seconds) → full ISO-8601 UTC, or "" if falsy/bad."""
+    return _unix(ts, "%Y-%m-%dT%H:%M:%SZ")
+
+
+def _unix(ts, fmt: str) -> str:
+    if not ts:
+        return ""
+    from datetime import datetime, timezone
+    try:
+        return datetime.fromtimestamp(int(ts), timezone.utc).strftime(fmt)
+    except (ValueError, OSError, OverflowError):
+        return ""
+
+
 def _manual(item, http, http_text) -> CheckResult | None:
     """A manual item has no source to poll — you set ``installed`` yourself.
     Returns None so a refresh leaves it untouched (never an error, never a
@@ -241,6 +300,7 @@ _PROVIDERS = {
     "appstore": _appstore,
     "cachyos": _cachyos,
     "appledev": _appledev,
+    "steam": _steam,
     "manual": _manual,
 }
 

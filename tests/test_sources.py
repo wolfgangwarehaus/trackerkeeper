@@ -158,6 +158,47 @@ def test_appledev_none_when_feed_unreachable():
     assert sources.check(item, http_text=lambda url: None) is None
 
 
+def _steam_news(items):
+    return {"appnews": {"appid": 2868840, "newsitems": items}}
+
+
+def test_steam_prefers_patchnotes_and_extracts_the_version():
+    from datetime import datetime, timezone
+    ts = 1752710400
+    news = _steam_news([
+        {"title": "The Neowsletter", "url": "https://s/news", "date": ts + 100,
+         "feedname": "steam_community_announcements", "tags": []},
+        {"title": "Beta Patch Notes - v0.109.0", "url": "https://s/patch", "date": ts,
+         "gid": "999", "feedname": "steam_community_announcements", "tags": ["patchnotes"]},
+    ])
+    item = catalog.Item(name="StS2", kind="steam", ref="2868840")
+    res = sources.check(item, _fake({"GetNewsForApp": news}))
+    assert res.latest == "0.109.0"          # version pulled from the patch-note title
+    # the patch item (not the newer newsletter), as a clean store news URL from its gid
+    assert res.url == "https://store.steampowered.com/news/app/2868840/view/999"
+    assert res.date == datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d")
+
+
+def test_steam_falls_back_to_newest_when_no_patchnotes():
+    news = _steam_news([
+        {"title": "Big Sale!", "url": "https://s/sale", "date": 1752710400,
+         "feedname": "PCGamesN", "tags": []},
+    ])
+    item = catalog.Item(name="x", kind="steam", ref="2868840")
+    res = sources.check(item, _fake({"GetNewsForApp": news}))
+    assert res.latest == "Big Sale!"  # no version in title → the title stands in
+
+
+def test_steam_needs_a_numeric_appid():
+    assert sources.check(catalog.Item(name="x", kind="steam", ref="notanid"),
+                         _fake({"GetNewsForApp": _steam_news([])})) is None
+
+
+def test_steam_none_when_no_news():
+    item = catalog.Item(name="x", kind="steam", ref="2868840")
+    assert sources.check(item, _fake({"GetNewsForApp": _steam_news([])})) is None
+
+
 def test_manual_never_fetches():
     item = catalog.Item(name="iOS beta", kind="manual", installed="26.1")
     assert sources.check(item, _fake({"anything": {"x": 1}})) is None

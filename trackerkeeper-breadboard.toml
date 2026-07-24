@@ -163,6 +163,15 @@ by = "agent"
 date = "2026-07-24"
 note = "iOS Developer Beta wired to 'iOS 27' → iOS 27.0 beta 4 (24A5390f)"
 
+[[baking]]
+id = "0c2e8b"
+text = "Checker: Steam (game/app updates via the public news API, patchnotes-filtered)"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-07-24"
+note = "Slay the Spire 2 (appid 2868840) wired → v0.109.0; extracts version from patch-note title, links the store news page"
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"

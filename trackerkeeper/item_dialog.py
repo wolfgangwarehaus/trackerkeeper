@@ -26,6 +26,7 @@ _KIND_LABELS = {
     "appstore": "App Store  (iOS / Mac — app id or bundle id)",
     "cachyos": "CachyOS ISO  (edition: desktop / kde / handheld / cli)",
     "appledev": "Apple release  (OS filter — iOS 27, macOS 27, betas + finals)",
+    "steam": "Steam  (game/app id — latest patch notes)",
     "manual": "Manual  (you set the version)",
 }
 _REF_HINT = {
@@ -34,6 +35,7 @@ _REF_HINT = {
     "appstore": "app id or bundle id  ·  e.g. 6449580241 or com.apple.FinalCutApp.companion",
     "cachyos": "edition  ·  desktop (default) · kde · handheld · cli",
     "appledev": "OS filter  ·  e.g. iOS 27 · iPadOS 27 · macOS 27 · watchOS 27",
+    "steam": "Steam app id  ·  e.g. 2868840  (in the store URL: /app/2868840/)",
     "manual": "",
 }
 
@@ -143,6 +145,9 @@ class ItemDialog(FrostedDialog):
             return
         if kind == "appstore" and not ref:
             self._err.setText("App Store source wants an app id or bundle id.")
+            return
+        if kind == "steam" and not ref.isdigit():
+            self._err.setText("Steam source wants a numeric app id (e.g. 2868840).")
             return
         target = self._item or catalog.Item(name=name)
         target.name = name
