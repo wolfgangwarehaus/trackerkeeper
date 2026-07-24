@@ -199,6 +199,15 @@ by = "agent"
 date = "2026-07-24"
 note = "density pass: type stepped to CAPTION/TINY/MICRO tokens (font-scale still applies), card padding 11->5px, list spacing 9->5, Check/Add/mini buttons pinned to the 26px chrome height"
 
+[[baking]]
+id = "770e99"
+text = "Collapsible category sections (arrow toggle, persisted, collapse/expand all)"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-07-24"
+note = "clickable group header with ▾/▸; collapsed set persisted in settings; collapsed header still reports 'N new'; also fixed ghost-widget repaint in _render (setParent(None) before deleteLater)"
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"

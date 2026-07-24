@@ -63,6 +63,61 @@ TIER_NARROW, TIER_MEDIUM, TIER_WIDE = "narrow", "medium", "wide"
 _CHROME_H = TopBar.BUTTON_SIZE[1]
 
 
+# Which category sections are folded shut. UI state, so it lives in settings
+# (the documented _s extension path) rather than the catalog — collapsing a
+# group must never touch the tracked data.
+_KEY_COLLAPSED = "app/collapsed_groups"
+
+
+def load_collapsed() -> set:
+    """The category names currently collapsed (empty on a fresh profile)."""
+    import json
+
+    from trackerkeeper.settings import get_settings
+
+    raw = get_settings()._s.value(_KEY_COLLAPSED)
+    if not raw:
+        return set()
+    try:
+        return {str(n) for n in json.loads(str(raw))}
+    except (ValueError, TypeError):
+        return set()
+
+
+def save_collapsed(names) -> None:
+    import json
+
+    from trackerkeeper.settings import get_settings
+
+    get_settings()._s.setValue(_KEY_COLLAPSED, json.dumps(sorted(names)))
+
+
+class _GroupHeader(QFrame):
+    """A category's clickable header row: a disclosure arrow, the name, and its
+    count (or "N new" when the group is hiding updates — a collapsed section
+    must never hide news)."""
+
+    def __init__(self, html: str, on_click) -> None:
+        super().__init__()
+        self._on_click = on_click
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setStyleSheet(".QFrame{background:transparent;border:none;}")
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(2, 5, 0, 0)
+        lay.setSpacing(0)
+        lab = QLabel(html)
+        lab.setTextFormat(Qt.TextFormat.RichText)
+        lab.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_MICRO))
+        lay.addWidget(lab)
+        lay.addStretch(1)
+
+    def mousePressEvent(self, e):  # noqa: N802 (Qt override)
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._on_click()
+            return
+        super().mousePressEvent(e)
+
+
 def width_tier(width: int) -> str:
     """Which layout density fits ``width``. Columns drop off as it tightens:
     wide keeps the channel column, medium keeps only "how long ago", narrow
@@ -174,6 +229,7 @@ class Dashboard(QWidget):
         self._grouped = any(i.group for i in self._items)  # section by category
         self._tier = TIER_WIDE   # re-derived from the real width in resizeEvent
         self._tray = None
+        self._collapsed = load_collapsed()   # category names folded shut
 
         # Utility sizing: a slim default and a genuinely small floor. The
         # window only takes the default when there's no saved geometry (run_app
@@ -209,6 +265,10 @@ class Dashboard(QWidget):
             top_bar.add_action(self._refresh_btn)
             top_bar.add_menu_action("Add item…", self._add_item)
             top_bar.add_menu_action("Check for updates", self._refresh)
+            top_bar.add_menu_action("Collapse all groups",
+                                    lambda: self._set_all_collapsed(True))
+            top_bar.add_menu_action("Expand all groups",
+                                    lambda: self._set_all_collapsed(False))
         else:
             header = QHBoxLayout()
             header.setSpacing(10)
@@ -355,16 +415,26 @@ class Dashboard(QWidget):
                     + type_qss(TYPE_TINY))
 
     def _group_header(self, category: str, items: list) -> QWidget:
-        """A slim section label — the category, its count, and any updates in it."""
+        """A slim clickable section row — arrow, category, count / "N new"."""
         n_up = sum(1 for i in items if i.has_update())
+        collapsed = category in self._collapsed
+        arrow = "▸" if collapsed else "▾"
         tail = (f'  <span style="color:{_NEW};">{n_up} new</span>' if n_up
                 else f'  <span style="color:#666;">{len(items)}</span>')
-        lab = QLabel(f'<span style="letter-spacing:0.6px;">{_esc(category).upper()}</span>{tail}')
-        lab.setTextFormat(Qt.TextFormat.RichText)
-        lab.setContentsMargins(2, 5, 0, 0)
-        # MICRO is exactly this: a small, bold, letter-spaced section label.
-        lab.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_MICRO))
-        return lab
+        html = (f'<span style="color:#888;">{arrow}</span>  '
+                f'<span style="letter-spacing:0.6px;">{_esc(category).upper()}</span>{tail}')
+        return _GroupHeader(html, lambda c=category: self._toggle_collapsed(c))
+
+    def _toggle_collapsed(self, category: str) -> None:
+        self._collapsed ^= {category}   # symmetric difference: toggle membership
+        save_collapsed(self._collapsed)
+        self._render()
+
+    def _set_all_collapsed(self, collapsed: bool) -> None:
+        names = {g for g, _ in self._grouped_view()} if collapsed else set()
+        self._collapsed = names
+        save_collapsed(names)
+        self._render()
 
     def _sync_group_btn(self) -> None:
         on = self._grouped
@@ -421,13 +491,21 @@ class Dashboard(QWidget):
     def _render(self) -> None:
         while self._list.count():
             it = self._list.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
+            old = it.widget()
+            if old is not None:
+                # Un-parent FIRST: deleteLater alone leaves the widget a visible
+                # child at its old geometry until the event loop gets around to
+                # it, so the previous rows ghost over the new ones (collapsing a
+                # group made it obvious). Same order as AppWindow.set_content.
+                old.setParent(None)
+                old.deleteLater()
         self._sync_sort_chips()
         self._sync_group_btn()
         if self._grouped and any(i.group for i in self._items):
             for category, items in self._grouped_view():
                 self._list.addWidget(self._group_header(category, items))
+                if category in self._collapsed:
+                    continue        # header stays (it still reports "N new")
                 for item in items:
                     self._list.addWidget(self._card(item))
         else:

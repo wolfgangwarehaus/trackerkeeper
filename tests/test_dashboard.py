@@ -138,6 +138,61 @@ def test_grouping_can_be_toggled_off(qapp):
     assert dash._grouped is False
 
 
+def _grouped_fleet():
+    return [
+        catalog.Item(name="A", kind="github", group="PC", latest="1", latest_date="2026-07-20"),
+        catalog.Item(name="B", kind="steam", group="Gaming", latest="2", latest_date="2026-07-24"),
+        catalog.Item(name="C", kind="steam", group="Gaming", installed="1", latest="2"),
+    ]
+
+
+def test_collapsing_a_group_hides_its_cards_but_keeps_the_header(qapp):
+    from trackerkeeper.dashboard import save_collapsed
+
+    save_collapsed(set())
+    try:
+        dash = _dash(qapp, _grouped_fleet())
+        dash._grouped = True
+        dash._render()
+        full = dash._list.count()
+        dash._toggle_collapsed("Gaming")
+        assert "Gaming" in dash._collapsed
+        # two Gaming cards gone; its header (and everything else) stays
+        assert dash._list.count() == full - 2
+        dash._toggle_collapsed("Gaming")
+        assert dash._list.count() == full
+    finally:
+        save_collapsed(set())
+
+
+def test_collapsed_groups_persist(qapp):
+    from trackerkeeper.dashboard import load_collapsed, save_collapsed
+
+    save_collapsed(set())
+    try:
+        dash = _dash(qapp, _grouped_fleet())
+        dash._toggle_collapsed("PC")
+        assert load_collapsed() == {"PC"}          # written through to settings
+        assert _dash(qapp, _grouped_fleet())._collapsed == {"PC"}  # and read back
+    finally:
+        save_collapsed(set())
+
+
+def test_collapse_and_expand_all(qapp):
+    from trackerkeeper.dashboard import save_collapsed
+
+    save_collapsed(set())
+    try:
+        dash = _dash(qapp, _grouped_fleet())
+        dash._grouped = True
+        dash._set_all_collapsed(True)
+        assert dash._collapsed == {"Gaming", "PC"}
+        dash._set_all_collapsed(False)
+        assert dash._collapsed == set()
+    finally:
+        save_collapsed(set())
+
+
 def test_dashboard_construction_never_touches_the_network(qapp):
     """Offscreen construction must not auto-refresh (no network in CI/tests)."""
     dash = _dash(qapp, catalog.default_fleet())
