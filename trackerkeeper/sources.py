@@ -255,10 +255,10 @@ def _steam(item, http, http_text) -> CheckResult | None:
     title = chosen.get("title") or ""
     ver = re.search(r"v?(\d+(?:\.\d+)+)", title)
     ts = chosen.get("date")
-    gid = chosen.get("gid")
-    # the canonical store news page beats the raw (Akamai CDN) url the feed gives
-    url = (f"https://store.steampowered.com/news/app/{appid}/view/{gid}" if gid
-           else chosen.get("url") or item.changelog_url)
+    # The feed's own `url` is Steam's canonical link — it redirects to the live
+    # post (a constructed /news/app/<id>/view/<gid> 404s: the news gid isn't that
+    # URL's id). Fall back to the game's news hub, which is always valid.
+    url = chosen.get("url") or f"https://store.steampowered.com/news/app/{appid}"
     return CheckResult(
         latest=ver.group(1) if ver else title,
         url=url,

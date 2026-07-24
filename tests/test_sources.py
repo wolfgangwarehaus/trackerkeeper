@@ -174,9 +174,18 @@ def test_steam_prefers_patchnotes_and_extracts_the_version():
     item = catalog.Item(name="StS2", kind="steam", ref="2868840")
     res = sources.check(item, _fake({"GetNewsForApp": news}))
     assert res.latest == "0.109.0"          # version pulled from the patch-note title
-    # the patch item (not the newer newsletter), as a clean store news URL from its gid
-    assert res.url == "https://store.steampowered.com/news/app/2868840/view/999"
+    assert res.url == "https://s/patch"     # the feed's own (working) link, not a constructed one
     assert res.date == datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d")
+
+
+def test_steam_url_falls_back_to_the_news_hub():
+    news = _steam_news([
+        {"title": "Patch v1.0", "date": 1752710400, "gid": "1",
+         "feedname": "steam_community_announcements", "tags": ["patchnotes"]},  # no url
+    ])
+    res = sources.check(catalog.Item(name="x", kind="steam", ref="2868840"),
+                        _fake({"GetNewsForApp": news}))
+    assert res.url == "https://store.steampowered.com/news/app/2868840"
 
 
 def test_steam_falls_back_to_newest_when_no_patchnotes():
