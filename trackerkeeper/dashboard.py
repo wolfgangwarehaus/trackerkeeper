@@ -141,6 +141,7 @@ class Dashboard(QWidget):
         self._worker: _RefreshWorker | None = None
         self._sort_key = "updated"   # "updated" (by release recency) | "channel"
         self._sort_desc = True       # newest / Z→A first
+        self._grouped = any(i.group for i in self._items)  # section by category
 
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 16, 20, 18)
@@ -176,6 +177,10 @@ class Dashboard(QWidget):
         sortbar.addWidget(self._sort_updated)
         sortbar.addWidget(self._sort_channel)
         sortbar.addStretch(1)
+        self._group_btn = QPushButton("Group")
+        self._group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._group_btn.clicked.connect(self._toggle_group)
+        sortbar.addWidget(self._group_btn)
         root.addLayout(sortbar)
 
         # ── the fleet ──
@@ -246,23 +251,65 @@ class Dashboard(QWidget):
                     "padding:3px 11px;background:transparent;color:#aaa;font-size:11px;}"
                     "QPushButton:hover{color:#fff;border-color:rgba(255,255,255,0.3);}")
 
-    def _sorted_items(self) -> list:
-        """The fleet in the chosen order. Items with no known release date always
+    def _group_header(self, category: str, items: list) -> QWidget:
+        """A slim section label — the category, its count, and any updates in it."""
+        n_up = sum(1 for i in items if i.has_update())
+        tail = (f'  <span style="color:{_NEW};">{n_up} new</span>' if n_up
+                else f'  <span style="color:#666;">{len(items)}</span>')
+        lab = QLabel(f'<span style="letter-spacing:0.6px;">{_esc(category).upper()}</span>{tail}')
+        lab.setTextFormat(Qt.TextFormat.RichText)
+        lab.setContentsMargins(2, 8, 0, 0)
+        lab.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:11px;font-weight:700;")
+        return lab
+
+    def _sync_group_btn(self) -> None:
+        on = self._grouped
+        self._group_btn.setText("Grouped" if on else "Group")
+        if on:
+            self._group_btn.setStyleSheet(
+                "QPushButton{border:1px solid %s;border-radius:8px;padding:3px 11px;"
+                "background:rgba(255,255,255,0.10);color:#fff;font-size:11px;}" % _ACCENT)
+        else:
+            self._group_btn.setStyleSheet(
+                "QPushButton{border:1px solid rgba(255,255,255,0.12);border-radius:8px;"
+                "padding:3px 11px;background:transparent;color:#aaa;font-size:11px;}"
+                "QPushButton:hover{color:#fff;border-color:rgba(255,255,255,0.3);}")
+
+    def _sort_list(self, items: list) -> list:
+        """``items`` in the chosen order. Items with no known release date always
         sink to the bottom, whichever direction is active."""
         if self._sort_key == "channel":
-            items = sorted(self._items,
-                           key=lambda i: (channel_label(i).lower(), i.name.lower()))
-            return list(reversed(items)) if self._sort_desc else items
+            out = sorted(items, key=lambda i: (channel_label(i).lower(), i.name.lower()))
+            return list(reversed(out)) if self._sort_desc else out
         # "updated": by release recency (full timestamp when we have one)
         def recency(i: catalog.Item) -> str:
             return i.latest_at or i.latest_date
-        dated = sorted((i for i in self._items if recency(i)),
+        dated = sorted((i for i in items if recency(i)),
                        key=lambda i: (recency(i), i.name.lower()))
         if self._sort_desc:
             dated.reverse()
-        undated = sorted((i for i in self._items if not recency(i)),
+        undated = sorted((i for i in items if not recency(i)),
                          key=lambda i: i.name.lower())
         return dated + undated
+
+    def _sorted_items(self) -> list:
+        return self._sort_list(self._items)
+
+    def _grouped_view(self) -> list:
+        """``[(category, sorted_items), …]`` — named categories A→Z, then the
+        ungrouped ones under "Other". Each category is sorted independently by
+        the active sort, so grouping and sorting compose."""
+        buckets: dict[str, list] = {}
+        for it in self._items:
+            buckets.setdefault(it.group or "", []).append(it)
+        names = sorted((g for g in buckets if g), key=str.lower)
+        if "" in buckets:
+            names.append("")
+        return [(g or "Other", self._sort_list(buckets[g])) for g in names]
+
+    def _toggle_group(self) -> None:
+        self._grouped = not self._grouped
+        self._render()
 
     # ── render ──
     def _render(self) -> None:
@@ -271,8 +318,15 @@ class Dashboard(QWidget):
             if it.widget():
                 it.widget().deleteLater()
         self._sync_sort_chips()
-        for item in self._sorted_items():
-            self._list.addWidget(self._card(item))
+        self._sync_group_btn()
+        if self._grouped and any(i.group for i in self._items):
+            for category, items in self._grouped_view():
+                self._list.addWidget(self._group_header(category, items))
+                for item in items:
+                    self._list.addWidget(self._card(item))
+        else:
+            for item in self._sorted_items():
+                self._list.addWidget(self._card(item))
         self._list.addStretch(1)
         n = sum(1 for i in self._items if i.has_update())
         self._count.setText(f"· {n} update{'s' if n != 1 else ''} available" if n else "· all current")
@@ -409,7 +463,9 @@ class Dashboard(QWidget):
         from trackerkeeper.item_dialog import ItemDialog
 
         taken = {i.name.lower() for i in self._items}
-        action, result = ItemDialog(self._window or self, existing_names=taken).prompt()
+        groups = {i.group for i in self._items if i.group}
+        action, result = ItemDialog(self._window or self, existing_names=taken,
+                                    groups=groups).prompt()
         if action == "save" and result is not None:
             self._items.append(result)
             catalog.save(self._items)
@@ -419,8 +475,9 @@ class Dashboard(QWidget):
         from trackerkeeper.item_dialog import ItemDialog
 
         taken = {i.name.lower() for i in self._items if i is not item}
+        groups = {i.group for i in self._items if i.group}
         action, _ = ItemDialog(self._window or self, item=item,
-                               existing_names=taken).prompt()
+                               existing_names=taken, groups=groups).prompt()
         if action == "delete":
             self._remove(item)
         elif action == "save":

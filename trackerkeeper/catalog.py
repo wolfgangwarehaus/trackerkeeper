@@ -29,6 +29,7 @@ class Item:
 
     name: str
     platform: str = ""          # freeform label: "Linux", "Steam", "iOS", "Firmware"…
+    group: str = ""             # user category ("iPhone", "Gaming", "PC"); "" = ungrouped
     kind: str = "manual"        # one of KINDS
     ref: str = ""               # checker handle
     installed: str = ""         # the version you have / last acknowledged
@@ -146,24 +147,30 @@ def default_fleet() -> list[Item]:
     ones (github/arch) fill their `latest` on the first Refresh; the manual ones
     hold what you enter until a checker for their world exists."""
     return [
-        Item(name="KDE Plasma", platform="Linux", kind="arch", ref="plasma-desktop",
+        Item(name="KDE Plasma", platform="Linux", group="PC", kind="arch", ref="plasma-desktop",
              changelog_url="https://kde.org/announcements/"),
-        Item(name="Ghostty", platform="Terminal", kind="github", ref="ghostty-org/ghostty",
+        Item(name="Ghostty", platform="Terminal", group="PC", kind="github",
+             ref="ghostty-org/ghostty",
              changelog_url="https://github.com/ghostty-org/ghostty/releases"),
-        Item(name="CachyOS", platform="Linux", kind="cachyos", ref="desktop",
+        Item(name="CachyOS", platform="Linux", group="PC", kind="cachyos", ref="desktop",
              changelog_url="https://cachyos.org/blog/"),
-        Item(name="Slay the Spire 2", platform="Steam", kind="steam", ref="2868840",
+        Item(name="Slay the Spire 2", platform="Steam", group="Gaming", kind="steam", ref="2868840",
              changelog_url="https://store.steampowered.com/news/app/2868840"),
-        Item(name="SteamOS (Armada)", platform="Handheld", kind="github", ref="virtudude/armada",
+        Item(name="SteamOS (Armada)", platform="Handheld", group="Gaming", kind="github",
+             ref="virtudude/armada",
              changelog_url="https://github.com/virtudude/armada"),
-        Item(name="iOS Developer Beta", platform="iOS", kind="appledev", ref="iOS 27",
+        Item(name="iOS Developer Beta", platform="iOS", group="iPhone", kind="appledev",
+             ref="iOS 27",
              changelog_url="https://developer.apple.com/news/releases/"),
-        Item(name="Blackmagic Camera", platform="iOS", kind="appstore",
+        Item(name="Blackmagic Camera", platform="iOS", group="iPhone", kind="appstore",
              ref="6449580241", installed="3.4",
              changelog_url="https://www.blackmagicdesign.com/support/family/blackmagic-camera"),
-        Item(name="FEX", platform="ARM", kind="github", ref="FEX-Emu/FEX",
+        Item(name="FEX", platform="ARM", group="Gaming", kind="github", ref="FEX-Emu/FEX",
              changelog_url="https://github.com/FEX-Emu/FEX/releases"),
-        Item(name="Purple Turnip", platform="Adreno", kind="github",
+        Item(name="Purple Turnip", platform="Adreno", group="Gaming", kind="github",
              ref="MrPurple666/purple-turnip",
              changelog_url="https://github.com/MrPurple666/purple-turnip/releases"),
+        Item(name="GameNative", platform="Android", group="Gaming", kind="github",
+             ref="utkarshdalal/GameNative",
+             changelog_url="https://github.com/utkarshdalal/GameNative/releases"),
     ]

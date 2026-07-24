@@ -8,7 +8,9 @@ One dialog for both: ``ItemDialog(parent)`` adds a fresh item;
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCompleter,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -42,7 +44,8 @@ _REF_HINT = {
 
 class ItemDialog(FrostedDialog):
     def __init__(self, parent=None, *, item: catalog.Item | None = None,
-                 existing_names: set[str] | None = None) -> None:
+                 existing_names: set[str] | None = None,
+                 groups: set[str] | None = None) -> None:
         editing = item is not None
         super().__init__(parent, title="Edit item" if editing else "Track something",
                          icon_name="", min_width=440)
@@ -54,6 +57,13 @@ class ItemDialog(FrostedDialog):
         self._platform = self._field(
             "Platform / label", item.platform if editing else "",
             placeholder="Linux · Steam · iOS · Firmware …")
+        self._group = self._field(
+            "Category", item.group if editing else "",
+            placeholder="iPhone · Gaming · PC …  (optional — groups the dashboard)")
+        if groups:
+            comp = QCompleter(sorted(groups))
+            comp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            self._group.setCompleter(comp)
 
         self.content_layout.addWidget(self._label("Source"))
         self._kind = Selector()
@@ -152,6 +162,7 @@ class ItemDialog(FrostedDialog):
         target = self._item or catalog.Item(name=name)
         target.name = name
         target.platform = self._platform.text().strip()
+        target.group = self._group.text().strip()
         target.kind = kind
         target.ref = "" if kind == "manual" else ref
         target.installed = self._installed.text().strip()

@@ -52,6 +52,15 @@ def test_missing_file_seeds_the_real_fleet():
     assert any(i.kind == "appstore" for i in fleet)  # Blackmagic Camera (iOS)
 
 
+def test_group_field_round_trips(tmp_path):
+    catalog.set_catalog_path(tmp_path / "catalog.json")
+    try:
+        catalog.save([catalog.Item(name="X", kind="manual", group="Gaming")])
+        assert catalog.load()[0].group == "Gaming"
+    finally:
+        catalog.set_catalog_path(None)
+
+
 def test_load_ignores_unknown_keys_and_bad_json(tmp_path):
     p = tmp_path / "catalog.json"
     p.write_text('{"items":[{"name":"X","installed":"1","from_the_future":true}]}')

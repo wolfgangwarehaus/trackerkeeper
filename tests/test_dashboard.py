@@ -115,6 +115,29 @@ def test_updated_sort_prefers_full_timestamp_over_date(qapp):
     assert [i.name for i in dash._sorted_items()] == ["evening", "morning"]
 
 
+def test_grouped_view_orders_categories_and_sorts_within_each(qapp):
+    dash = _dash(qapp, [
+        catalog.Item(name="A", kind="github", group="PC", latest="1", latest_date="2026-07-20"),
+        catalog.Item(name="B", kind="appstore", group="iPhone", latest="2", latest_date="2026-07-24"),
+        catalog.Item(name="C", kind="steam", group="Gaming", latest="3", latest_date="2026-07-10"),
+        catalog.Item(name="D", kind="github", group="Gaming", latest="4", latest_date="2026-07-22"),
+        catalog.Item(name="E", kind="manual", group="", latest="", latest_date=""),
+    ])
+    dash._sort_key, dash._sort_desc = "updated", True
+    view = dash._grouped_view()
+    assert [g for g, _ in view] == ["Gaming", "iPhone", "PC", "Other"]  # A→Z, ungrouped last
+    within = {g: [i.name for i in items] for g, items in view}
+    assert within["Gaming"] == ["D", "C"]  # newest-first sort applies inside the group
+    assert within["Other"] == ["E"]
+
+
+def test_grouping_can_be_toggled_off(qapp):
+    dash = _dash(qapp, [catalog.Item(name="A", kind="manual", group="PC")])
+    assert dash._grouped is True          # auto-on when any item has a category
+    dash._toggle_group()
+    assert dash._grouped is False
+
+
 def test_dashboard_construction_never_touches_the_network(qapp):
     """Offscreen construction must not auto-refresh (no network in CI/tests)."""
     dash = _dash(qapp, catalog.default_fleet())

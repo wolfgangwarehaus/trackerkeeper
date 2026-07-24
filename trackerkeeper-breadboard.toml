@@ -172,6 +172,15 @@ by = "agent"
 date = "2026-07-24"
 note = "Slay the Spire 2 (appid 2868840) wired → v0.109.0; extracts version from patch-note title, links the store news page"
 
+[[baking]]
+id = "85172b"
+text = "Dashboard grouping: user categories (iPhone/Gaming/PC), sort within each, Group toggle"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-07-24"
+note = "Item.group field + Category dialog field w/ autocomplete; section headers with counts; also added GameNative (utkarshdalal/GameNative)"
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"
