@@ -26,6 +26,9 @@ from trackerkeeper.icons import icon
 
 class TopBar(ui_helpers.CenteredBar):
     HEIGHT = 44
+    # The chrome-button footprint. Exported so app controls folded onto this bar
+    # (see Dashboard) can match it instead of guessing.
+    BUTTON_SIZE = (30, 26)
 
     def __init__(self, window, *, titlebar_mode: bool, title: str = "trackerkeeper"):
         super().__init__(window)
@@ -114,7 +117,7 @@ class TopBar(ui_helpers.CenteredBar):
         b = IconButton(accessible_name=tip)
         b.setIcon(icon(icon_name))
         b.setToolTip(tip)
-        b.setFixedSize(30, 26)  # compact, dough-matched (was 36×32)
+        b.setFixedSize(*self.BUTTON_SIZE)  # compact, dough-matched (was 36×32)
         return b
 
     def restyle(self) -> None:

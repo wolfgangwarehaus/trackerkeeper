@@ -26,7 +26,14 @@ from PySide6.QtWidgets import (
 
 from trackerkeeper import catalog, ui_helpers
 from trackerkeeper.bus import AppBus
-from trackerkeeper.design_tokens import TYPE_BODY, TYPE_DISPLAY, type_qss
+from trackerkeeper.design_tokens import (
+    TYPE_CAPTION,
+    TYPE_DISPLAY,
+    TYPE_MICRO,
+    TYPE_TINY,
+    type_qss,
+)
+from trackerkeeper.top_bar import TopBar
 
 _ACCENT = ui_helpers.ACCENT
 _NEW = "#56c48d"
@@ -50,6 +57,10 @@ DEFAULT_SIZE = (480, 620)   # a tall, slim fleet list
 MIN_SIZE = (300, 320)       # still usable: name, version, age
 
 TIER_NARROW, TIER_MEDIUM, TIER_WIDE = "narrow", "medium", "wide"
+
+# Every control that sits on (or reads against) the top bar matches the window
+# chrome's height, so Check / Add / ⋯ line up with the −□× buttons.
+_CHROME_H = TopBar.BUTTON_SIZE[1]
 
 
 def width_tier(width: int) -> str:
@@ -174,7 +185,7 @@ class Dashboard(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 8, 12, 10)
-        root.setSpacing(8)
+        root.setSpacing(6)
         self._root = root
 
         # ── header controls: the update-count badge, a check status, and the
@@ -184,9 +195,9 @@ class Dashboard(QWidget):
         self._title = QLabel("tracker keeper")
         self._title.setStyleSheet(type_qss(TYPE_DISPLAY) + f"color:{ui_helpers.TEXT};")
         self._count = QLabel("")
-        self._count.setStyleSheet(f"color:{_NEW};font-weight:600;")
+        self._count.setStyleSheet(f"color:{_NEW};font-weight:600;" + type_qss(TYPE_TINY))
         self._status = QLabel("")
-        self._status.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:12px;")
+        self._status.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_TINY))
         self._add_btn = self._chip_button("Add…", self._add_item)
         self._refresh_btn = self._chip_button("Check for updates", self._refresh)
 
@@ -211,9 +222,9 @@ class Dashboard(QWidget):
 
         # ── sort bar: choose the axis; click the active one to flip direction ──
         sortbar = QHBoxLayout()
-        sortbar.setSpacing(8)
+        sortbar.setSpacing(6)
         sort_lab = QLabel("Sort")
-        sort_lab.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:11px;")
+        sort_lab.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_TINY))
         sortbar.addWidget(sort_lab)
         self._sort_lab = sort_lab
         self._sort_updated = self._sort_chip("Updated", "updated")
@@ -234,7 +245,7 @@ class Dashboard(QWidget):
         self._list_host = QWidget()
         self._list = QVBoxLayout(self._list_host)
         self._list.setContentsMargins(0, 0, 0, 0)
-        self._list.setSpacing(9)
+        self._list.setSpacing(5)
         scroll.setWidget(self._list_host)
         ui_helpers.install_autofade_scrollbars(scroll)  # the slim auto-fading pill
         root.addWidget(scroll, 1)
@@ -296,10 +307,12 @@ class Dashboard(QWidget):
         b = QPushButton(text)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
         b.setStyleSheet(
-            "QPushButton{border:1px solid rgba(255,255,255,0.2);border-radius:9px;"
-            "padding:6px 14px;background:transparent;color:#ddd;}"
+            "QPushButton{border:1px solid rgba(255,255,255,0.2);border-radius:7px;"
+            "padding:2px 10px;background:transparent;color:#ddd;}"
             f"QPushButton:hover{{border-color:{_ACCENT};color:#fff;}}"
-            "QPushButton:disabled{color:#666;border-color:rgba(255,255,255,0.08);}")
+            "QPushButton:disabled{color:#666;border-color:rgba(255,255,255,0.08);}"
+            + type_qss(TYPE_TINY))
+        b.setFixedHeight(_CHROME_H)   # flush with the window controls beside it
         # Never let the top bar squeeze a label into a sliver ("Add…" → "dd."):
         # the button holds its text width and the tier rules decide whether it's
         # shown at all.
@@ -331,14 +344,15 @@ class Dashboard(QWidget):
             btn.setText(label + arrow)
             if active:
                 btn.setStyleSheet(
-                    "QPushButton{border:1px solid %s;border-radius:8px;padding:3px 11px;"
-                    "background:rgba(255,255,255,0.10);color:#fff;font-size:11px;}"
-                    % _ACCENT)
+                    "QPushButton{border:1px solid %s;border-radius:6px;padding:1px 9px;"
+                    "background:rgba(255,255,255,0.10);color:#fff;}" % _ACCENT
+                    + type_qss(TYPE_TINY))
             else:
                 btn.setStyleSheet(
-                    "QPushButton{border:1px solid rgba(255,255,255,0.12);border-radius:8px;"
-                    "padding:3px 11px;background:transparent;color:#aaa;font-size:11px;}"
-                    "QPushButton:hover{color:#fff;border-color:rgba(255,255,255,0.3);}")
+                    "QPushButton{border:1px solid rgba(255,255,255,0.12);border-radius:6px;"
+                    "padding:1px 9px;background:transparent;color:#aaa;}"
+                    "QPushButton:hover{color:#fff;border-color:rgba(255,255,255,0.3);}"
+                    + type_qss(TYPE_TINY))
 
     def _group_header(self, category: str, items: list) -> QWidget:
         """A slim section label — the category, its count, and any updates in it."""
@@ -347,8 +361,9 @@ class Dashboard(QWidget):
                 else f'  <span style="color:#666;">{len(items)}</span>')
         lab = QLabel(f'<span style="letter-spacing:0.6px;">{_esc(category).upper()}</span>{tail}')
         lab.setTextFormat(Qt.TextFormat.RichText)
-        lab.setContentsMargins(2, 8, 0, 0)
-        lab.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:11px;font-weight:700;")
+        lab.setContentsMargins(2, 5, 0, 0)
+        # MICRO is exactly this: a small, bold, letter-spaced section label.
+        lab.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_MICRO))
         return lab
 
     def _sync_group_btn(self) -> None:
@@ -356,13 +371,15 @@ class Dashboard(QWidget):
         self._group_btn.setText("Grouped" if on else "Group")
         if on:
             self._group_btn.setStyleSheet(
-                "QPushButton{border:1px solid %s;border-radius:8px;padding:3px 11px;"
-                "background:rgba(255,255,255,0.10);color:#fff;font-size:11px;}" % _ACCENT)
+                "QPushButton{border:1px solid %s;border-radius:6px;padding:1px 9px;"
+                "background:rgba(255,255,255,0.10);color:#fff;}" % _ACCENT
+                + type_qss(TYPE_TINY))
         else:
             self._group_btn.setStyleSheet(
-                "QPushButton{border:1px solid rgba(255,255,255,0.12);border-radius:8px;"
-                "padding:3px 11px;background:transparent;color:#aaa;font-size:11px;}"
-                "QPushButton:hover{color:#fff;border-color:rgba(255,255,255,0.3);}")
+                "QPushButton{border:1px solid rgba(255,255,255,0.12);border-radius:6px;"
+                "padding:1px 9px;background:transparent;color:#aaa;}"
+                "QPushButton:hover{color:#fff;border-color:rgba(255,255,255,0.3);}"
+                + type_qss(TYPE_TINY))
 
     def _sort_list(self, items: list) -> list:
         """``items`` in the chosen order. Items with no known release date always
@@ -430,19 +447,22 @@ class Dashboard(QWidget):
         card.setStyleSheet(_CARD_NEW if item.has_update() else _CARD)
         narrow = self._tier == TIER_NARROW
         outer = QHBoxLayout(card)
-        outer.setContentsMargins(10 if narrow else 14, 8 if narrow else 11,
-                                 8 if narrow else 14, 8 if narrow else 11)
-        outer.setSpacing(6 if narrow else 12)
+        # Dense by design: this is a scan-the-fleet list, not a reading surface.
+        outer.setContentsMargins(8 if narrow else 10, 5, 6 if narrow else 8, 5)
+        outer.setSpacing(6 if narrow else 10)
 
         # left: name + platform + versions
         left = QVBoxLayout()
-        left.setSpacing(3)
+        left.setSpacing(1)
         topline = QLabel(
             (f'<span style="color:{_NEW};">●</span> ' if item.has_update() else "")
             + f'<b style="color:{ui_helpers.TEXT};">{_esc(item.name)}</b>'
-            + (f'  <span style="color:{ui_helpers.TEXT_DIM};font-size:11px;">'
+            + (f'  <span style="color:{ui_helpers.TEXT_DIM};">'
                f'{_esc(item.platform)}</span>' if item.platform else ""))
         topline.setTextFormat(Qt.TextFormat.RichText)
+        # One tier down from body — the list scans denser, and because these are
+        # tokens (not literal px) the Settings font-scale still applies.
+        topline.setStyleSheet(type_qss(TYPE_CAPTION))
         # A label's size hint is its full text width, which would pin a floor on
         # how narrow the window can go — let both text lines shrink (and clip)
         # instead of blocking the resize.
@@ -453,7 +473,7 @@ class Dashboard(QWidget):
         left.addWidget(version)
         if item.error:
             err = QLabel("couldn't check — showing last known")
-            err.setStyleSheet("color:#c98a2b;font-size:11px;")
+            err.setStyleSheet("color:#c98a2b;" + type_qss(TYPE_TINY))
             left.addWidget(err)
         outer.addLayout(left, 1)
 
@@ -462,14 +482,14 @@ class Dashboard(QWidget):
         # platform tag beside the name already hints at it.
         if self._tier == TIER_WIDE:
             chan = QLabel(channel_label(item))
-            chan.setFixedWidth(78)
+            chan.setFixedWidth(70)
             chan.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            chan.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:11px;")
+            chan.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_TINY))
             outer.addWidget(chan)
         age = QLabel(humanize_age(item.latest_at or item.latest_date))
-        age.setFixedWidth(66 if self._tier == TIER_NARROW else 88)
+        age.setFixedWidth(62 if self._tier == TIER_NARROW else 80)
         age.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        age.setStyleSheet("color:#8a8a8a;font-size:11px;")
+        age.setStyleSheet("color:#8a8a8a;" + type_qss(TYPE_TINY))
         outer.addWidget(age)
 
         # right: changelog + actions ("changelog →" collapses to the arrow when
@@ -501,16 +521,18 @@ class Dashboard(QWidget):
             body = f'<span style="color:{ui_helpers.TEXT_DIM};">{_esc(inst)}</span>'
         lab = QLabel(body)
         lab.setTextFormat(Qt.TextFormat.RichText)
-        lab.setStyleSheet(type_qss(TYPE_BODY))
+        lab.setStyleSheet(type_qss(TYPE_CAPTION))
         return lab
 
     def _mini(self, text: str, slot) -> QPushButton:
         b = QPushButton(text)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
         b.setStyleSheet(
-            "QPushButton{border:none;border-radius:7px;padding:5px 10px;"
-            "background:rgba(255,255,255,0.06);color:#bbb;font-size:12px;}"
-            f"QPushButton:hover{{background:{_ACCENT};color:#fff;}}")
+            "QPushButton{border:none;border-radius:6px;padding:2px 8px;"
+            "background:rgba(255,255,255,0.06);color:#bbb;}"
+            f"QPushButton:hover{{background:{_ACCENT};color:#fff;}}"
+            + type_qss(TYPE_TINY))
+        b.setFixedHeight(_CHROME_H)
         b.clicked.connect(slot)
         return b
 

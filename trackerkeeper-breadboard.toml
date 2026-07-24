@@ -197,7 +197,7 @@ done = true
 priority = "now"
 by = "agent"
 date = "2026-07-24"
-note = "New tray.py: tooltip update count, menu (show/check/settings/quit), click-to-toggle, close-to-tray; dashboard drops columns/labels as it narrows; verified live on KDE StatusNotifierWatcher"
+note = "density pass: type stepped to CAPTION/TINY/MICRO tokens (font-scale still applies), card padding 11->5px, list spacing 9->5, Check/Add/mini buttons pinned to the 26px chrome height"
 
 [[delivery]]
 id = "267380"
