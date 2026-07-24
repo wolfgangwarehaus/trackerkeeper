@@ -161,4 +161,9 @@ def default_fleet() -> list[Item]:
         Item(name="Blackmagic Camera", platform="iOS", kind="appstore",
              ref="6449580241", installed="3.4",
              changelog_url="https://www.blackmagicdesign.com/support/family/blackmagic-camera"),
+        Item(name="FEX", platform="ARM", kind="github", ref="FEX-Emu/FEX",
+             changelog_url="https://github.com/FEX-Emu/FEX/releases"),
+        Item(name="Purple Turnip", platform="Adreno", kind="github",
+             ref="MrPurple666/purple-turnip",
+             changelog_url="https://github.com/MrPurple666/purple-turnip/releases"),
     ]
