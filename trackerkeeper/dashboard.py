@@ -43,6 +43,25 @@ _CHANNEL = {"github": "GitHub", "arch": "Arch", "appstore": "App Store",
             "cachyos": "CachyOS", "appledev": "Apple", "steam": "Steam",
             "manual": "Manual"}
 
+# tracker keeper is a UTILITY window first — it lives in the tray and gets
+# opened in a corner, so it has to stay readable narrow. These are the sizes
+# the layout is designed against, not arbitrary minimums.
+DEFAULT_SIZE = (480, 620)   # a tall, slim fleet list
+MIN_SIZE = (300, 320)       # still usable: name, version, age
+
+TIER_NARROW, TIER_MEDIUM, TIER_WIDE = "narrow", "medium", "wide"
+
+
+def width_tier(width: int) -> str:
+    """Which layout density fits ``width``. Columns drop off as it tightens:
+    wide keeps the channel column, medium keeps only "how long ago", narrow
+    also shortens the labels and margins."""
+    if width < 420:
+        return TIER_NARROW
+    if width < 620:
+        return TIER_MEDIUM
+    return TIER_WIDE
+
 
 def channel_label(item: catalog.Item) -> str:
     """The human name of the source an item updates through (its channel)."""
@@ -142,10 +161,21 @@ class Dashboard(QWidget):
         self._sort_key = "updated"   # "updated" (by release recency) | "channel"
         self._sort_desc = True       # newest / Z→A first
         self._grouped = any(i.group for i in self._items)  # section by category
+        self._tier = TIER_WIDE   # re-derived from the real width in resizeEvent
+        self._tray = None
+
+        # Utility sizing: a slim default and a genuinely small floor. The
+        # window only takes the default when there's no saved geometry (run_app
+        # stamps _geometry_restored) — a size you chose is never overridden.
+        if window is not None:
+            window.setMinimumSize(*MIN_SIZE)
+            if not getattr(window, "_geometry_restored", False):
+                window.resize(*DEFAULT_SIZE)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(20, 16, 20, 18)
-        root.setSpacing(12)
+        root.setContentsMargins(12, 8, 12, 10)
+        root.setSpacing(8)
+        self._root = root
 
         # ── header controls: the update-count badge, a check status, and the
         # Add / Check actions. Built once, then folded onto the window's top-bar
@@ -185,6 +215,7 @@ class Dashboard(QWidget):
         sort_lab = QLabel("Sort")
         sort_lab.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:11px;")
         sortbar.addWidget(sort_lab)
+        self._sort_lab = sort_lab
         self._sort_updated = self._sort_chip("Updated", "updated")
         self._sort_channel = self._sort_chip("Channel", "channel")
         sortbar.addWidget(self._sort_updated)
@@ -221,6 +252,45 @@ class Dashboard(QWidget):
 
             QTimer.singleShot(1500, self._refresh)
 
+            # The tray presence — a watchtower's resting state. Real displays
+            # only (offscreen/CI has no tray), and self-disabling when the
+            # desktop doesn't support one.
+            from trackerkeeper.tray import AppTray
+
+            self._tray = AppTray(window, on_refresh=self._refresh) if window else None
+            if self._tray is not None and self._tray.available:
+                self._window.top_bar.add_menu_action(
+                    "Hide to tray", self._tray._hide_window)
+                self._sync_tray()
+
+    # ── responsive: columns and labels drop off as the window narrows ──
+    def resizeEvent(self, e):  # noqa: N802 (Qt override)
+        super().resizeEvent(e)
+        tier = width_tier(self.width())
+        if tier != self._tier:
+            self._tier = tier
+            self._apply_tier()
+            self._render()   # cards carry per-tier columns
+
+    def _apply_tier(self) -> None:
+        """Chrome outside the card list. The top bar is the tightest real estate:
+        the check status goes first, then the Add / Check buttons themselves —
+        they stay reachable in the hamburger menu, so nothing is lost, and the
+        bar never squeezes its labels into unreadable slivers."""
+        narrow, wide = self._tier == TIER_NARROW, self._tier == TIER_WIDE
+        m = 8 if narrow else 12
+        self._root.setContentsMargins(m, 6 if narrow else 8, m, 8 if narrow else 10)
+        self._sort_lab.setVisible(not narrow)
+        self._status.setVisible(wide)
+        self._add_btn.setVisible(wide)          # menu keeps it below wide
+        self._refresh_btn.setVisible(not narrow)
+        self._refresh_btn.setText("Check for updates" if wide else "Check")
+        self._count.setMinimumWidth(1)          # the badge clips before the buttons do
+
+    def _sync_tray(self) -> None:
+        if self._tray is not None and self._tray.available:
+            self._tray.set_update_count(sum(1 for i in self._items if i.has_update()))
+
     # ── styling helpers ──
     def _chip_button(self, text: str, slot) -> QPushButton:
         b = QPushButton(text)
@@ -230,6 +300,12 @@ class Dashboard(QWidget):
             "padding:6px 14px;background:transparent;color:#ddd;}"
             f"QPushButton:hover{{border-color:{_ACCENT};color:#fff;}}"
             "QPushButton:disabled{color:#666;border-color:rgba(255,255,255,0.08);}")
+        # Never let the top bar squeeze a label into a sliver ("Add…" → "dd."):
+        # the button holds its text width and the tier rules decide whether it's
+        # shown at all.
+        from PySide6.QtWidgets import QSizePolicy
+
+        b.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         b.clicked.connect(slot)
         return b
 
@@ -342,14 +418,21 @@ class Dashboard(QWidget):
                 self._list.addWidget(self._card(item))
         self._list.addStretch(1)
         n = sum(1 for i in self._items if i.has_update())
-        self._count.setText(f"· {n} update{'s' if n != 1 else ''} available" if n else "· all current")
+        if self._tier == TIER_NARROW:   # the badge earns its width or goes
+            self._count.setText(f"· {n} new" if n else "")
+        else:
+            self._count.setText(
+                f"· {n} update{'s' if n != 1 else ''} available" if n else "· all current")
+        self._sync_tray()
 
     def _card(self, item: catalog.Item) -> QWidget:
         card = QFrame()
         card.setStyleSheet(_CARD_NEW if item.has_update() else _CARD)
+        narrow = self._tier == TIER_NARROW
         outer = QHBoxLayout(card)
-        outer.setContentsMargins(14, 11, 14, 11)
-        outer.setSpacing(12)
+        outer.setContentsMargins(10 if narrow else 14, 8 if narrow else 11,
+                                 8 if narrow else 14, 8 if narrow else 11)
+        outer.setSpacing(6 if narrow else 12)
 
         # left: name + platform + versions
         left = QVBoxLayout()
@@ -360,30 +443,42 @@ class Dashboard(QWidget):
             + (f'  <span style="color:{ui_helpers.TEXT_DIM};font-size:11px;">'
                f'{_esc(item.platform)}</span>' if item.platform else ""))
         topline.setTextFormat(Qt.TextFormat.RichText)
+        # A label's size hint is its full text width, which would pin a floor on
+        # how narrow the window can go — let both text lines shrink (and clip)
+        # instead of blocking the resize.
+        topline.setMinimumWidth(1)
         left.addWidget(topline)
-        left.addWidget(self._version_line(item))
+        version = self._version_line(item)
+        version.setMinimumWidth(1)
+        left.addWidget(version)
         if item.error:
             err = QLabel("couldn't check — showing last known")
             err.setStyleSheet("color:#c98a2b;font-size:11px;")
             left.addWidget(err)
         outer.addLayout(left, 1)
 
-        # columns: channel + how-long-ago (fixed widths so they align down the list)
-        chan = QLabel(channel_label(item))
-        chan.setFixedWidth(78)
-        chan.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        chan.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:11px;")
-        outer.addWidget(chan)
+        # columns: channel + how-long-ago (fixed widths so they align down the
+        # list). The channel column is the first thing to go as we narrow — the
+        # platform tag beside the name already hints at it.
+        if self._tier == TIER_WIDE:
+            chan = QLabel(channel_label(item))
+            chan.setFixedWidth(78)
+            chan.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            chan.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:11px;")
+            outer.addWidget(chan)
         age = QLabel(humanize_age(item.latest_at or item.latest_date))
-        age.setFixedWidth(88)
+        age.setFixedWidth(66 if self._tier == TIER_NARROW else 88)
         age.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         age.setStyleSheet("color:#8a8a8a;font-size:11px;")
         outer.addWidget(age)
 
-        # right: changelog + actions
+        # right: changelog + actions ("changelog →" collapses to the arrow when
+        # every pixel counts — the tooltip keeps it discoverable)
         if item.changelog_url or item.latest_url:
+            text = "→" if self._tier == TIER_NARROW else "changelog →"
             link = QLabel(f'<a href="{item.latest_url or item.changelog_url}" '
-                          f'style="color:{_ACCENT};text-decoration:none;">changelog →</a>')
+                          f'style="color:{_ACCENT};text-decoration:none;">{text}</a>')
+            link.setToolTip("Open the changelog")
             link.setTextFormat(Qt.TextFormat.RichText)
             link.setOpenExternalLinks(True)
             link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)

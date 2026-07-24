@@ -190,6 +190,15 @@ by = "agent"
 date = "2026-07-24"
 note = "TopBar gained a hamburger menu + left settings + add_action/insert_title_widget/add_menu_action slots; Dashboard folds its Add/Check/count/status into the titlebar line"
 
+[[baking]]
+id = "7a0499"
+text = "Utility sizing (480x620 default, 300x320 floor, responsive tiers) + system tray"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-07-24"
+note = "New tray.py: tooltip update count, menu (show/check/settings/quit), click-to-toggle, close-to-tray; dashboard drops columns/labels as it narrows; verified live on KDE StatusNotifierWatcher"
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"

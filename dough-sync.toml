@@ -13,6 +13,7 @@ authored = [
     "sources.py",      # the update-checker provider engine — net-new
     "dashboard.py",    # the fleet dashboard UI — net-new
     "item_dialog.py",  # the add/edit-item form — net-new
+    "tray.py",         # the system-tray presence (watchtower resting state) — net-new
 ]
 
 # Files derived from dough but hand-customized. Sync shows dough's upstream diff
@@ -20,4 +21,5 @@ authored = [
 manual = [
     "app.py",       # main() wires the dashboard as run_app content (not the placeholder)
     "identity.py",  # display_name "tracker keeper" — the whole-word transform would regress it
+    "top_bar.py",   # hamburger + left settings + the add_action/title-slot API the dashboard folds into
 ]

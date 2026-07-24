@@ -319,7 +319,10 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     from trackerkeeper.window import AppWindow
 
     win = AppWindow(title=ident.display_name())
-    get_settings().restore_geometry(win)  # no-op if nothing saved → keeps default
+    # Record whether a saved size was restored: content that wants its own
+    # default size (a utility window) checks this so it never overrides a size
+    # the user chose.
+    win._geometry_restored = get_settings().restore_geometry(win)
     win.set_content(content_factory(win))
 
     def _open_settings():
