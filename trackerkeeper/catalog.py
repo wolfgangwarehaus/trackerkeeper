@@ -19,7 +19,7 @@ from pathlib import Path
 
 # source KINDS the app knows how to check (sources.py owns the checkers). A
 # manual item has no checker — you set `installed` yourself and it never fetches.
-KINDS = ("github", "arch", "appstore", "cachyos", "manual")
+KINDS = ("github", "arch", "appstore", "cachyos", "appledev", "manual")
 
 
 @dataclass
@@ -156,7 +156,7 @@ def default_fleet() -> list[Item]:
              changelog_url="https://store.steampowered.com/news/app/2868840"),
         Item(name="SteamOS (Armada)", platform="Handheld", kind="manual", installed="",
              changelog_url="https://store.steampowered.com/steamos"),
-        Item(name="iOS Developer Beta", platform="iOS", kind="manual", installed="",
+        Item(name="iOS Developer Beta", platform="iOS", kind="appledev", ref="iOS 27",
              changelog_url="https://developer.apple.com/news/releases/"),
         Item(name="Blackmagic Camera", platform="iOS", kind="appstore",
              ref="6449580241", installed="3.4",

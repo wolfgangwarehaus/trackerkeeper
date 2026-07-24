@@ -25,6 +25,7 @@ _KIND_LABELS = {
     "arch": "Arch package  (package name)",
     "appstore": "App Store  (iOS / Mac — app id or bundle id)",
     "cachyos": "CachyOS ISO  (edition: desktop / kde / handheld / cli)",
+    "appledev": "Apple release  (OS filter — iOS 27, macOS 27, betas + finals)",
     "manual": "Manual  (you set the version)",
 }
 _REF_HINT = {
@@ -32,6 +33,7 @@ _REF_HINT = {
     "arch": "package name  ·  e.g. plasma-desktop",
     "appstore": "app id or bundle id  ·  e.g. 6449580241 or com.apple.FinalCutApp.companion",
     "cachyos": "edition  ·  desktop (default) · kde · handheld · cli",
+    "appledev": "OS filter  ·  e.g. iOS 27 · iPadOS 27 · macOS 27 · watchOS 27",
     "manual": "",
 }
 

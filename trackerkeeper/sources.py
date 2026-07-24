@@ -15,6 +15,7 @@ exactly like ``deliver``'s detection probes.
 
 from __future__ import annotations
 
+import html
 import json
 import re
 import urllib.error
@@ -172,6 +173,61 @@ def _cachyos(item, http, http_text) -> CheckResult | None:
     )
 
 
+# Apple's developer releases feed — every OS build (betas + finals) Apple ships,
+# newest first: iOS, iPadOS, macOS, watchOS, tvOS, visionOS.
+_APPLE_RELEASES_RSS = "https://developer.apple.com/news/releases/rss/releases.rss"
+_MONTHS = {m: i for i, m in enumerate(
+    ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), 1)}
+
+
+def _rss_field(entry: str, tag: str) -> str:
+    """The text of ``<tag>…</tag>`` inside one feed entry (CDATA unwrapped,
+    entities decoded), or ""."""
+    m = re.search(rf"<{tag}\b[^>]*>(.*?)</{tag}>", entry, re.DOTALL)
+    if not m:
+        return ""
+    val = m.group(1).strip()
+    cdata = re.search(r"<!\[CDATA\[(.*?)\]\]>", val, re.DOTALL)
+    if cdata:
+        val = cdata.group(1).strip()
+    return html.unescape(val)
+
+
+def _rss_date(pubdate: str) -> str:
+    """An RSS RFC-822 ``pubDate`` ("Tue, 21 Jul 2026 13:00:00 PDT") → ISO date.
+    Pulled by regex so a named timezone (PDT) can't trip a strict parser."""
+    m = re.search(r"(\d{1,2})\s+([A-Z][a-z]{2})\s+(\d{4})", pubdate or "")
+    if not m:
+        return ""
+    day, mon, year = m.groups()
+    month = _MONTHS.get(mon)
+    return f"{year}-{month:02d}-{int(day):02d}" if month else ""
+
+
+def _appledev(item, http, http_text) -> CheckResult | None:
+    """Latest Apple release matching ``item.ref`` from the developer releases
+    feed. ``ref`` is a title filter — "iOS 27", "macOS 27", "watchOS 27" — and
+    the newest matching entry wins (betas included), e.g. "iOS 27.0 beta 4
+    (24A5390f)". The one clean auto-source for the otherwise-manual Apple tail:
+    no OS-update API exists, but this feed lists every build Apple ships."""
+    needle = (item.ref or "").strip().lower()
+    if not needle:
+        return None
+    xml = http_text(_APPLE_RELEASES_RSS)
+    if not xml:
+        return None
+    for entry in re.findall(r"<item>(.*?)</item>", xml, re.DOTALL):  # newest first
+        title = _rss_field(entry, "title")
+        if title and needle in title.lower():
+            return CheckResult(
+                latest=title,
+                url=_rss_field(entry, "link") or "https://developer.apple.com/news/releases/",
+                date=_rss_date(_rss_field(entry, "pubDate")),
+            )
+    return None
+
+
 def _manual(item, http, http_text) -> CheckResult | None:
     """A manual item has no source to poll — you set ``installed`` yourself.
     Returns None so a refresh leaves it untouched (never an error, never a
@@ -184,6 +240,7 @@ _PROVIDERS = {
     "arch": _arch,
     "appstore": _appstore,
     "cachyos": _cachyos,
+    "appledev": _appledev,
     "manual": _manual,
 }
 

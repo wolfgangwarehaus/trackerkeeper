@@ -123,6 +123,41 @@ def test_cachyos_provider_none_when_index_unreachable():
     assert sources.check(item, http_text=lambda url: None) is None
 
 
+_APPLE_RSS = """<rss><channel>
+<item><title>TestFlight Update</title><link>https://d/tf</link>
+  <pubDate>Tue, 21 Jul 2026 13:00:00 PDT</pubDate></item>
+<item><title>iOS 27.0 beta 4 (24A5390f)</title><link>https://d/ios27b4</link>
+  <pubDate>Mon, 20 Jul 2026 10:00:00 PDT</pubDate></item>
+<item><title>iOS 26.6 RC (23G71)</title><link>https://d/rc</link>
+  <pubDate>Mon, 13 Jul 2026 10:00:00 PDT</pubDate></item>
+<item><title>iOS 27.0 beta (24A5355q)</title><link>https://d/ios27b1</link>
+  <pubDate>Mon, 06 Jul 2026 10:00:00 PDT</pubDate></item>
+</channel></rss>"""
+
+
+def test_appledev_returns_newest_entry_matching_the_os_filter():
+    item = catalog.Item(name="iOS Beta", kind="appledev", ref="iOS 27")
+    res = sources.check(item, http_text=lambda url: _APPLE_RSS)
+    assert res.latest == "iOS 27.0 beta 4 (24A5390f)"  # newest iOS 27, not the older beta 1
+    assert res.date == "2026-07-20"
+    assert res.url == "https://d/ios27b4"
+
+
+def test_appledev_filter_does_not_match_a_different_os():
+    item = catalog.Item(name="x", kind="appledev", ref="macOS 27")
+    assert sources.check(item, http_text=lambda url: _APPLE_RSS) is None
+
+
+def test_appledev_needs_a_filter():
+    item = catalog.Item(name="x", kind="appledev", ref="")
+    assert sources.check(item, http_text=lambda url: _APPLE_RSS) is None
+
+
+def test_appledev_none_when_feed_unreachable():
+    item = catalog.Item(name="x", kind="appledev", ref="iOS 27")
+    assert sources.check(item, http_text=lambda url: None) is None
+
+
 def test_manual_never_fetches():
     item = catalog.Item(name="iOS beta", kind="manual", installed="26.1")
     assert sources.check(item, _fake({"anything": {"x": 1}})) is None

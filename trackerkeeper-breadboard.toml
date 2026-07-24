@@ -154,6 +154,15 @@ by = "agent"
 date = "2026-07-24"
 note = "Added http_text seam (reusable for the future RSS checker); CachyOS item wired to desktop edition, latest ISO 2026-06-28"
 
+[[baking]]
+id = "94f09b"
+text = "Checker: Apple developer releases (appledev — iOS/macOS/watchOS betas + finals via RSS filter)"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-07-24"
+note = "iOS Developer Beta wired to 'iOS 27' → iOS 27.0 beta 4 (24A5390f)"
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"
@@ -172,9 +181,10 @@ done = false
 [[improvements]]
 id = "e3b360"
 text = "iOS beta + camera firmware sources (the hard, manual-first tail)"
-done = false
-by = "maker"
-date = "2026-07-22"
+done = true
+by = "agent"
+date = "2026-07-24"
+note = "AUTO now: camera firmware via App Store checker; iOS beta via new appledev checker (Apple developer releases RSS, filter 'iOS 27') — no longer the manual tail"
 
 [[improvements]]
 id = "adff4b"
