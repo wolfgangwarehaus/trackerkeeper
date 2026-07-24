@@ -49,6 +49,7 @@ def test_missing_file_seeds_the_real_fleet():
     assert "KDE Plasma" in names and "Ghostty" in names
     assert any(i.kind == "github" for i in fleet)
     assert any(i.kind == "arch" for i in fleet)
+    assert any(i.kind == "appstore" for i in fleet)  # Blackmagic Camera (iOS)
 
 
 def test_load_ignores_unknown_keys_and_bad_json(tmp_path):

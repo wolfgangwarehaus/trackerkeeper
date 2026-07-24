@@ -38,6 +38,76 @@ _CARD = (".QFrame{background:rgba(255,255,255,0.045);border:1px solid "
 _CARD_NEW = (".QFrame{background:rgba(86,196,141,0.08);border:1px solid "
              "rgba(86,196,141,0.40);border-radius:12px;}")
 
+# the release channel a kind maps to — the column + a sort axis
+_CHANNEL = {"github": "GitHub", "arch": "Arch", "appstore": "App Store",
+            "cachyos": "CachyOS", "manual": "Manual"}
+
+
+def channel_label(item: catalog.Item) -> str:
+    """The human name of the source an item updates through (its channel)."""
+    return _CHANNEL.get(item.kind, item.kind or "—")
+
+
+def _parse_iso(iso: str):
+    """An ISO date or timestamp → an aware datetime (UTC assumed when the string
+    carries no offset), or None if unparseable."""
+    from datetime import datetime, timezone
+
+    s = iso.strip().replace("Z", "+00:00")
+    for candidate in (s, s[:10]):  # full form, then fall back to the date
+        try:
+            dt = datetime.fromisoformat(candidate)
+        except ValueError:
+            continue
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return None
+
+
+def _bucket_days(days: int) -> str:
+    if days < 7:
+        return f"{days} days ago"
+    if days < 30:
+        w = days // 7
+        return f"{w} week{'s' if w != 1 else ''} ago"
+    if days < 365:
+        m = days // 30
+        return f"{m} month{'s' if m != 1 else ''} ago"
+    y = days // 365
+    return f"{y} year{'s' if y != 1 else ''} ago"
+
+
+def humanize_age(iso: str, now=None) -> str:
+    """A compact "how long ago" for an ISO date or full timestamp. Day-only
+    inputs read by the calendar (today / yesterday / N days ago); a full
+    timestamp gets hour + minute precision ("6 hours ago", "just now"). "" → ""."""
+    iso = (iso or "").strip()
+    if not iso:
+        return ""
+    from datetime import datetime, timezone
+
+    now = now or datetime.now(timezone.utc)
+    then = _parse_iso(iso)
+    if then is None:
+        return ""
+    if "T" not in iso:  # day precision only — count whole calendar days
+        days = (now.date() - then.date()).days
+        if days <= 0:
+            return "today"
+        if days == 1:
+            return "yesterday"
+        return _bucket_days(days)
+    sec = max(0, (now - then).total_seconds())
+    if sec < 60:
+        return "just now"
+    if sec < 3600:
+        m = int(sec // 60)
+        return f"{m} minute{'s' if m != 1 else ''} ago"
+    if sec < 86400:
+        h = int(sec // 3600)
+        return f"{h} hour{'s' if h != 1 else ''} ago"
+    days = int(sec // 86400)
+    return "yesterday" if days == 1 else _bucket_days(days)
+
 
 class _RefreshWorker(QThread):
     """Checks every auto item off the UI thread. Emits ``{name: CheckResult}``
@@ -68,6 +138,8 @@ class Dashboard(QWidget):
         self._window = window
         self._items = catalog.load()
         self._worker: _RefreshWorker | None = None
+        self._sort_key = "updated"   # "updated" (by release recency) | "channel"
+        self._sort_desc = True       # newest / Z→A first
 
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 16, 20, 18)
@@ -91,6 +163,19 @@ class Dashboard(QWidget):
         self._refresh_btn = self._chip_button("Check for updates", self._refresh)
         header.addWidget(self._refresh_btn)
         root.addLayout(header)
+
+        # ── sort bar: choose the axis; click the active one to flip direction ──
+        sortbar = QHBoxLayout()
+        sortbar.setSpacing(8)
+        sort_lab = QLabel("Sort")
+        sort_lab.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:11px;")
+        sortbar.addWidget(sort_lab)
+        self._sort_updated = self._sort_chip("Updated", "updated")
+        self._sort_channel = self._sort_chip("Channel", "channel")
+        sortbar.addWidget(self._sort_updated)
+        sortbar.addWidget(self._sort_channel)
+        sortbar.addStretch(1)
+        root.addLayout(sortbar)
 
         # ── the fleet ──
         scroll = QScrollArea()
@@ -129,13 +214,63 @@ class Dashboard(QWidget):
         b.clicked.connect(slot)
         return b
 
+    # ── sort ──
+    def _sort_chip(self, text: str, key: str) -> QPushButton:
+        b = QPushButton(text)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b.clicked.connect(lambda: self._toggle_sort(key))
+        return b
+
+    def _toggle_sort(self, key: str) -> None:
+        if self._sort_key == key:
+            self._sort_desc = not self._sort_desc  # same axis → flip direction
+        else:
+            self._sort_key, self._sort_desc = key, True
+        self._render()
+
+    def _sync_sort_chips(self) -> None:
+        for btn, key, label in ((self._sort_updated, "updated", "Updated"),
+                                (self._sort_channel, "channel", "Channel")):
+            active = self._sort_key == key
+            arrow = (" ↓" if self._sort_desc else " ↑") if active else ""
+            btn.setText(label + arrow)
+            if active:
+                btn.setStyleSheet(
+                    "QPushButton{border:1px solid %s;border-radius:8px;padding:3px 11px;"
+                    "background:rgba(255,255,255,0.10);color:#fff;font-size:11px;}"
+                    % _ACCENT)
+            else:
+                btn.setStyleSheet(
+                    "QPushButton{border:1px solid rgba(255,255,255,0.12);border-radius:8px;"
+                    "padding:3px 11px;background:transparent;color:#aaa;font-size:11px;}"
+                    "QPushButton:hover{color:#fff;border-color:rgba(255,255,255,0.3);}")
+
+    def _sorted_items(self) -> list:
+        """The fleet in the chosen order. Items with no known release date always
+        sink to the bottom, whichever direction is active."""
+        if self._sort_key == "channel":
+            items = sorted(self._items,
+                           key=lambda i: (channel_label(i).lower(), i.name.lower()))
+            return list(reversed(items)) if self._sort_desc else items
+        # "updated": by release recency (full timestamp when we have one)
+        def recency(i: catalog.Item) -> str:
+            return i.latest_at or i.latest_date
+        dated = sorted((i for i in self._items if recency(i)),
+                       key=lambda i: (recency(i), i.name.lower()))
+        if self._sort_desc:
+            dated.reverse()
+        undated = sorted((i for i in self._items if not recency(i)),
+                         key=lambda i: i.name.lower())
+        return dated + undated
+
     # ── render ──
     def _render(self) -> None:
         while self._list.count():
             it = self._list.takeAt(0)
             if it.widget():
                 it.widget().deleteLater()
-        for item in sorted(self._items, key=lambda i: i.sort_key()):
+        self._sync_sort_chips()
+        for item in self._sorted_items():
             self._list.addWidget(self._card(item))
         self._list.addStretch(1)
         n = sum(1 for i in self._items if i.has_update())
@@ -165,6 +300,18 @@ class Dashboard(QWidget):
             left.addWidget(err)
         outer.addLayout(left, 1)
 
+        # columns: channel + how-long-ago (fixed widths so they align down the list)
+        chan = QLabel(channel_label(item))
+        chan.setFixedWidth(78)
+        chan.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        chan.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:11px;")
+        outer.addWidget(chan)
+        age = QLabel(humanize_age(item.latest_at or item.latest_date))
+        age.setFixedWidth(88)
+        age.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        age.setStyleSheet("color:#8a8a8a;font-size:11px;")
+        outer.addWidget(age)
+
         # right: changelog + actions
         if item.changelog_url or item.latest_url:
             link = QLabel(f'<a href="{item.latest_url or item.changelog_url}" '
@@ -189,8 +336,6 @@ class Dashboard(QWidget):
             body = f'<span style="color:{ui_helpers.TEXT_DIM};">{_esc(item.latest)} · current</span>'
         else:
             body = f'<span style="color:{ui_helpers.TEXT_DIM};">{_esc(inst)}</span>'
-        if item.latest_date:
-            body += f'  <span style="color:#777;font-size:11px;">{item.latest_date}</span>'
         lab = QLabel(body)
         lab.setTextFormat(Qt.TextFormat.RichText)
         lab.setStyleSheet(type_qss(TYPE_BODY))
@@ -231,6 +376,7 @@ class Dashboard(QWidget):
                 continue
             was_update_to = item.latest if item.has_update() else ""
             item.latest, item.latest_url, item.latest_date = res.latest, res.url, res.date
+            item.latest_at = res.at
             item.checked_at, item.error = now, ""
             # "newly new": it now has an update we hadn't already surfaced
             if item.has_update() and item.latest != was_update_to:

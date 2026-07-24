@@ -86,6 +86,35 @@ def test_mark_updated_clears_the_new_state(qapp):
     assert catalog.load()[0].installed == "1.1"
 
 
+def test_sort_by_updated_and_by_channel(qapp):
+    dash = _dash(qapp, [
+        catalog.Item(name="A", kind="github", latest="1", latest_date="2026-07-20"),
+        catalog.Item(name="B", kind="appstore", latest="2", latest_date="2026-07-24"),
+        catalog.Item(name="C", kind="arch", latest="3", latest_date="2026-07-10"),
+        catalog.Item(name="D", kind="manual"),  # no release date → always last
+    ])
+    dash._sort_key, dash._sort_desc = "updated", True
+    assert [i.name for i in dash._sorted_items()] == ["B", "A", "C", "D"]  # newest first
+    dash._sort_desc = False
+    assert [i.name for i in dash._sorted_items()] == ["C", "A", "B", "D"]  # oldest first
+    # undated stays at the bottom in BOTH directions
+    assert dash._sorted_items()[-1].name == "D"
+    dash._sort_key, dash._sort_desc = "channel", False
+    # channels A→Z: App Store(B), Arch(C), GitHub(A), Manual(D)
+    assert [i.name for i in dash._sorted_items()] == ["B", "C", "A", "D"]
+
+
+def test_updated_sort_prefers_full_timestamp_over_date(qapp):
+    dash = _dash(qapp, [
+        catalog.Item(name="morning", kind="github", latest="1",
+                     latest_date="2026-07-24", latest_at="2026-07-24T08:00:00Z"),
+        catalog.Item(name="evening", kind="github", latest="1",
+                     latest_date="2026-07-24", latest_at="2026-07-24T20:00:00Z"),
+    ])
+    dash._sort_key, dash._sort_desc = "updated", True
+    assert [i.name for i in dash._sorted_items()] == ["evening", "morning"]
+
+
 def test_dashboard_construction_never_touches_the_network(qapp):
     """Offscreen construction must not auto-refresh (no network in CI/tests)."""
     dash = _dash(qapp, catalog.default_fleet())

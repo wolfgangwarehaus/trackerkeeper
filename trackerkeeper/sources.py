@@ -3,18 +3,20 @@ the latest version, and where's the changelog."
 
 The whole product thesis lives here: there is no single "latest version" API,
 so tracker keeper IS the uniform layer. Each provider is a small function
-``(item, http) -> CheckResult | None`` for one KIND of source; growing coverage
-is adding providers, one world at a time (github, arch today; rss, flatpak,
-store pages next; firmware feeds later).
+``(item, http, http_text) -> CheckResult | None`` for one KIND of source;
+growing coverage is adding providers, one world at a time (github, arch,
+appstore, cachyos today; rss, flatpak next).
 
-Network I/O goes through a single injected ``http`` seam (:func:`http_json`),
-so every provider is unit-testable with a fake — no test touches the network,
+Network I/O goes through two injected seams — :func:`http_json` (JSON APIs) and
+:func:`http_text` (HTML / plain-text pages, e.g. a mirror's directory index) —
+so every provider is unit-testable with a fake and no test touches the network,
 exactly like ``deliver``'s detection probes.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -32,13 +34,14 @@ class CheckResult:
 
     latest: str
     url: str = ""
-    date: str = ""
+    date: str = ""      # day precision (YYYY-MM-DD) — back-compat + sorting
+    at: str = ""        # the source's full ISO timestamp when it gives one, else ""
 
 
 def http_json(url: str) -> dict | None:
     """GET ``url`` and parse JSON, or None on any failure (offline, 404, rate
     limit, malformed). Sends a User-Agent — GitHub rejects requests without one.
-    The single network seam: providers call it, tests replace it."""
+    A network seam: providers call it, tests replace it."""
     try:
         req = urllib.request.Request(url, headers={"User-Agent": _UA,
                                                    "Accept": "application/json"})
@@ -48,10 +51,22 @@ def http_json(url: str) -> dict | None:
         return None
 
 
+def http_text(url: str) -> str | None:
+    """GET ``url`` and return the decoded body, or None on any failure. The seam
+    for providers that read HTML or plain text (a directory index, an RSS feed)
+    rather than a JSON API. Tests replace it with a canned string."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": _UA})
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            return resp.read().decode("utf-8", "ignore")
+    except (urllib.error.URLError, OSError):
+        return None
+
+
 # ── the providers ────────────────────────────────────────────────────────────
 
 
-def _github(item, http) -> CheckResult | None:
+def _github(item, http, http_text) -> CheckResult | None:
     """Latest GitHub release for ``owner/repo`` (item.ref). Covers a huge slice
     of open apps, tools, and games. Unauthenticated: 60 req/hr is plenty for a
     personal fleet; a rate-limited response is just None (shown as 'couldn't
@@ -64,14 +79,16 @@ def _github(item, http) -> CheckResult | None:
     tag = data.get("tag_name") or data.get("name") or ""
     if not tag:
         return None
+    published = data.get("published_at") or ""
     return CheckResult(
         latest=str(tag).lstrip("vV") if str(tag)[:1] in "vV" else str(tag),
         url=data.get("html_url", "") or item.changelog_url,
-        date=(data.get("published_at") or "")[:10],
+        date=published[:10],
+        at=published,
     )
 
 
-def _arch(item, http) -> CheckResult | None:
+def _arch(item, http, http_text) -> CheckResult | None:
     """Latest Arch Linux package version for ``item.ref`` (the pkgname) via
     archlinux.org's JSON search. Great for the Linux desktop fleet — KDE
     Plasma (plasma-desktop), Mesa, systemd, and friends track here even on
@@ -87,14 +104,75 @@ def _arch(item, http) -> CheckResult | None:
     r = results[0]
     ver = r.get("pkgver", "")
     rel = r.get("pkgrel", "")
+    last = r.get("last_update") or ""
     return CheckResult(
         latest=f"{ver}-{rel}" if ver and rel else ver,
         url=f"https://archlinux.org/packages/{r.get('repo','')}/{r.get('arch','')}/{item.ref}/",
-        date=(r.get("last_update") or "")[:10],
+        date=last[:10],
+        at=last,
     )
 
 
-def _manual(item, http) -> CheckResult | None:
+def _appstore(item, http, http_text) -> CheckResult | None:
+    """Latest App Store version via Apple's public iTunes Lookup API — the whole
+    iOS / Mac App Store tail in one checker, no auth. ``item.ref`` is either the
+    numeric track id (all digits, e.g. ``6449580241``) or the bundle id (e.g.
+    ``com.blackmagic-design.DaVinciCamera``); a wrong id fails safe to None,
+    never another app's version. The lookup returns the store's ``version`` and
+    ``currentVersionReleaseDate`` — exactly the "what's new, when" this tracks."""
+    ref = item.ref.strip()
+    if not ref:
+        return None
+    key = "id" if ref.isdigit() else "bundleId"
+    data = http(f"https://itunes.apple.com/lookup?{key}={ref}&country=us")
+    if not isinstance(data, dict):
+        return None
+    results = data.get("results") or []
+    if not results:
+        return None
+    r = results[0]
+    ver = r.get("version") or ""
+    if not ver:
+        return None
+    released = r.get("currentVersionReleaseDate") or ""
+    return CheckResult(
+        latest=str(ver),
+        url=r.get("trackViewUrl", "") or item.changelog_url,
+        date=released[:10],
+        at=released,
+    )
+
+
+# the CachyOS ISO editions served under mirror.cachyos.org/ISO/<edition>/
+_CACHY_EDITIONS = ("desktop", "handheld", "kde", "cli")
+
+
+def _cachyos(item, http, http_text) -> CheckResult | None:
+    """Latest CachyOS release. The distro is rolling — there's no version API —
+    but its mirror serves a browsable ISO index whose snapshot folders are dated
+    ``YYMMDD`` (``.../ISO/desktop/260628/cachyos-desktop-linux-260628.iso``). The
+    newest folder IS the latest release. ``item.ref`` picks the edition
+    (``desktop`` default; also ``kde`` / ``handheld`` / ``cli``); the snapshot
+    date doubles as the version, so a newer ISO than yours reads as an update."""
+    edition = (item.ref or "desktop").strip().lower()
+    if edition not in _CACHY_EDITIONS:
+        return None
+    html = http_text(f"https://mirror.cachyos.org/ISO/{edition}/")
+    if not html:
+        return None
+    snapshots = re.findall(r'href="(\d{6})/"', html)  # YYMMDD folders
+    if not snapshots:
+        return None
+    latest = max(snapshots)  # fixed-width YYMMDD sorts chronologically
+    iso_date = f"20{latest[0:2]}-{latest[2:4]}-{latest[4:6]}"
+    return CheckResult(
+        latest=iso_date,  # the snapshot date is the "version" for a rolling distro
+        url=f"https://mirror.cachyos.org/ISO/{edition}/{latest}/",
+        date=iso_date,
+    )
+
+
+def _manual(item, http, http_text) -> CheckResult | None:
     """A manual item has no source to poll — you set ``installed`` yourself.
     Returns None so a refresh leaves it untouched (never an error, never a
     fabricated 'latest')."""
@@ -104,11 +182,13 @@ def _manual(item, http) -> CheckResult | None:
 _PROVIDERS = {
     "github": _github,
     "arch": _arch,
+    "appstore": _appstore,
+    "cachyos": _cachyos,
     "manual": _manual,
 }
 
 
-def check(item, http=http_json) -> CheckResult | None:
+def check(item, http=http_json, http_text=http_text) -> CheckResult | None:
     """Run ``item``'s provider. Unknown kind or manual → None. Never raises: a
     provider that throws is swallowed to None so one bad item can't sink a
     whole refresh (the dashboard shows it as 'couldn't check')."""
@@ -116,6 +196,6 @@ def check(item, http=http_json) -> CheckResult | None:
     if provider is None:
         return None
     try:
-        return provider(item, http)
+        return provider(item, http, http_text)
     except Exception:
         return None

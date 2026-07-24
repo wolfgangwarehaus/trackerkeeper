@@ -19,7 +19,7 @@ from pathlib import Path
 
 # source KINDS the app knows how to check (sources.py owns the checkers). A
 # manual item has no checker — you set `installed` yourself and it never fetches.
-KINDS = ("github", "arch", "manual")
+KINDS = ("github", "arch", "appstore", "cachyos", "manual")
 
 
 @dataclass
@@ -37,6 +37,8 @@ class Item:
     latest: str = ""            # newest version the source reported
     latest_url: str = ""        # release/changelog URL from the source
     latest_date: str = ""       # ISO date (YYYY-MM-DD) the latest was published
+    latest_at: str = ""         # full ISO timestamp of the latest, when the source
+                                # gives one — drives "N hours ago"; "" if day-only
     checked_at: str = ""        # ISO timestamp of the last successful check
     error: str = ""             # last check's error, if any (else "")
 
@@ -148,7 +150,7 @@ def default_fleet() -> list[Item]:
              changelog_url="https://kde.org/announcements/"),
         Item(name="Ghostty", platform="Terminal", kind="github", ref="ghostty-org/ghostty",
              changelog_url="https://github.com/ghostty-org/ghostty/releases"),
-        Item(name="CachyOS", platform="Linux", kind="manual", installed="",
+        Item(name="CachyOS", platform="Linux", kind="cachyos", ref="desktop",
              changelog_url="https://cachyos.org/blog/"),
         Item(name="Slay the Spire 2", platform="Steam", kind="manual", installed="",
              changelog_url="https://store.steampowered.com/news/app/2868840"),
@@ -156,6 +158,7 @@ def default_fleet() -> list[Item]:
              changelog_url="https://store.steampowered.com/steamos"),
         Item(name="iOS Developer Beta", platform="iOS", kind="manual", installed="",
              changelog_url="https://developer.apple.com/news/releases/"),
-        Item(name="Blackmagic Camera", platform="iOS", kind="manual", installed="",
+        Item(name="Blackmagic Camera", platform="iOS", kind="appstore",
+             ref="6449580241", installed="3.4",
              changelog_url="https://www.blackmagicdesign.com/support/family/blackmagic-camera"),
     ]

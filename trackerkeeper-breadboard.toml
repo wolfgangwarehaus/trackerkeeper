@@ -127,6 +127,33 @@ priority = "now"
 by = "AI"
 date = "2026-07-22"
 
+[[baking]]
+id = "65a3f6"
+text = "Checker: App Store (iOS/Mac via iTunes lookup API — id or bundle id)"
+done = true
+priority = "next"
+by = "agent"
+date = "2026-07-24"
+note = "iTunes Lookup API checker + Blackmagic Camera wired to it; iOS Dev Beta stays manual (it's the OS, no store API)"
+
+[[baking]]
+id = "3ae3d9"
+text = "Dashboard columns: 'how long ago' + release channel, both sortable (asc/desc)"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-07-24"
+note = "Relative-time column (hour precision via preserved full timestamps) + channel column (App Store/Arch/GitHub/Manual); sort bar toggles axis + direction"
+
+[[baking]]
+id = "5b4e64"
+text = "Checker: CachyOS ISO (parses the mirror's dated snapshot folders per edition)"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-07-24"
+note = "Added http_text seam (reusable for the future RSS checker); CachyOS item wired to desktop edition, latest ISO 2026-06-28"
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"

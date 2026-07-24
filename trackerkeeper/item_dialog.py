@@ -23,11 +23,15 @@ from trackerkeeper.selector import Selector, selector_qss
 _KIND_LABELS = {
     "github": "GitHub releases  (owner/repo)",
     "arch": "Arch package  (package name)",
+    "appstore": "App Store  (iOS / Mac — app id or bundle id)",
+    "cachyos": "CachyOS ISO  (edition: desktop / kde / handheld / cli)",
     "manual": "Manual  (you set the version)",
 }
 _REF_HINT = {
     "github": "owner/repo  ·  e.g. ghostty-org/ghostty",
     "arch": "package name  ·  e.g. plasma-desktop",
+    "appstore": "app id or bundle id  ·  e.g. 6449580241 or com.apple.FinalCutApp.companion",
+    "cachyos": "edition  ·  desktop (default) · kde · handheld · cli",
     "manual": "",
 }
 
@@ -134,6 +138,9 @@ class ItemDialog(FrostedDialog):
             return
         if kind == "arch" and not ref:
             self._err.setText("Arch source wants a package name (e.g. plasma-desktop).")
+            return
+        if kind == "appstore" and not ref:
+            self._err.setText("App Store source wants an app id or bundle id.")
             return
         target = self._item or catalog.Item(name=name)
         target.name = name
