@@ -112,6 +112,7 @@ id = "ba86e2"
 text = "Changelog links open in browser; per-item detail"
 done = false
 priority = "later"
+note = "changelog links open in the browser — SHIPPED; only the per-item detail view remains"
 
 [[baking]]
 id = "eb70cb"
@@ -207,6 +208,23 @@ priority = "now"
 by = "agent"
 date = "2026-07-24"
 note = "clickable group header with ▾/▸; collapsed set persisted in settings; collapsed header still reports 'N new'; also fixed ghost-widget repaint in _render (setParent(None) before deleteLater)"
+
+[[baking]]
+id = "425bbb"
+text = "Settings UI for the tray (show_tray_icon / close_to_tray toggles) + start-minimized-to-tray"
+done = false
+priority = "next"
+by = "agent"
+date = "2026-07-24"
+
+[[baking]]
+id = "09daf2"
+text = "Harden test_single_instance_forwarding — CI SIGABRT flake costs a re-run on most pushes"
+done = false
+priority = "next"
+by = "agent"
+date = "2026-07-24"
+note = "3 of 4 pushes 2026-07-24 (ubuntu+macos); passes locally; rerun --failed always clears it"
 
 [[delivery]]
 id = "267380"
