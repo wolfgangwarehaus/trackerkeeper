@@ -181,6 +181,15 @@ by = "agent"
 date = "2026-07-24"
 note = "Item.group field + Category dialog field w/ autocomplete; section headers with counts; also added GameNative (utkarshdalal/GameNative)"
 
+[[baking]]
+id = "9e7b6f"
+text = "Top bar: dough-matched — hamburger + settings left, smaller window buttons, header folded onto the title line"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-07-24"
+note = "TopBar gained a hamburger menu + left settings + add_action/insert_title_widget/add_menu_action slots; Dashboard folds its Add/Check/count/status into the titlebar line"
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"

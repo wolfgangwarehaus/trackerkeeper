@@ -147,24 +147,37 @@ class Dashboard(QWidget):
         root.setContentsMargins(20, 16, 20, 18)
         root.setSpacing(12)
 
-        # ── header: title + update count + actions ──
-        header = QHBoxLayout()
-        header.setSpacing(10)
+        # ── header controls: the update-count badge, a check status, and the
+        # Add / Check actions. Built once, then folded onto the window's top-bar
+        # line when we have one (the dough-matched single top row); otherwise
+        # they render as their own inline header row (tests, standalone). ──
         self._title = QLabel("tracker keeper")
         self._title.setStyleSheet(type_qss(TYPE_DISPLAY) + f"color:{ui_helpers.TEXT};")
-        header.addWidget(self._title)
         self._count = QLabel("")
         self._count.setStyleSheet(f"color:{_NEW};font-weight:600;")
-        header.addWidget(self._count)
-        header.addStretch(1)
         self._status = QLabel("")
         self._status.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};font-size:12px;")
-        header.addWidget(self._status)
         self._add_btn = self._chip_button("Add…", self._add_item)
-        header.addWidget(self._add_btn)
         self._refresh_btn = self._chip_button("Check for updates", self._refresh)
-        header.addWidget(self._refresh_btn)
-        root.addLayout(header)
+
+        top_bar = getattr(self._window, "top_bar", None)
+        if top_bar is not None and hasattr(top_bar, "add_action"):
+            top_bar.insert_title_widget(self._count)          # badge beside the title
+            top_bar.add_action(self._status)
+            top_bar.add_action(self._add_btn)
+            top_bar.add_action(self._refresh_btn)
+            top_bar.add_menu_action("Add item…", self._add_item)
+            top_bar.add_menu_action("Check for updates", self._refresh)
+        else:
+            header = QHBoxLayout()
+            header.setSpacing(10)
+            header.addWidget(self._title)
+            header.addWidget(self._count)
+            header.addStretch(1)
+            header.addWidget(self._status)
+            header.addWidget(self._add_btn)
+            header.addWidget(self._refresh_btn)
+            root.addLayout(header)
 
         # ── sort bar: choose the axis; click the active one to flip direction ──
         sortbar = QHBoxLayout()
