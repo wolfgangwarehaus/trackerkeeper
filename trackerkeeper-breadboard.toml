@@ -322,4 +322,7 @@ note = "AUTO now: camera firmware via App Store checker; iOS beta via new appled
 [[improvements]]
 id = "adff4b"
 text = "Pull dough base updates via sync_loaf and re-verify"
-done = false
+done = true
+by = "agent"
+date = "2026-07-25"
+note = "Synced 36b09a3 -> f51c08b: breadboard/terminal/ui_helpers/noborder/scaffold applied clean, goldens still PASS. First had to RECLASSIFY settings_dialog/bus/rig as manual — they carried local changes while unlisted, so --apply would have silently reverted the Tracking section (-79), tracking_prefs_changed (-5) and the rig golden fix (-11). Also declared detail_dialog.py authored."

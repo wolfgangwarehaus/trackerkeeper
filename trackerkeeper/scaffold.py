@@ -133,6 +133,21 @@ def _replace_in_tree(root: Path, pairs: list[tuple[str, str]]) -> None:
             path.write_text(new, encoding="utf-8")
 
 
+def _sub_in_tree(root: Path, pairs: list[tuple[str, str]]) -> None:
+    """Literal substring replace across every text file — the blunt companion to
+    :func:`_replace_in_tree`, for strings that aren't word-bounded identifiers."""
+    for path in _text_files(root):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        new = text
+        for old, repl in pairs:
+            new = new.replace(old, repl)
+        if new != text:
+            path.write_text(new, encoding="utf-8")
+
+
 def _sub_in_file(path: Path, replacements: list[tuple[str, str]]) -> None:
     """Literal substring replace (each old → new) in one file."""
     text = path.read_text(encoding="utf-8")
@@ -174,10 +189,22 @@ def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str,
     agents_tpl = agents_tpl_path.read_text(encoding="utf-8") if agents_tpl_path.is_file() else None
 
     # 1. strip trackerkeeper's own dev scaffolding + the base's own breadboard file
-    #    (named for the CURRENT slug — the loaf starts with a fresh board, which
-    #    `<slug>-breadboard --init` or the window seeds on first open).
+    #    (named for the CURRENT slug), then SEED the loaf's own fresh board.
+    #
+    #    Seeding here rather than leaving it to `<slug>-breadboard --init` is
+    #    load-bearing: tests/test_accent_live.py reads board_path() with no guard,
+    #    so a loaf without a board failed its very first pytest — including the
+    #    validation run at the bottom of THIS function, which meant `trackerkeeper new`
+    #    reported "1 failed" on every single scaffold. A new app has to be green
+    #    from its first command. It's also just correct: AGENTS.md tells the agent
+    #    to read the breadboard as step 2 of every session, so it must exist.
     for rel in [*_STRIP, f"{old_slug}-breadboard.toml"]:
         _remove(root, rel)
+    # Generated (not copied), so the identity replace below has nothing to fix —
+    # and imported here, before the package dir is renamed out from under us.
+    from trackerkeeper import breadboard as _bb
+
+    _bb.save(root / f"{slug}-breadboard.toml", _bb.default_board(display or slug))
 
     # 2. rename the package dir + the brand asset.
     _move(root, old_slug, slug)
@@ -188,6 +215,17 @@ def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str,
     # 3. whole-word identity replace across the tree (owner first — it's a superstring
     #    of org when they coincide, but escaped \b keeps them distinct anyway).
     _replace_in_tree(root, [(old_owner, new_owner), (old_org, new_org), (old_slug, slug)])
+
+    # 3.1 …and un-mangle the PyPI distribution name EVERYWHERE. trackerkeeper publishes as
+    #     "trackerkeeper-base" because its own bare name is squatted on PyPI; the replace
+    #     above just turned that into "{slug}-base", which is wrong in a loaf —
+    #     a fork's distribution IS its slug. This used to be patched in
+    #     pyproject.toml alone, so a loaf shipped a correct `name = "{slug}"` while
+    #     its docs/RELEASING.md, pypi-publish.yml and release checklist all still
+    #     said "{slug}-base". A real loaf followed those docs, registered nothing
+    #     that matched, and its first publish died on `invalid-publisher`. Doing it
+    #     tree-wide fixes every current site and any added later.
+    _sub_in_tree(root, [(f"{slug}-base", slug)])
 
     # 3.5 the fork's AGENTS.md — the AI front door. trackerkeeper's own copy talks about
     #     building the BASE (and the replace above just mangled it anyway); the
@@ -210,10 +248,9 @@ def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str,
     #    (if given) the summary — which lives in two synced places ([project] +sidecar).
     pyproject = root / "pyproject.toml"
     fixes: list[tuple[str, str]] = []
-    # The PyPI distribution name: trackerkeeper publishes as "trackerkeeper-base" (the bare name
-    # is squatted on PyPI), and the whole-word replace above just turned it into
-    # "{slug}-base" — a fork's distribution IS its slug, so pin it back.
-    fixes.append((f'name = "{slug}-base"', f'name = "{slug}"'))
+    # (The PyPI distribution name is handled tree-wide in 3.1 — it used to be
+    # patched here, in pyproject.toml only, which is exactly how a loaf ended up
+    # with docs contradicting its own package name.)
     if display != slug:
         fixes.append((f'display_name = "{slug}"', f'display_name = "{display}"'))
         _sub_in_file(root / slug / "identity.py", [(f'_display_name = "{slug}"', f'_display_name = "{display}"')])

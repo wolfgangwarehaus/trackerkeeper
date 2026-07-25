@@ -4,7 +4,7 @@
 # The dough commit this loaf was last reconciled against. `--record` stamps it.
 # Seeded to dough HEAD at init; set it to the commit you actually forked from if
 # you want the first sync to surface everything dough changed since.
-synced_from = "36b09a3"
+synced_from = "f51c08b"
 
 # Files (relative to the trackerkeeper/ package dir) the fork OWNS — net-new app code or
 # modules it fully rewrote. Sync never reads or writes these.
@@ -13,6 +13,7 @@ authored = [
     "sources.py",      # the update-checker provider engine — net-new
     "dashboard.py",    # the fleet dashboard UI — net-new
     "item_dialog.py",  # the add/edit-item form — net-new
+    "detail_dialog.py",# the per-item release-notes view — net-new
     "tray.py",         # the system-tray presence (watchtower resting state) — net-new
 ]
 
@@ -22,4 +23,11 @@ manual = [
     "app.py",       # main() wires the dashboard as run_app content (not the placeholder)
     "identity.py",  # display_name "tracker keeper" — the whole-word transform would regress it
     "top_bar.py",   # hamburger + left settings + the add_action/title-slot API the dashboard folds into
+    # These three were UNCLASSIFIED while carrying local changes, which meant the
+    # next `--apply` would have silently reverted them — the drift report read
+    # +0/-79, +0/-5, +1/-11, i.e. pure loss. Classify a file the moment you
+    # customize it; the sync door assumes anything unlisted is dough's to own.
+    "settings_dialog.py",  # the TRACKING section (check interval + the tray toggles)
+    "bus.py",              # AppBus.tracking_prefs_changed — Settings re-arms the live heartbeat
+    "rig.py",              # baseline grabs the app's real content, not dough's placeholder
 ]

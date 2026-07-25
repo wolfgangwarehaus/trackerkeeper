@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QSize, QSocketNotifier, Qt, Signal
@@ -46,11 +47,20 @@ _ANSI = {
     "brightcyan": "#74d3de", "brightwhite": "#ffffff",
 }
 _DEFAULT_FG = "#e2e4ec"
-# The terminal sits ON GLASS like the kanban cards: a faint translucent panel
-# over the window's frost, not an opaque box. Default cells fill nothing (the
-# frost shows through); only cells with an explicit colour paint a background.
-_PANEL = QColor(14, 15, 22, 96)          # ~38% — dims the frost enough for text
+# The terminal sits ON GLASS like the kanban lanes, and matches THEM for a
+# cohesive board: the same faint white wash over the window's frost the breadboard
+# columns use (rgba(255,255,255,0.025)), not a darker opaque box. Default cells
+# fill nothing (the frost shows through); only cells with an explicit colour paint.
+_PANEL = QColor(255, 255, 255, 6)        # ~2.5% white — matches the kanban lanes
 _REVERSE_TEXT = QColor("#14151c")        # dark text for reverse-video cells
+_RADIUS = 10                             # rounded panel corners — match the lanes
+
+# pyte stores private DECSET modes shifted left 5 bits (mode << 5). A TUI that
+# enables any mouse-tracking mode wants wheel events forwarded (Claude Code turns
+# on all three + SGR 1006); we translate the wheel into mouse escapes so it can
+# scroll. See wheelEvent.
+_MOUSE_MODES = frozenset({1000 << 5, 1002 << 5, 1003 << 5})
+_SGR_MOUSE = 1006 << 5
 
 
 def _qcolor(token: str, default: QColor) -> QColor:
@@ -103,6 +113,8 @@ class TerminalWidget(QWidget):
         self._pid = -1
         self._notifier: QSocketNotifier | None = None
         self._dead = False
+        self._last_output = time.monotonic()  # for idle_seconds() — see below
+        self._wheel_accum = 0  # sub-notch wheel delta, so touchpads scroll too
 
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.IBeamCursor)
@@ -133,9 +145,10 @@ class TerminalWidget(QWidget):
             try:
                 if self._cwd:
                     os.chdir(self._cwd)
-                os.environ["TERM"] = "xterm-256color"
-                os.environ.setdefault("COLORTERM", "truecolor")
-                os.execvp(self._argv[0], self._argv)
+                env = agent_env()  # a clean TOP-LEVEL session (see agent_env)
+                env["TERM"] = "xterm-256color"
+                env.setdefault("COLORTERM", "truecolor")
+                os.execvpe(self._argv[0], self._argv, env)
             except Exception:
                 os._exit(127)
         self._pid, self._fd = pid, fd
@@ -150,8 +163,20 @@ class TerminalWidget(QWidget):
         if not data:
             self._on_exit()
             return
+        self._last_output = time.monotonic()
         self._stream.feed(data)
         self.update()
+
+    def idle_seconds(self) -> float:
+        """How long since the child last wrote anything.
+
+        This is how the breadboard tells a WORKING agent from one parked at its
+        prompt without having to ask it: a ``claude`` mid-turn streams output
+        continuously, while an idle session sits silent. A dead terminal is
+        infinitely idle (nothing to interrupt)."""
+        if self._dead:
+            return float("inf")
+        return max(0.0, time.monotonic() - self._last_output)
 
     def _on_exit(self) -> None:
         if self._dead:
@@ -264,6 +289,37 @@ class TerminalWidget(QWidget):
         self.setFocus()
         super().mousePressEvent(e)
 
+    def wheelEvent(self, e) -> None:  # noqa: N802
+        # A TUI that tracks the mouse scrolls on wheel events — Claude Code
+        # enables SGR mouse (1006) + the alt-screen. Translate the wheel into
+        # mouse-wheel escapes and forward them. Without mouse tracking there's
+        # nothing to scroll (we keep no local scrollback), so let it pass.
+        if self._dead or self._fd < 0:
+            return
+        mode = getattr(self._screen, "mode", frozenset())
+        if not (mode & _MOUSE_MODES):
+            super().wheelEvent(e)
+            return
+        self._wheel_accum += e.angleDelta().y()
+        steps = int(self._wheel_accum / 120)  # 120 units == one wheel notch
+        if steps == 0:
+            e.accept()
+            return
+        self._wheel_accum -= steps * 120
+        button = 64 if steps > 0 else 65  # 64 = wheel up, 65 = wheel down
+        pos = e.position()
+        col = min(self._screen.columns, max(1, int(pos.x() / self._cw) + 1)) if self._cw else 1
+        row = min(self._screen.lines, max(1, int(pos.y() / self._ch) + 1)) if self._ch else 1
+        sgr = _SGR_MOUSE in mode
+        out = bytearray()
+        for _ in range(abs(steps)):
+            if sgr:  # CSI < Cb ; Cx ; Cy M  (press; wheel has no release)
+                out += f"\x1b[<{button};{col};{row}M".encode()
+            else:  # legacy X10: button + coords, each offset by 32
+                out += b"\x1b[M" + bytes((button + 32, col + 32, row + 32))
+        self._write(bytes(out))
+        e.accept()
+
     # ── images: drag an image in, or paste one (Ctrl+V) ──────────────────
     def dragEnterEvent(self, e) -> None:  # noqa: N802
         if e.mimeData().hasUrls() or e.mimeData().hasImage():
@@ -342,8 +398,19 @@ class TerminalWidget(QWidget):
 
     # ── paint ────────────────────────────────────────────────────────────
     def paintEvent(self, e) -> None:  # noqa: N802
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QPainterPath
+
         p = QPainter(self)
         default_fg = QColor(_DEFAULT_FG)
+        # Rounded glass panel — corners match the kanban cards/lanes above. Clip
+        # everything (panel + cells + cursor) to the rounded rect so the frost
+        # shows through the corners. Cells already overlap by 1px (see below), so
+        # antialiasing the clip edge won't open seams between them.
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        clip = QPainterPath()
+        clip.addRoundedRect(QRectF(self.rect()), _RADIUS, _RADIUS)
+        p.setClipPath(clip)
         # The glass panel — translucent, so the frost behind the window blends
         # through (matches the kanban cards). No opaque box.
         p.fillRect(self.rect(), _PANEL)
@@ -392,20 +459,67 @@ class TerminalWidget(QWidget):
         super().closeEvent(e)
 
 
-def claude_argv(resume: bool = False) -> list[str]:
+def new_session_id() -> str:
+    """A fresh Claude Code session id (UUID) to pin the agent's conversation to."""
+    import uuid
+
+    return str(uuid.uuid4())
+
+
+def claude_argv(session_id: str | None = None, resume: bool = False,
+                prompt: str | None = None) -> list[str]:
     """The command the breadboard runs — the Claude Code CLI. Overridable via
     TRACKERKEEPER_AGENT_CMD (e.g. a wrapper, or a plain shell to try the terminal).
 
-    ``resume`` adds ``--continue`` so a relaunched breadboard picks the last
-    conversation in the project dir back up — the seam that lets trackerkeeper reload
-    its own code without dropping the agent session. Only the default ``claude``
-    path gets the flag; an explicit override is always run verbatim."""
+    We PIN the agent to a specific ``session_id`` (``--session-id`` on a fresh
+    start) so a later reload can ``--resume`` that EXACT conversation — never
+    ``--continue``, which resumes "the most recent conversation in this dir" and
+    so can grab another ``claude`` running in the same project (e.g. the maker's
+    own outer session). ``resume`` picks that pinned thread back up. An explicit
+    override is always run verbatim.
+
+    ``prompt`` is a trailing positional message ``claude`` submits on start — how
+    a reload RESUME auto-continues the interrupted turn (so the maker doesn't have
+    to type "continue" after trackerkeeper restarts to apply the agent's own edits).
+
+    ``TRACKERKEEPER_AGENT_REMOTE_CONTROL`` (opt-in, off by default) appends
+    ``--remote-control`` so the session is drivable from the Claude mobile app; a
+    non-boolean value also names the Remote Control session."""
     import shlex
 
     override = os.environ.get("TRACKERKEEPER_AGENT_CMD")
     if override:
         return shlex.split(override)
-    return ["claude", "--continue"] if resume else ["claude"]
+    if session_id and resume:
+        argv = ["claude", "--resume", session_id]  # resume THIS exact thread
+    elif session_id:
+        argv = ["claude", "--session-id", session_id]  # pin a fresh thread
+    elif resume:
+        argv = ["claude", "--continue"]  # legacy fallback (no id to pin)
+    else:
+        argv = ["claude"]
+    # Auto mode by default (the Shift+Tab auto-accept state) so the agent lands
+    # ready to drive the board without the maker re-arming it each relaunch.
+    # TRACKERKEEPER_AGENT_PERMISSION_MODE overrides (any `claude --permission-mode`
+    # value); set it empty to pass no flag and take Claude Code's own default.
+    mode = os.environ.get("TRACKERKEEPER_AGENT_PERMISSION_MODE", "auto")
+    if mode:
+        argv += ["--permission-mode", mode]
+    # Remote Control — drive THIS session from the Claude mobile app / claude.ai —
+    # is opt-in via TRACKERKEEPER_AGENT_REMOTE_CONTROL, off by default (no flag). A truthy
+    # value enables it (`--remote-control`); any other value also NAMES the session
+    # (`--remote-control <name>`). With it set, a FRESH spawn comes up controllable
+    # and, crucially, a post-reload `--resume` re-advertises — so a maker driving
+    # from mobile isn't dropped when trackerkeeper restarts to apply the agent's own code
+    # edits. (A project SWAP never drops it: the pty is parked alive, not respawned.)
+    rc = os.environ.get("TRACKERKEEPER_AGENT_REMOTE_CONTROL", "")
+    if rc:
+        argv.append("--remote-control")
+        if rc.strip().lower() not in {"1", "true", "yes", "on"}:
+            argv.append(rc)
+    if prompt:  # trailing positional — claude submits it on start (auto-continue)
+        argv.append(prompt)
+    return argv
 
 
 def agent_available() -> bool:
@@ -415,6 +529,36 @@ def agent_available() -> bool:
 
     argv = claude_argv()
     return bool(argv) and shutil.which(argv[0]) is not None
+
+
+# Claude Code stamps its own session into the environment. A `claude` that
+# INHERITS these markers concludes it's running NESTED inside another Claude
+# session (a "child") and runs in a mode that NEVER writes its conversation to
+# disk — so a later ``claude --resume <id>`` finds nothing and the chat comes up
+# FULLY EMPTY. The breadboard is itself usually launched from inside a Claude
+# session (the desktop app, or an agent), so it would pass these straight
+# through to the embedded agent and silently break reload-resume. The single
+# trigger observed is CLAUDE_CODE_CHILD_SESSION, but the whole CLAUDE_CODE_*
+# namespace is Claude Code's own runtime state (none of it user config), so we
+# drop all of it plus the few non-prefixed identity markers. Auth (ANTHROPIC_*)
+# and user config (CLAUDE_CONFIG_DIR) are deliberately LEFT intact — the agent
+# still needs to authenticate; it just must not masquerade as a child session.
+_HOST_SESSION_ENV = frozenset({
+    "CLAUDECODE", "CLAUDE_PID", "CLAUDE_AGENT_SDK_VERSION", "AI_AGENT",
+})
+
+
+def agent_env(base: "dict | None" = None) -> dict:
+    """The child environment for the embedded agent: a copy of ``base`` (the
+    current process env by default) with the HOST Claude session's markers
+    stripped so the agent runs as a clean TOP-LEVEL session that persists (and
+    can therefore be ``--resume``d after a reload). Pure + testable; never
+    mutates ``base``."""
+    env = dict(os.environ if base is None else base)
+    for key in list(env):
+        if key.startswith("CLAUDE_CODE_") or key in _HOST_SESSION_ENV:
+            del env[key]
+    return env
 
 
 if sys.platform == "win32":  # pragma: no cover - documented gap

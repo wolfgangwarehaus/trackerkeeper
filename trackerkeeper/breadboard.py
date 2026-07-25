@@ -58,6 +58,11 @@ _PKG = (__package__ or "trackerkeeper").split(".")[0]
 # so the fork rename can't half-apply it.
 FILENAME = f"{_PKG}-breadboard.toml"
 
+# A parked agent silent this long is sitting at its prompt, so a reload can't
+# interrupt real work. Shorter and a reload lands between two lines of a
+# streaming turn. Tests override it.
+AGENT_IDLE_SECONDS = 4.0
+
 
 # ── the file half ────────────────────────────────────────────────────────────
 
@@ -148,9 +153,18 @@ def save(path: Path, board: dict) -> None:
     (see :func:`_ensure_ids`) and OMITS empty ``by``/``date``/``note`` so the
     file stays skimmable and hand-editable — "the file IS the API" only holds
     while a human still wants to open it."""
+    import re
+
     _ensure_ids(board)
+    # The header names THIS board's window binary — derive it from the board's own
+    # product (slugified: lowercased, non-alphanumerics dropped — "tracker keeper"
+    # → "trackerkeeper"), not _PKG, so trackerkeeper's breadboard saving a SIBLING loaf's
+    # board (via the project switcher) doesn't rewrite its header to
+    # `trackerkeeper-breadboard`.
+    _win = re.sub(r"[^a-z0-9-]", "", board.get("product", _PKG).lower()) or _PKG
     lines = [
-        "# The breadboard — the live maker surface. The WINDOW (`{0}-breadboard`) and".format(_PKG),
+        "# The breadboard — the live maker surface. The WINDOW (`{0}-breadboard`) and".format(
+            _win),
         "# the AI AGENT both read and write this file; your edits here are directives",
         "# the agent re-ingests (see AGENTS.md). Git-tracked on purpose.",
         "",
@@ -177,9 +191,9 @@ def save(path: Path, board: dict) -> None:
                 lines.append(
                     f"priority = {_toml_str(prio if prio in PRIORITIES else 'next')}"
                 )
-            for key in ("by", "date", "note"):
+            for key in ("summary", "by", "date", "note"):
                 val = item.get(key, "")
-                if val:  # omit-empty: a blank stamp/note writes no line
+                if val:  # omit-empty: a blank summary/stamp/note writes no line
                     lines.append(f"{key} = {_toml_str(val)}")
     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -253,10 +267,43 @@ def _project_info(root: Path) -> dict:
             "feature_cards": [], "icon": ""}
 
 
+# ── self-reload (agent-driven) ────────────────────────────────────────────────
+
+
+def _reload_marker_path(board: Path) -> Path:
+    """The per-project runtime marker the window watches; `trackerkeeper-breadboard
+    reload` touches it to ask for a self-reload. Keyed by the board's absolute
+    path (so two checkouts don't cross-signal) and kept in the temp dir so it
+    never lands in the repo."""
+    import hashlib
+    import tempfile
+
+    h = hashlib.sha1(str(Path(board).resolve()).encode()).hexdigest()[:12]
+    return Path(tempfile.gettempdir()) / f"{_PKG}-breadboard-reload-{h}"
+
+
+def _validate_reload_imports() -> tuple[bool, str]:
+    """Prove the on-disk code still imports BEFORE we exec into it — a syntax
+    error the agent just left would otherwise crash-loop the relaunch. A fresh
+    subprocess imports the surfaces a relaunch needs; non-zero means don't reload
+    (stay on the good in-memory code)."""
+    import subprocess
+
+    mods = ("app", "window", "breadboard", "terminal", "ui_helpers")
+    code = "import " + ", ".join(f"{_PKG}.{m}" for m in mods)
+    try:
+        r = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True, text=True, timeout=60)
+    except Exception as e:  # pragma: no cover - subprocess spawn failure
+        return False, str(e)
+    return r.returncode == 0, (r.stderr.strip() or r.stdout.strip())
+
+
 # ── the window half ──────────────────────────────────────────────────────────
 
 
-def _make_view(path: Path, restore: dict | None = None):
+def _make_view(path: Path, restore: dict | None = None, window=None):
     """The breadboard window content. Imported lazily so the file half stays
     importable headless (tests, agents).
 
@@ -264,8 +311,8 @@ def _make_view(path: Path, restore: dict | None = None):
     agent drawer and resumes the agent conversation once the window is live."""
     import re
 
-    from PySide6.QtCore import QFileSystemWatcher, Qt, QThread, QTimer, Signal
-    from PySide6.QtGui import QDesktopServices, QPixmap
+    from PySide6.QtCore import QFileSystemWatcher, QPointF, Qt, QThread, QTimer, Signal
+    from PySide6.QtGui import QColor, QDesktopServices, QPainter, QPixmap
     from PySide6.QtWidgets import (
         QApplication,
         QCheckBox,
@@ -277,13 +324,15 @@ def _make_view(path: Path, restore: dict | None = None):
         QPushButton,
         QScrollArea,
         QSizePolicy,
+        QSplitter,
+        QSplitterHandle,
         QStackedWidget,
         QVBoxLayout,
         QWidget,
     )
 
     from trackerkeeper import ui_helpers
-    from trackerkeeper.design_tokens import TYPE_BODY, TYPE_DISPLAY, type_qss
+    from trackerkeeper.design_tokens import TYPE_BODY, TYPE_DISPLAY, TYPE_TITLE, type_qss
     from trackerkeeper.settings import get_settings
 
     accent = ui_helpers.ACCENT
@@ -351,10 +400,77 @@ def _make_view(path: Path, restore: dict | None = None):
             except Exception as exc:  # pragma: no cover - defensive
                 self.ready.emit(exc)
 
+    class _DotHandle(QSplitterHandle):
+        """A splitter grip painted as a short, centered row of dots (a column of
+        dots when the splitter is horizontal) — quieter and cleaner than Qt's
+        native handle texture."""
+
+        _N = 5          # dot count
+        _GAP = 7.0      # spacing between dot centers
+        _D = 3.0        # dot diameter
+
+        def paintEvent(self, e) -> None:  # noqa: N802
+            p = QPainter(self)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(255, 255, 255, 55))  # faint, over the frost
+            c = self.rect().center()
+            span = (self._N - 1) * self._GAP
+            r = self._D / 2
+            for i in range(self._N):
+                off = i * self._GAP - span / 2
+                # Vertical splitter → horizontal row; horizontal → vertical column.
+                if self.orientation() == Qt.Orientation.Vertical:
+                    p.drawEllipse(QPointF(c.x() + off, c.y()), r, r)
+                else:
+                    p.drawEllipse(QPointF(c.x(), c.y() + off), r, r)
+            p.end()
+
+    class _DottedSplitter(QSplitter):
+        """A QSplitter whose handle is the tidy dotted grip (:class:`_DotHandle`)."""
+
+        def createHandle(self):  # noqa: N802 — Qt override
+            return _DotHandle(self.orientation(), self)
+
+    class _ColumnScroll(QScrollArea):
+        """One kanban column's scrollable card list. The auto-fade pill sits in a
+        RESERVED gutter to the right of the cards (inside the lane bezel), so it
+        never overlaps a card. Horizontal scrolling is off — cards wrap to fit.
+
+        Plain wheel scrolls THIS column (the one under the cursor). Holding SHIFT
+        scrolls all four columns together — ``siblings`` is the shared list of the
+        row's column scrollers (mutated in place as they're built, so it's full by
+        the time any wheel event fires)."""
+
+        def __init__(self, inner: QWidget, siblings: list) -> None:
+            super().__init__()
+            self.setWidgetResizable(True)
+            self.setFrameShape(QFrame.Shape.NoFrame)
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            self.setWidget(inner)
+            # a gutter-reserving auto-fade bar: the pill paints in the 12px gutter
+            # beside the cards (not over them), and the frost shows through it.
+            ui_helpers.install_autofade_scrollbars(self)
+            self._siblings = siblings
+
+        def wheelEvent(self, e) -> None:  # noqa: N802
+            if e.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                # SHIFT → move every column in lockstep. Some platforms remap a
+                # Shift+wheel onto the horizontal axis, so take whichever is live.
+                pd, ad = e.pixelDelta(), e.angleDelta()
+                px = (pd.y() or pd.x()) or int((ad.y() or ad.x()) / 120 * 48)
+                for s in self._siblings:
+                    bar = s.verticalScrollBar()
+                    bar.setValue(bar.value() - px)
+                e.accept()
+                return
+            super().wheelEvent(e)  # plain wheel: just this column
+
     class BoardView(QWidget):
         """Tabs across the top; every interaction writes the file."""
 
-        def __init__(self) -> None:
+        def __init__(self, window=None) -> None:
             super().__init__()
             self._path = Path(path)
             self._root = self._path.parent
@@ -375,77 +491,43 @@ def _make_view(path: Path, restore: dict | None = None):
             self._last_state_sig = None
             self._settled_sig = None  # the state we auto-stopped on — don't re-arm for it
             self._live_since: dict = {}  # channel key → wall-clock it flipped LIVE (this session)
+            self._done_sort = "newest"  # Done column order: newest-first or oldest-first
 
             root = QVBoxLayout(self)
             root.setContentsMargins(16, 10, 16, 12)
             root.setSpacing(10)
 
-            # ── the project bar: which loaf is on the bench + wind-down ──
-            projbar = QHBoxLayout()
-            projbar.setSpacing(8)
-            plabel = QLabel("Project")
-            plabel.setStyleSheet("color:#888;")
-            projbar.addWidget(plabel)
-            from trackerkeeper.selector import Selector, selector_qss
-
-            self._project_sel = Selector()
-            self._project_sel.setStyleSheet(selector_qss())
+            # ── the maker controls ────────────────────────────────────────
+            # The single window TOP BAR hosts the hamburger (project picker + Open
+            # + Wind down) and only a tiny wind-down status note. The Agent toggle
+            # is NOT here — it lives pinned at the BOTTOM of the board (built below).
+            self._window = window
             self._projects = discover_projects()
-            for product, bpath in self._projects:
-                label = product + ("  (here)" if bpath == self._home_path else "")
-                self._project_sel.addItem(label, str(bpath))
-            idx = self._project_sel.findData(str(self._path))
-            if idx >= 0:
-                self._project_sel.setCurrentIndex(idx)
-            self._project_sel.setFixedWidth(240)
-            self._project_sel.currentIndexChanged.connect(self._on_project_pick)
-            projbar.addWidget(self._project_sel)
-            projbar.addStretch(1)
-            self._winddown_note = QLabel("")
-            self._winddown_note.setStyleSheet("color:#8f8;font-size:11px;")
-            projbar.addWidget(self._winddown_note)
-            wind = ui_helpers.RoundedButton("Wind down…", variant="ghost")
-            wind.setToolTip(
+            self._wind_tip = (
                 "Ask the agent to run the wind-down ritual for this project\n"
                 "(land green → update the handoff → commit + push). Written into\n"
                 "the board as agent_request — the agent fulfils it and clears it.")
-            self._wind_btn = wind
-            wind.clicked.connect(self._request_wind_down)
-            projbar.addWidget(wind)
+            self._winddown_note = QLabel("")
+            self._winddown_note.setStyleSheet("color:#8f8;font-size:11px;")
             # ⌨ Agent — a real Claude Code terminal beside the board it drives.
+            # The toggle sits at the bottom (added after the split): "⌨ Agent" when
+            # closed, "hide ✕" when open. Created here so _prime_agent_button and
+            # the restore path can touch it before the bottom row is built.
             self._agent_btn = ui_helpers.RoundedButton("⌨ Agent", variant="ghost")
             self._agent_btn.setCheckable(True)
             # drop clicked(checked)'s bool arg — it must NOT land in force_off,
             # which would force the drawer closed the instant you open it.
             self._agent_btn.clicked.connect(lambda _=False: self._toggle_agent())
             self._prime_agent_button()
-            projbar.addWidget(self._agent_btn)
-            # ⟳ Reload — restart the breadboard onto the code now on disk (after
-            # the agent edits trackerkeeper), keeping your place + the agent session.
-            self._reload_btn = ui_helpers.RoundedButton("⟳ Reload", variant="ghost")
-            self._reload_btn.setToolTip(
-                "Restart the breadboard on the latest trackerkeeper code without losing\n"
-                "your place. Validates the code imports first, saves which project\n"
-                "and phase you're on, and resumes the agent conversation "
-                "(claude --continue).")
-            self._reload_btn.clicked.connect(lambda _=False: self._request_reload())
-            projbar.addWidget(self._reload_btn)
-            root.addLayout(projbar)
+            self._install_top_bar(window)  # into the window titlebar (or a no-op)
+            # Self-reload is agent-driven, not a button: after the agent edits
+            # trackerkeeper it runs `trackerkeeper-breadboard reload`, which touches a marker we
+            # file-watch (_watch_reload_marker / _on_reload_marker) → we restart
+            # onto the new code and resume its session (claude --continue).
 
-            # ── board (top) + agent terminal drawer (bottom), splittable ──
-            from PySide6.QtWidgets import QSplitter
-
-            self._split = QSplitter(Qt.Orientation.Vertical)
-            self._split.setChildrenCollapsible(False)
-            self._split.setHandleWidth(6)
-            board_pane = QWidget()
-            self._board_pane = board_pane
-            bp = QVBoxLayout(board_pane)
-            bp.setContentsMargins(0, 0, 0, 0)
-            bp.setSpacing(10)
-
-            pills = QHBoxLayout()
-            pills.setSpacing(6)
+            # ── the 4 phase tabs — the row directly under the top bar ─────────
+            pill_row = QHBoxLayout()
+            pill_row.setSpacing(6)
             self._pill_buttons: dict[str, QPushButton] = {}
             for phase in PHASES:
                 b = ui_helpers.RoundedButton(_PHASE_TITLES[phase], variant="pill",
@@ -453,13 +535,29 @@ def _make_view(path: Path, restore: dict | None = None):
                 b.setMinimumHeight(30)
                 b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
                 b.clicked.connect(lambda _=False, ph=phase: self._show_phase(ph))
-                pills.addWidget(b, 1)
+                pill_row.addWidget(b, 1)
                 self._pill_buttons[phase] = b
-            bp.addLayout(pills)
+            root.addLayout(pill_row)
 
+            # ── board (top) + agent terminal drawer (bottom), splittable ──
+            self._split = _DottedSplitter(Qt.Orientation.Vertical)
+            self._split.setChildrenCollapsible(False)
+            self._split.setHandleWidth(11)  # room for the dotted grip
+            board_pane = QWidget()
+            self._board_pane = board_pane
+            bp = QVBoxLayout(board_pane)
+            bp.setContentsMargins(0, 0, 0, 0)
+            bp.setSpacing(10)
+
+            # a labelled north-star: a "CURRENT GOAL" kicker over the goal line, so
+            # it's clear this is the objective for now (vs. the app's PURPOSE on
+            # Ingredients — what the app fundamentally is).
+            bp.addWidget(self._kicker("Current goal"))
             self._goal = QLabel(self._board.get("goal", ""))
             self._goal.setWordWrap(True)
-            self._goal.setStyleSheet(type_qss(TYPE_DISPLAY) + "color:#ddd;")
+            # a heading, not a banner — DISPLAY (20/700) read as comically large;
+            # TITLE (16/600) keeps it larger-and-bold without dominating (August).
+            self._goal.setStyleSheet(type_qss(TYPE_TITLE) + "color:#ddd;")
             bp.addWidget(self._goal)
 
             self._stack = QStackedWidget()
@@ -472,9 +570,42 @@ def _make_view(path: Path, restore: dict | None = None):
             self._term_host = self._build_agent_drawer()
             self._term_host.setVisible(False)
             self._term = None  # the live TerminalWidget, spawned on first open
-            self._resume_agent = False  # one-shot: next spawn does claude --continue
+            self._resume_agent = False  # one-shot: next spawn resumes the pinned id
+            self._agent_session_id: str | None = None  # pins the agent's thread
+            # Swapping projects PARKS the current agent instead of killing it: its
+            # terminal (and the live claude behind it) is stashed here by project
+            # path, kept running off-layout, and re-attached when you come back.
+            # value: (TerminalWidget, session_id, was_open).
+            self._parked_agents: dict[str, tuple] = {}
             self._split.addWidget(self._term_host)
             root.addWidget(self._split, 1)
+
+            # ── the Agent control strip, pinned at the BOTTOM of the board ────
+            # Closed: just "⌨ Agent" (opens the drawer). Open: the agent title on
+            # the left, then a matched trio on the right — dock, restart, and the
+            # toggle (now "hide ✕"). The title + dock + restart show ONLY while the
+            # agent is open; the drawer itself has no header anymore.
+            self._agent_title = QLabel("")
+            self._agent_title.setStyleSheet("color:#999;font-size:11px;")
+            self._dock_btn = ui_helpers.RoundedButton(self._dock_label(), variant="ghost")
+            self._dock_btn.setToolTip("Dock the agent bottom / right / left of the board")
+            self._dock_btn.clicked.connect(self._cycle_agent_dock)
+            self._restart_btn = ui_helpers.RoundedButton("restart", variant="ghost")
+            self._restart_btn.setToolTip("Restart the agent process")
+            self._restart_btn.clicked.connect(self._restart_agent)
+            for b in (self._dock_btn, self._restart_btn, self._agent_btn):
+                b.setMinimumHeight(28)  # a matched trio
+            bottom = QHBoxLayout()
+            bottom.setContentsMargins(0, 0, 0, 0)
+            bottom.setSpacing(6)
+            bottom.addWidget(self._agent_title)
+            bottom.addStretch(1)
+            bottom.addWidget(self._dock_btn)
+            bottom.addWidget(self._restart_btn)
+            bottom.addWidget(self._agent_btn)
+            root.addLayout(bottom)
+            self._set_agent_controls(False)  # dock/restart/title hidden until open
+
             # apply orientation + board↔terminal order now; sizes wait for open
             self._apply_agent_dock(resize=False)
 
@@ -488,6 +619,16 @@ def _make_view(path: Path, restore: dict | None = None):
             self._rewatch = QTimer(self)
             self._rewatch.setSingleShot(True)
             self._rewatch.timeout.connect(self._ensure_watched)
+
+            # `trackerkeeper-breadboard reload` (the agent, after editing trackerkeeper) touches a
+            # per-project marker; watch it and self-reload onto the new code.
+            self._reload_watcher: QFileSystemWatcher | None = None
+            self._reload_nonce = ""  # the last reload nonce acted on
+            # A reload asked for while ANOTHER project's agent is mid-turn waits
+            # here until they all fall idle (see _request_reload).
+            self._pending_reload = False
+            self._reload_wait: QTimer | None = None
+            self._watch_reload_marker()
 
             # Let a running channel probe finish before teardown — closing the
             # window mid-probe would otherwise abort ("QThread destroyed while
@@ -512,18 +653,24 @@ def _make_view(path: Path, restore: dict | None = None):
             nonlocal accent
             accent = ui_helpers.ACCENT  # refresh the frozen closure local
             # pills + wind + agent are painted RoundedButtons — they read ACCENT
-            # live and repaint themselves (register_for_theme). Only the QSS
-            # surfaces (the project Selector + the rebuilt cards) need re-stamp.
-            from trackerkeeper.selector import selector_qss
-
-            self._project_sel.setStyleSheet(selector_qss())
+            # live and repaint themselves (register_for_theme). Only the rebuilt
+            # cards need re-stamp with the new accent.
             self._rebuild_pages()  # re-bakes cards/checkboxes/adders with the new accent
 
         def _cleanup(self) -> None:
             self._launch_timer.stop()
+            if self._reload_wait is not None:
+                self._reload_wait.stop()
             if self._probe is not None and self._probe.isRunning():
                 self._probe.wait(3000)
             self._stop_agent()
+            # Parked (background) agents are live claude processes — stop them all
+            # so a quit or self-reload doesn't leak orphaned ptys. (A reload then
+            # resumes only the CURRENT project's thread; parked threads persist on
+            # disk and spawn fresh when you revisit.)
+            for term, _sid, _open in self._parked_agents.values():
+                term.stop()
+            self._parked_agents.clear()
 
         # ── the agent terminal (⌨) ────────────────────────────────────────
         def _prime_agent_button(self) -> None:
@@ -545,42 +692,16 @@ def _make_view(path: Path, restore: dict | None = None):
                     "agent right beside the board it edits.")
 
         def _build_agent_drawer(self) -> QWidget:
+            # Just the terminal — the title + dock/restart/hide controls all live in
+            # the bottom control strip now (built in __init__).
             host = QWidget()
             v = QVBoxLayout(host)
             v.setContentsMargins(0, 6, 0, 0)
             v.setSpacing(4)
-            bar = QHBoxLayout()
-            self._agent_title = QLabel("")
-            self._agent_title.setStyleSheet("color:#999;font-size:11px;")
-            bar.addWidget(self._agent_title)
-            bar.addStretch(1)
-            self._dock_btn = QPushButton(self._dock_label())
-            self._dock_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            self._dock_btn.setStyleSheet(self._mini_agent_qss())
-            self._dock_btn.setToolTip("Dock the agent bottom / right / left of the board")
-            self._dock_btn.clicked.connect(self._cycle_agent_dock)
-            bar.addWidget(self._dock_btn)
-            restart = QPushButton("restart")
-            restart.setCursor(Qt.CursorShape.PointingHandCursor)
-            restart.setStyleSheet(self._mini_agent_qss())
-            restart.clicked.connect(self._restart_agent)
-            bar.addWidget(restart)
-            close = QPushButton("hide ✕")
-            close.setCursor(Qt.CursorShape.PointingHandCursor)
-            close.setStyleSheet(self._mini_agent_qss())
-            close.clicked.connect(lambda: self._toggle_agent(force_off=True))
-            bar.addWidget(close)
-            v.addLayout(bar)
             self._term_slot = QVBoxLayout()
             self._term_slot.setContentsMargins(0, 0, 0, 0)
             v.addLayout(self._term_slot, 1)
             return host
-
-        @staticmethod
-        def _mini_agent_qss() -> str:
-            return ("QPushButton{border:none;border-radius:6px;padding:3px 10px;"
-                    "background:rgba(255,255,255,0.06);color:#bbb;font-size:11px;}"
-                    "QPushButton:hover{background:rgba(255,255,255,0.14);color:#fff;}")
 
         # ── agent dock: bottom / right / left of the board ────────────────
         _DOCK_LABELS = {"bottom": "⬓ bottom", "right": "◨ right", "left": "◧ left"}
@@ -622,9 +743,18 @@ def _make_view(path: Path, restore: dict | None = None):
             get_settings().agent_dock = self._agent_dock
             self._apply_agent_dock(resize=True)
 
+        def _set_agent_controls(self, on: bool) -> None:
+            """Show the drawer's controls — the title + dock + restart — only while
+            the agent is open; closed, just the ⌨ Agent toggle remains."""
+            for w in (self._agent_title, self._dock_btn, self._restart_btn):
+                w.setVisible(on)
+
         def _toggle_agent(self, force_off: bool = False) -> None:
             show = self._agent_btn.isChecked() and not force_off
             self._agent_btn.setChecked(show)
+            # the one bottom control flips label with state: open → "hide ✕"
+            self._agent_btn.setText("hide ✕" if show else "⌨ Agent")
+            self._set_agent_controls(show)
             self._term_host.setVisible(show)
             if show:
                 if self._term is None:
@@ -638,11 +768,23 @@ def _make_view(path: Path, restore: dict | None = None):
 
             slug = _project_info(self._root)["slug"]
             resume, self._resume_agent = self._resume_agent, False  # consume one-shot
+            if resume and self._agent_session_id:
+                # Auto-continue: a reload resume submits a "continue" so the agent
+                # picks the interrupted turn back up on its own (no maker typing it).
+                # TRACKERKEEPER_AGENT_RESUME_PROMPT overrides the message; empty disables it.
+                cont = os.environ.get("TRACKERKEEPER_AGENT_RESUME_PROMPT", "continue") or None
+                argv = terminal.claude_argv(
+                    session_id=self._agent_session_id, resume=True,
+                    prompt=cont)  # THIS thread back, and keep going
+            else:
+                # fresh: pin a new id so a later reload resumes THIS conversation,
+                # not whatever claude was most-recently active in the project dir
+                self._agent_session_id = terminal.new_session_id()
+                argv = terminal.claude_argv(session_id=self._agent_session_id)
             self._agent_title.setText(
                 f"⌨ claude · {slug}  ({self._root})"
                 + ("  — resuming" if resume else ""))
-            self._term = terminal.TerminalWidget(
-                terminal.claude_argv(resume=resume), cwd=self._root)
+            self._term = terminal.TerminalWidget(argv, cwd=self._root)
             self._term.exited.connect(self._on_agent_exit)
             self._term_slot.addWidget(self._term)
 
@@ -653,15 +795,56 @@ def _make_view(path: Path, restore: dict | None = None):
                 self._term.deleteLater()
                 self._term = None
 
+        def _park_agent(self) -> None:
+            """Swapping away from a project: stash its agent WITHOUT killing it.
+            Pull the live terminal out of the layout and hide it, but keep the
+            widget (and so its pty + the claude behind it) alive — the socket
+            notifier keeps draining output in the background. Re-entering the
+            project re-attaches this exact terminal via :meth:`_unpark_agent`."""
+            if self._term is None:
+                return
+            self._term_slot.removeWidget(self._term)
+            self._term.hide()  # parent stays the drawer host; just off-layout
+            self._parked_agents[str(self._path)] = (
+                self._term, self._agent_session_id, not self._term_host.isHidden())
+            self._term = None
+            self._agent_session_id = None
+
+        def _unpark_agent(self) -> bool:
+            """Re-entering a project: if it has a parked (still-running) agent,
+            drop it back into the drawer exactly as it was. Returns True if one
+            was restored."""
+            parked = self._parked_agents.pop(str(self._path), None)
+            if parked is None:
+                return False
+            term, sid, was_open = parked
+            self._term = term
+            self._agent_session_id = sid
+            self._term_slot.addWidget(term)
+            term.show()  # clears the park-time hide; drawer visibility governs
+            if was_open:
+                self._agent_btn.setChecked(True)
+                self._toggle_agent()  # shows + sizes the drawer; term is set → no spawn
+            return True
+
         def _restart_agent(self) -> None:
             self._stop_agent()
             self._spawn_agent()
             self._term.setFocus()
 
         def _on_agent_exit(self, code: int) -> None:
-            if self._term is not None:
+            term = self.sender()
+            if term is self._term and self._term is not None:
                 self._agent_title.setText(
                     self._agent_title.text() + f"  — exited ({code}); press restart")
+                return
+            # A PARKED agent ended while its project was off the bench — forget it
+            # so returning spawns a fresh session rather than re-attaching a corpse.
+            for key, (t, _sid, _open) in list(self._parked_agents.items()):
+                if t is term:
+                    t.deleteLater()
+                    del self._parked_agents[key]
+                    break
 
         # ── self-reload: restart onto the code now on disk ────────────────
         def _current_phase(self) -> str:
@@ -670,51 +853,174 @@ def _make_view(path: Path, restore: dict | None = None):
                     return ph
             return self._first_open_phase()
 
-        @staticmethod
-        def _validate_reload() -> tuple[bool, str]:
-            """Prove the on-disk code still imports BEFORE we exec into it — a
-            syntax error the agent just left would otherwise crash-loop the
-            relaunch. A fresh subprocess imports the surfaces a relaunch needs;
-            non-zero means don't reload (stay on the good in-memory code)."""
-            import subprocess
-
-            mods = ("app", "window", "breadboard", "terminal", "ui_helpers")
-            code = "import " + ", ".join(f"{_PKG}.{m}" for m in mods)
+        def _watch_reload_marker(self) -> None:
+            """(Re)point the reload watcher at THIS project's marker. Reset it to
+            empty first so a nonce left by the exec that just restarted us can't
+            immediately re-fire, and re-key on a project switch so a reload always
+            targets the project on the bench."""
+            marker = _reload_marker_path(self._path)
+            self._reload_nonce = ""  # armed: nothing acted on for this project yet
             try:
-                r = subprocess.run(
-                    [sys.executable, "-c", code],
-                    capture_output=True, text=True, timeout=60)
-            except Exception as e:  # pragma: no cover - subprocess spawn failure
-                return False, str(e)
-            return r.returncode == 0, (r.stderr.strip() or r.stdout.strip())
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.write_text("", encoding="utf-8")  # BEFORE addPath → no self-trigger
+            except OSError:
+                return
+            if self._reload_watcher is None:
+                self._reload_watcher = QFileSystemWatcher(self)
+                self._reload_watcher.fileChanged.connect(self._on_reload_marker)
+            elif self._reload_watcher.files():
+                self._reload_watcher.removePaths(self._reload_watcher.files())
+            self._reload_watcher.addPath(str(marker))
+
+        def _on_reload_marker(self, path: str) -> None:
+            """The marker changed — but ONLY a genuine reload request restarts us:
+            a fresh, non-empty nonce written by `trackerkeeper-breadboard reload`.
+
+            The marker lives in shared temp, so it draws filesystem events we must
+            NOT read as "restart now": a /tmp sweeper deleting it, the empty reset
+            `_watch_reload_marker` writes, or a re-touch of the nonce we already
+            acted on. Treating every fileChanged as a restart turned a routine tmp
+            cleanup into a boot loop (each restart auto-submitting "continue" to
+            the resumed agent). Re-arm the watch on every event — a rewrite or
+            delete drops the inotify watch — then act only on a new nonce.
+            _request_reload exec's away on success and returns only if the code on
+            disk doesn't import."""
+            marker = Path(path)
+            try:
+                nonce = marker.read_text(encoding="utf-8").strip()
+            except OSError:  # gone (swept) or unreadable → not a reload request
+                nonce = ""
+                try:  # put it back so the watch has something to hold
+                    marker.parent.mkdir(parents=True, exist_ok=True)
+                    marker.write_text("", encoding="utf-8")
+                except OSError:
+                    pass
+            if str(path) not in self._reload_watcher.files():
+                self._reload_watcher.addPath(str(path))
+            if not nonce or nonce == self._reload_nonce:
+                return  # noise on a shared-temp file, not the agent asking
+            self._reload_nonce = nonce
+            self._request_reload()
 
         def _apply_restore(self, r: dict) -> None:
-            """Re-open the saved phase + agent drawer after a self-reload."""
+            """Re-open the saved phase + the bench agent drawer after a self-reload,
+            and RE-SPAWN every OTHER project's parked agent (hidden, resumed +
+            auto-continuing) so a reload doesn't knock out work in any project."""
             phase = r.get("phase")
             if phase in PHASES:
                 self._show_phase(phase)
-            if r.get("agent") and self._agent_btn.isEnabled():
-                self._resume_agent = bool(r.get("resume"))  # → claude --continue
+            if not self._agent_btn.isEnabled():
+                return
+            here = str(self._path)
+            for a in r.get("parked", []):
+                proj, sid, was_open = a.get("project"), a.get("session_id"), a.get("open")
+                if sid and proj != here:  # the bench one is handled below
+                    self._respawn_parked(proj, sid, was_open)
+            if r.get("agent"):
+                # restore the pinned id BEFORE spawning so the resume targets the
+                # exact same conversation (claude --resume <id>), not "most recent"
+                self._agent_session_id = r.get("session_id")
+                self._resume_agent = bool(r.get("resume")) and bool(self._agent_session_id)
                 self._agent_btn.setChecked(True)
                 self._toggle_agent()
+
+        def _respawn_parked(self, project: str, session_id: str, was_open: bool) -> None:
+            """Bring a NON-bench project's agent back to life after a reload: a
+            hidden, parked terminal that resumes the pinned thread and auto-continues
+            its interrupted turn, ready to re-attach when you switch to that project."""
+            from trackerkeeper import terminal
+
+            cont = os.environ.get("TRACKERKEEPER_AGENT_RESUME_PROMPT", "continue") or None
+            argv = terminal.claude_argv(session_id=session_id, resume=True, prompt=cont)
+            term = terminal.TerminalWidget(
+                argv, cwd=str(Path(project).parent), parent=self._term_host)
+            term.exited.connect(self._on_agent_exit)
+            term.hide()
+            self._parked_agents[project] = (term, session_id, bool(was_open))
+
+        def _busy_projects(self) -> list[str]:
+            """Which OTHER projects have an agent mid-turn right now (sorted names).
+
+            Only PARKED agents count. The bench agent is excluded on purpose: a
+            reload is normally requested BY it (`trackerkeeper-breadboard reload` after it
+            edited trackerkeeper), so it's mid-turn by definition — waiting on it would
+            mean never reloading at all. Busy is DETECTED from the pty, not
+            recorded: a working claude streams output, an idle one sits silent."""
+            busy = []
+            for proj, (term, _sid, _open) in self._parked_agents.items():
+                if term.idle_seconds() < AGENT_IDLE_SECONDS:
+                    busy.append(Path(proj).parent.name or proj)
+            return sorted(busy)
+
+        def _defer_reload(self, busy: list[str]) -> None:
+            """Hold the reload while `busy` projects work; re-check on a timer and
+            let it through the moment they're quiet. The maker sees what it's
+            waiting on rather than an app that silently refuses to restart."""
+            self._pending_reload = True
+            self._winddown_note.setText(
+                "reload waiting on " + ", ".join(busy) + "…")
+            if self._reload_wait is None:
+                self._reload_wait = QTimer(self)
+                self._reload_wait.setInterval(1000)
+                self._reload_wait.timeout.connect(self._retry_pending_reload)
+            self._reload_wait.start()
+
+        def _retry_pending_reload(self) -> None:
+            """Tick while a reload is queued: still busy → refresh the note (the
+            set of working projects can change); all idle → take the reload."""
+            if not self._pending_reload:
+                self._cancel_pending_reload()
+                return
+            busy = self._busy_projects()
+            if busy:
+                self._winddown_note.setText(
+                    "reload waiting on " + ", ".join(busy) + "…")
+                return
+            self._request_reload()  # clears the pending state, then exec's away
+
+        def _cancel_pending_reload(self) -> None:
+            """Drop any queued reload and its note (it either landed or was blocked)."""
+            self._pending_reload = False
+            if self._reload_wait is not None:
+                self._reload_wait.stop()
+            if self._winddown_note.text().startswith("reload waiting on"):
+                self._winddown_note.setText("")
 
         def _request_reload(self) -> None:
             from PySide6.QtWidgets import QMessageBox
 
-            ok, err = self._validate_reload()
+            ok, err = _validate_reload_imports()
             if not ok:
                 QMessageBox.warning(
                     self, "Reload blocked",
                     "The code on disk didn't import — not restarting (your running "
                     "app is untouched). Fix this, then reload again:\n\n"
                     + (err or "(no detail)")[-1500:])
+                self._cancel_pending_reload()
                 return
+            # Never yank the app out from under ANOTHER project's working agent:
+            # restarting kills its pty mid-turn, and the resume re-drives it with a
+            # bare "continue". Queue instead and fire the moment they're all idle.
+            busy = self._busy_projects()
+            if busy:
+                self._defer_reload(busy)
+                return
+            self._cancel_pending_reload()
+            # PARKED agents (other projects, running in the background) must survive
+            # the reload too — otherwise it knocks out work in every project but the
+            # one on the bench. Capture them so _apply_restore re-spawns each.
+            parked = [
+                {"project": proj, "session_id": sid, "open": was_open}
+                for proj, (_term, sid, was_open) in self._parked_agents.items() if sid
+            ]
             restore = {
                 "project": str(self._path),
                 "phase": self._current_phase(),
                 # resume the agent only if a terminal is live right now
                 "agent": self._term is not None and not self._term_host.isHidden(),
                 "resume": self._term is not None,
+                "session_id": self._agent_session_id,  # resume THIS exact thread
+                "parked": parked,  # every OTHER project's live agent, resumed too
             }
             get_settings().save_geometry(self.window())  # execv skips closeEvent
             self._cleanup()  # stop probes/timers + close the pty (claude flushed)
@@ -730,11 +1036,89 @@ def _make_view(path: Path, restore: dict | None = None):
 
                 QMessageBox.critical(self, "Reload failed", f"Couldn't relaunch:\n{e}")
 
-        # ── project switching + the wind-down request ─────────────────────
-        def _on_project_pick(self, _idx: int) -> None:
-            data = self._project_sel.currentData()
-            if data and Path(data) != self._path:
-                self.set_project(Path(data))
+        # ── the top bar: title = <app> · <project ▾ dropdown> + hamburger ─
+        def _install_top_bar(self, window) -> None:
+            """Fold the maker controls into the window's single top bar: the current
+            project is a DROPDOWN right in the title (``<app> · <project> ▾`` — a
+            click switches loaf, a pinch faster than the menu); Open and Wind down
+            hang off the hamburger; the small wind-down note rides the bar. A no-op
+            when there's no window (headless / tests)."""
+            top = getattr(window, "top_bar", None)
+            if top is None or not hasattr(top, "set_menu_builder"):
+                return
+            self._project_btn = QPushButton("")
+            self._project_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._project_btn.setToolTip("Switch project")
+            self._project_btn.setStyleSheet(
+                "QPushButton{border:none;background:transparent;color:#cfd2da;"
+                "font-size:14px;font-weight:600;padding:2px 8px;border-radius:6px;}"
+                "QPushButton:hover{background:rgba(255,255,255,0.08);color:#fff;}")
+            self._project_btn.clicked.connect(self._open_project_menu)
+            top.add_left_widget(self._project_btn)
+            top.set_menu_builder(self._populate_menu)
+            top.add_right_widget(self._winddown_note)
+            self._update_title()
+
+        def _update_title(self) -> None:
+            """Title reads ``<app> ·`` with the current project as the ▾ dropdown
+            beside it — "trackerkeeper · trackerkeeper ▾" here, "trackerkeeper · butterpdf ▾" with a sibling
+            on the bench."""
+            top = getattr(self._window, "top_bar", None)
+            if top is None or not hasattr(top, "title"):
+                return
+            app = self._window.windowTitle() or _PKG
+            proj = self._board.get("product", "")
+            top.title.setText(f"{app}  ·" if proj else app)
+            if getattr(self, "_project_btn", None) is not None:
+                self._project_btn.setText(f"{proj}  ▾")
+
+        def _fill_project_menu(self, menu) -> None:
+            """Populate the project dropdown: every discovered loaf, the one on the
+            bench ticked; picking one switches. Split from :meth:`_open_project_menu`
+            so it can be driven without blocking on a modal exec()."""
+            for product, bpath in self._projects:
+                label = product + ("  (here)" if bpath == self._home_path else "")
+                act = menu.addAction(label)
+                act.setCheckable(True)
+                act.setChecked(Path(bpath) == self._path)
+                act.triggered.connect(lambda _=False, p=bpath: self._pick_project(p))
+
+        def _open_project_menu(self) -> None:
+            """The title's project dropdown, dropped under the button. Built fresh
+            per open (so it's frosted + accent-current)."""
+            from trackerkeeper import ui_helpers
+
+            menu = ui_helpers.opaque_menu(self, blur_corner_radius=8)
+            self._fill_project_menu(menu)
+            btn = self._project_btn
+            menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+        def _populate_menu(self, menu) -> None:
+            """The hamburger — now just Open project… and Wind down… (project
+            switching moved to the title dropdown). Built fresh per open."""
+            menu.addAction("Open project…").triggered.connect(self._open_project)
+            wind = menu.addAction("Wind down…")
+            wind.setToolTip(self._wind_tip)
+            wind.triggered.connect(self._request_wind_down)
+
+        def _pick_project(self, bpath) -> None:
+            if Path(bpath) != self._path:
+                self.set_project(Path(bpath))
+
+        def _open_project(self) -> None:
+            """Open a board that wasn't auto-discovered — pick its
+            ``*-breadboard.toml`` and put it on the bench."""
+            from PySide6.QtWidgets import QFileDialog
+
+            picked, _ = QFileDialog.getOpenFileName(
+                self, "Open a breadboard", str(self._root),
+                "Breadboard (*-breadboard.toml);;All files (*)")
+            if not picked:
+                return
+            p = Path(picked)
+            if not any(bp == p for _, bp in self._projects):  # remember it in the picker
+                self._projects.append((_project_info(p.parent)["slug"], p))
+            self.set_project(p)  # next hamburger open rebuilds with the new loaf
 
         def set_project(self, new_path: Path) -> None:
             """Put another checkout's board on the bench: reload state, re-anchor
@@ -746,8 +1130,9 @@ def _make_view(path: Path, restore: dict | None = None):
             self._last_state_sig = None
             self._settled_sig = None
             self._live_since = {}
-            self._stop_agent()  # the terminal is scoped to a project dir
+            self._park_agent()  # keep this project's agent running in the background
             self._agent_btn.setChecked(False)
+            self._agent_btn.setText("⌨ Agent")  # reset label; _unpark flips it back if open
             self._term_host.setVisible(False)
             self._watcher.removePath(str(self._path))
             self._path = Path(new_path)
@@ -756,9 +1141,12 @@ def _make_view(path: Path, restore: dict | None = None):
             self._channel_rows = None
             self._winddown_note.setText("")
             self._watcher.addPath(str(self._path))
+            self._watch_reload_marker()  # a reload now targets THIS project
             self._goal.setText(self._board.get("goal", ""))
+            self._update_title()  # <app> · <new project>
             self._rebuild_pages()
             self._show_phase(self._first_open_phase())
+            self._unpark_agent()  # bring back this project's agent if it's still live
 
         def _is_home(self) -> bool:
             return self._path == self._home_path
@@ -809,11 +1197,23 @@ def _make_view(path: Path, restore: dict | None = None):
             s = QScrollArea()
             s.setWidgetResizable(True)
             s.setFrameShape(QFrame.Shape.NoFrame)
+            # Never scroll sideways — content WRAPS to the width instead of clipping
+            # off the right edge (these are single-column text pages).
+            s.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             s.setWidget(inner)
             # the slim, auto-fading accent pills the app family uses everywhere
             # (no track, no gutter fill — just the handle over the frost)
             ui_helpers.install_autofade_scrollbars(s)
             return s
+
+        @staticmethod
+        def _kicker(text: str) -> QLabel:
+            """A small uppercase section header — a consistent, quiet label that
+            groups the cover page's sections without competing with the content."""
+            lab = QLabel(text.upper())
+            lab.setStyleSheet("color:#7c7c88;font-size:11px;font-weight:700;")
+            lab.setContentsMargins(2, 6, 0, 0)
+            return lab
 
         # ── Ingredients: the app summary page ─────────────────────────────
         def _build_ingredients(self) -> QWidget:
@@ -821,8 +1221,8 @@ def _make_view(path: Path, restore: dict | None = None):
             self._slug = side["slug"]
             inner = QWidget()
             vbox = QVBoxLayout(inner)
-            vbox.setContentsMargins(2, 4, 2, 4)
-            vbox.setSpacing(10)
+            vbox.setContentsMargins(4, 4, 4, 4)
+            vbox.setSpacing(9)
 
             card = QFrame()
             card.setStyleSheet(_CARD_QSS)
@@ -860,33 +1260,34 @@ def _make_view(path: Path, restore: dict | None = None):
             head.addWidget(brand)
             vbox.addWidget(card)
 
-            purpose_label = QLabel("Purpose — boil the app down (the agent reads this)")
-            purpose_label.setStyleSheet("color:#888;")
-            vbox.addWidget(purpose_label)
+            vbox.addWidget(self._kicker("Purpose"))
             self._purpose = QPlainTextEdit(self._board.get("purpose", ""))
             self._purpose.setPlaceholderText(
-                "Who is this for? What does v1 do? What is deliberately out?")
+                "Boil the app down — who is this for? what does v1 do? what's "
+                "deliberately out? (the agent reads this)")
             self._purpose.setFixedHeight(84)
             self._purpose.setStyleSheet(f"QPlainTextEdit{{{_EDIT_QSS}}}")
             self._purpose.textChanged.connect(self._purpose_changed)
             vbox.addWidget(self._purpose)
 
             if side["feature_cards"]:
-                feats = QLabel("Major features")
-                feats.setStyleSheet("color:#888;")
-                vbox.addWidget(feats)
+                vbox.addWidget(self._kicker("Features"))
                 for fc in side["feature_cards"]:
-                    lab = QLabel(f"•  <b>{fc.get('title', '')}</b> — {fc.get('body', '')}")
+                    body = self._wrappable(fc.get("body", ""))
+                    lab = QLabel(f"<b>{fc.get('title', '')}</b> — {body}")
                     lab.setWordWrap(True)
                     lab.setTextFormat(Qt.TextFormat.RichText)
-                    lab.setStyleSheet("color:#bbb;")
+                    lab.setStyleSheet(type_qss(TYPE_BODY) + "color:#bbb;")
+                    lab.setContentsMargins(2, 0, 0, 0)
                     vbox.addWidget(lab)
 
-            checklist = QLabel("The brief's checklist")
-            checklist.setStyleSheet("color:#888;")
-            vbox.addWidget(checklist)
+            # A setup aid for the ingredients phase: check items off as the initial
+            # pieces land, and they DROP OFF the cover page (kept in the file, just
+            # hidden) so a finished brief reads clean. The adder stays to add more.
+            vbox.addWidget(self._kicker("Checklist"))
             for item in self._board.get("ingredients", []):
-                vbox.addLayout(self._build_check_row(item))
+                if not item.get("done"):
+                    vbox.addLayout(self._build_check_row(item))
             vbox.addWidget(self._build_adder("ingredients"))
             vbox.addStretch(1)
             return self._scroll(inner)
@@ -905,9 +1306,13 @@ def _make_view(path: Path, restore: dict | None = None):
         def _build_baking(self) -> QWidget:
             inner = QWidget()
             row = QHBoxLayout(inner)
-            row.setContentsMargins(2, 4, 2, 4)
+            # NO side margins: the lane band spans the full viewport width so its
+            # left/right edges land flush with the agent terminal below (which has
+            # no scrollbar gutter). The vertical pill floats (see _OverlayScrollArea).
+            row.setContentsMargins(0, 4, 0, 4)
             row.setSpacing(10)
             titles = {"now": "Now", "next": "Next", "later": "Later", "done": "Done ✓"}
+            col_scrolls: list = []  # the 4 column scrollers, shared for Shift+wheel
             for col in (*PRIORITIES, "done"):
                 frame = QFrame()
                 # a soft LANE, not a bordered box — the cards are the boxes, so
@@ -919,25 +1324,88 @@ def _make_view(path: Path, restore: dict | None = None):
                 v = QVBoxLayout(frame)
                 v.setContentsMargins(10, 8, 10, 8)
                 v.setSpacing(6)
-                head = QLabel(titles[col])
-                head.setStyleSheet(
+
+                # header — the title, plus a newest/oldest toggle on Done
+                head = QHBoxLayout()
+                head.setContentsMargins(0, 0, 0, 0)
+                title = QLabel(titles[col])
+                title.setStyleSheet(
                     f"color:{'#8f8' if col == 'done' else '#fff'};font-weight:bold;")
-                v.addWidget(head)
-                for item in self._board.get("baking", []):
-                    in_col = (item.get("done") and col == "done") or (
-                        not item.get("done") and item.get("priority") == col)
-                    if in_col:
-                        v.addWidget(self._build_card(item, col))
+                head.addWidget(title)
+                head.addStretch(1)
+                if col == "done":
+                    newest = self._done_sort == "newest"
+                    sort_btn = QPushButton("newest ↓" if newest else "oldest ↑")
+                    sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                    sort_btn.setToolTip("Sort completed items newest- or oldest-first")
+                    sort_btn.setStyleSheet(
+                        "QPushButton{border:none;border-radius:6px;padding:1px 8px;"
+                        "background:rgba(255,255,255,0.06);color:#9a9;font-size:11px;}"
+                        "QPushButton:hover{background:rgba(140,255,140,0.18);color:#fff;}")
+                    sort_btn.clicked.connect(self._toggle_done_sort)
+                    head.addWidget(sort_btn)
+                v.addLayout(head)
+
+                # the CARDS ride in their OWN bounded, independently-scrollable
+                # area, so a long column scrolls itself instead of stretching the
+                # whole board taller. Plain wheel scrolls this column; Shift+wheel
+                # scrolls all four together (see _ColumnScroll). The pill sits in a
+                # gutter beside the cards, never over them.
+                cards = QWidget()
+                cl = QVBoxLayout(cards)
+                cl.setContentsMargins(0, 0, 0, 0)
+                cl.setSpacing(6)
+                for item in self._baking_items(col):
+                    cl.addWidget(self._build_card(item, col))
+                cl.addStretch(1)
+                scroll = _ColumnScroll(cards, col_scrolls)
+                col_scrolls.append(scroll)
+                v.addWidget(scroll, 1)  # fills the column's spare height
+
                 if col != "done":
                     adder = QLineEdit()
                     adder.setPlaceholderText("add…")
                     adder.setStyleSheet(f"QLineEdit{{{_EDIT_QSS}}}")
                     adder.returnPressed.connect(
                         lambda c=col, e=adder: self._add_item("baking", e.text(), priority=c))
-                    v.addWidget(adder)
-                v.addStretch(1)
+                    v.addWidget(adder)  # pinned below the scroll, always reachable
                 row.addWidget(frame, 1)
-            return self._scroll(inner)
+            return inner  # columns are self-bounded; the page itself never scrolls
+
+        def _baking_items(self, col: str) -> list:
+            """The baking items in ``col``, in display order. The Done column is
+            sorted by completion ``date`` per :attr:`_done_sort` (newest- or
+            oldest-first, stable within a day); the priority columns keep file
+            order."""
+            items = [
+                it for it in self._board.get("baking", [])
+                if (it.get("done") and col == "done")
+                or (not it.get("done") and it.get("priority") == col)]
+            if col == "done":
+                items.sort(key=lambda it: it.get("date", ""),
+                           reverse=self._done_sort == "newest")
+            return items
+
+        def _toggle_done_sort(self) -> None:
+            self._done_sort = "oldest" if self._done_sort == "newest" else "newest"
+            self._rebuild_pages()
+
+        @staticmethod
+        def _wrappable(text: str, n: int = 16) -> str:
+            """Let a word-wrap QLabel break an over-long unbroken token (a path, a
+            code identifier) instead of forcing the whole column wider — which
+            clipped the rightmost lane until you stretched the window. Splits any
+            run of >``n`` non-space chars with zero-width breaks (U+200B: invisible,
+            not a real space, so the text still reads and copies cleanly-ish)."""
+            import re
+
+            zwsp = "​"
+
+            def _split(m):
+                tok = m.group(0)
+                return zwsp.join(tok[i:i + n] for i in range(0, len(tok), n))
+
+            return re.sub(r"\S{%d,}" % (n + 1), _split, text)
 
         def _build_card(self, item: dict, col: str) -> QWidget:
             card = QFrame()
@@ -950,14 +1418,29 @@ def _make_view(path: Path, restore: dict | None = None):
             v = QVBoxLayout(card)
             v.setContentsMargins(8, 6, 8, 6)
             v.setSpacing(4)
-            lab = QLabel(item.get("text", ""))
+            # Lead with the agent's plain-language SUMMARY (what the task takes care
+            # of) so the card reads naturally; fall back to the precise `text` when
+            # there's no summary. Clicking the card opens a frosted popup with the
+            # full detail (see _open_card_detail).
+            text = item.get("text", "")
+            summary = (item.get("summary") or "").strip()
+            lab = QLabel(self._wrappable(summary or text))
             lab.setWordWrap(True)
             lab.setStyleSheet(
                 type_qss(TYPE_BODY) + ("color:#9a9;" if done else "color:#ddd;"))
             v.addWidget(lab)
+            card.setCursor(Qt.CursorShape.PointingHandCursor)
+
+            def _open(e, it=item, c=col):
+                from PySide6.QtCore import Qt as _Qt
+                if e.button() == _Qt.MouseButton.LeftButton:
+                    self._open_card_detail(it, c)
+
+            card.mousePressEvent = _open  # a click anywhere but the mini-buttons
             stamp = f"{item.get('by', '')} {item.get('date', '')}".strip()
             if stamp or item.get("note"):
-                meta = QLabel(stamp + ("  ·  " + item["note"] if item.get("note") else ""))
+                meta = QLabel(self._wrappable(
+                    stamp + ("  ·  " + item["note"] if item.get("note") else "")))
                 meta.setWordWrap(True)
                 meta.setStyleSheet("color:#777;font-size:11px;")
                 v.addWidget(meta)
@@ -991,6 +1474,44 @@ def _make_view(path: Path, restore: dict | None = None):
             btns.addStretch(1)
             v.addLayout(btns)
             return card
+
+        def _open_card_detail(self, item: dict, col: str) -> None:
+            """Expand a card into a frosted popup (same chrome as Settings): the
+            plain summary as the headline, then the full precise text, the note, and
+            the stamp — whatever detail the card carries, laid out to read."""
+            from trackerkeeper.frosted_dialog import FrostedDialog
+
+            text = item.get("text", "")
+            summary = (item.get("summary") or "").strip()
+            title = "Done" if col == "done" else col.capitalize()
+            dlg = FrostedDialog(self.window(), title=title, min_width=440)
+            cl = dlg.content_layout
+
+            head = QLabel(summary or text)
+            head.setWordWrap(True)
+            head.setStyleSheet(type_qss(TYPE_TITLE) + "color:#fff;")
+            cl.addWidget(head)
+
+            def _detail(kick: str, body_text: str) -> None:
+                cl.addWidget(self._kicker(kick))
+                lbl = QLabel(body_text)
+                lbl.setWordWrap(True)
+                lbl.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.TextSelectableByMouse
+                    | Qt.TextInteractionFlag.TextSelectableByKeyboard)
+                lbl.setStyleSheet(type_qss(TYPE_BODY) + "color:#cfd2da;")
+                cl.addWidget(lbl)
+
+            if summary and text and summary != text:
+                _detail("Detail", text)  # the precise wording / directive
+            if item.get("note"):
+                _detail("Note", item["note"])
+            stamp = f"{item.get('by', '')} {item.get('date', '')}".strip()
+            if stamp:
+                s = QLabel(stamp)
+                s.setStyleSheet("color:#777;font-size:11px;")
+                cl.addWidget(s)
+            dlg.exec()
 
         def _move_card(self, item: dict, col: str) -> None:
             item["done"] = col == "done"
@@ -1285,27 +1806,36 @@ def _make_view(path: Path, restore: dict | None = None):
         def _build_check_row(self, item: dict) -> QHBoxLayout:
             row = QHBoxLayout()
             row.setSpacing(8)
-            box = QCheckBox(item.get("text", ""))
+            # An indicator-only checkbox + a WORD-WRAPPING label beside it: a
+            # QCheckBox won't wrap its own text, so a long brief item would force the
+            # whole page wider than the window (and clip). Top-align so a wrapped,
+            # multi-line item still lines up with the tick.
+            box = QCheckBox()
             box.setChecked(bool(item.get("done")))
             box.setStyleSheet(
-                type_qss(TYPE_BODY)
-                + f"QCheckBox{{color:#ddd;}}QCheckBox::indicator:checked{{background:{accent};"
+                f"QCheckBox::indicator:checked{{background:{accent};"
                 f"border:1px solid {accent};border-radius:3px;}}"
                 "QCheckBox::indicator{width:14px;height:14px;border:1px solid "
                 "rgba(255,255,255,0.35);border-radius:3px;}")
             box.toggled.connect(lambda on, it=item: self._set_done(it, on))
-            row.addWidget(box, 1)
+            row.addWidget(box, 0, Qt.AlignmentFlag.AlignTop)
+            lab = QLabel(self._wrappable(item.get("text", "")))
+            lab.setWordWrap(True)
+            lab.setStyleSheet(type_qss(TYPE_BODY) + "color:#ddd;")
+            row.addWidget(lab, 1)
             stamp = QLabel(f"{item.get('by', '')} {item.get('date', '')}".strip())
             stamp.setStyleSheet("color:#777;font-size:11px;")
-            row.addWidget(stamp)
+            row.addWidget(stamp, 0, Qt.AlignmentFlag.AlignTop)
             note = QLineEdit(item.get("note", ""))
             note.setPlaceholderText("note to the agent…")
-            note.setFixedWidth(220)
+            # flex, don't pin: shrinks on a narrow window instead of clipping
+            note.setMinimumWidth(120)
+            note.setMaximumWidth(240)
             note.setStyleSheet(
                 "QLineEdit{background:rgba(255,255,255,0.05);border:1px solid "
                 "rgba(255,255,255,0.10);border-radius:6px;padding:3px 8px;color:#cbb8ff;}")
             note.editingFinished.connect(lambda it=item, e=note: self._set_note(it, e.text()))
-            row.addWidget(note)
+            row.addWidget(note, 0, Qt.AlignmentFlag.AlignTop)
             return row
 
         # ── edits (every one writes the file) ─────────────────────────────
@@ -1317,6 +1847,7 @@ def _make_view(path: Path, restore: dict | None = None):
             item["done"] = on
             self._stamp(item)
             self._write()
+            self._rebuild_pages()  # a checked ingredients item drops off the page
 
         def _set_note(self, item: dict, text: str) -> None:
             if item.get("note", "") == text:
@@ -1365,7 +1896,7 @@ def _make_view(path: Path, restore: dict | None = None):
                     self._purpose.blockSignals(False)
             self._rebuild_pages()
 
-    return BoardView()
+    return BoardView(window)
 
 
 # ── the headless CLI (agent-facing: edit the board without hand-writing TOML) ──
@@ -1394,12 +1925,45 @@ def _print_board(board: dict, only: str | None = None) -> None:
             prio = (f" [{it.get('priority')}]"
                     if phase == "baking" and it.get("priority") else "")
             note = f"  — {it['note']}" if it.get("note") else ""
-            print(f"  [{box}] {it.get('id', '??????')}  {it.get('text', '')}{prio}{note}")
+            summ = f"  ~ {it['summary']}" if it.get("summary") else ""
+            print(f"  [{box}] {it.get('id', '??????')}  {it.get('text', '')}{prio}{summ}{note}")
+
+
+def _cmd_reload(board: Path) -> int:
+    """Ask the running breadboard window to restart onto the code now on disk,
+    resuming this agent session (`claude --continue`). This is how the agent
+    ships its own edits to the app it's running inside — no maker button.
+
+    Validates the code imports FIRST: a syntax error the agent just left is
+    reported here (non-zero exit) and the running app is left untouched. On
+    success it touches the marker the window file-watches; the window validates
+    again, saves its place, and exec's into the new code."""
+    ok, err = _validate_reload_imports()
+    if not ok:
+        print("reload blocked — the code on disk didn't import; the running app "
+              "is untouched. Fix this, then reload again:\n" + (err or "(no detail)"),
+              file=sys.stderr)
+        return 1
+    import time
+
+    marker = _reload_marker_path(board)
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(str(time.time_ns()), encoding="utf-8")  # a fresh nonce → fires the watch
+    except OSError as e:
+        print(f"couldn't signal the window: {e}", file=sys.stderr)
+        return 1
+    print("reload requested — the breadboard restarts onto your new code and this "
+          "session resumes automatically. If another project's agent is mid-turn "
+          "the restart waits until it's idle, so it may not be instant.")
+    return 0
 
 
 def _apply_cmd(args, path: Path) -> int:
     """Run one headless subcommand: load → mutate → byte-stable save. The open
     window's file-watch live-reloads each change, so the maker sees it land."""
+    if args.cmd == "reload":  # not a board edit — signals the running window
+        return _cmd_reload(path)
     if not path.is_file():
         print(f"no board at {path} — seed one with `{_PKG}-breadboard --init`",
               file=sys.stderr)
@@ -1414,6 +1978,7 @@ def _apply_cmd(args, path: Path) -> int:
         item = {
             "text": args.text, "done": bool(args.done),
             "by": args.by, "date": date.today().isoformat(), "note": args.note or "",
+            "summary": args.summary or "",
         }
         if args.phase == "baking":
             item["priority"] = args.priority or "next"
@@ -1445,6 +2010,9 @@ def _apply_cmd(args, path: Path) -> int:
     elif args.cmd == "note":
         item["note"] = args.text
         msg = "note set"
+    elif args.cmd == "summary":
+        item["summary"] = args.text
+        msg = "summary set"
     elif args.cmd == "priority":
         if phase != "baking":
             print(f"priority applies to baking items; {args.id} is in {phase}",
@@ -1480,6 +2048,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--priority", choices=PRIORITIES, help="baking column (default next)")
     p.add_argument("--by", default="agent", help="who added it (default agent)")
     p.add_argument("--note", default="", help="a note on the item")
+    p.add_argument("--summary", default="",
+                   help="plain-language one-liner shown on the card (the precise "
+                        "`text` stays as the hover detail)")
     p.add_argument("--done", action="store_true", help="add it already checked")
 
     p = sub.add_parser("check", help="mark an item done (--off to reopen)")
@@ -1489,6 +2060,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--note", default=None, help="also set the item's note")
 
     p = sub.add_parser("note", help="set an item's note")
+    p.add_argument("id")
+    p.add_argument("text")
+
+    p = sub.add_parser(
+        "summary", help="set an item's plain-language card summary (natural language)")
     p.add_argument("id")
     p.add_argument("text")
 
@@ -1502,6 +2078,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("request", help="set / clear the top-level agent_request")
     p.add_argument("text", nargs="?", default="")
     p.add_argument("--clear", action="store_true", help="clear it (once you've fulfilled it)")
+
+    sub.add_parser(
+        "reload",
+        help="restart the running app onto your new code (resumes this session)")
     return parser
 
 
@@ -1532,7 +2112,8 @@ def main(argv: list[str] | None = None) -> int:
 
     from trackerkeeper.app import run_app
 
-    return run_app(lambda window: _make_view(path, restore), single_instance=False)
+    return run_app(lambda window: _make_view(path, restore, window),
+                   single_instance=False)
 
 
 def _read_restore_env() -> dict | None:

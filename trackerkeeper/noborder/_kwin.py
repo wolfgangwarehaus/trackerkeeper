@@ -1,10 +1,15 @@
-"""KWin window-rule backend. Writes a ``noborder`` Force rule into KDE's
+"""KWin window-rule backend. Writes trackerkeeper's managed main-window rule into KDE's
 ``~/.config/kwinrulesrc`` and reconfigures KWin so it takes effect immediately.
 
 Why this exists: trackerkeeper's main window is server-side-decorated on KDE Wayland
 (so compositor blur survives a drag — a ``Qt.FramelessWindowHint`` window loses
 it). This rule tells KWin to draw no decoration for the window, so it still
 looks frameless.
+
+The same rule also carries ``positionrule=Remember`` so the window comes back
+where the maker left it after a relaunch (an agent-driven ``trackerkeeper-breadboard
+reload`` execs a fresh process). A Wayland client cannot position itself, so
+this MUST be done compositor-side — KWin remembers and reapplies the position.
 
 Scope of the rule: matches the app's wmclass (``identity.app()``, set via
 ``setDesktopFileName``) with a substring matcher, so any X11/Wayland WM_CLASS
@@ -38,6 +43,8 @@ _NOBORDER_RULE_FIELDS = (
     "wmclasscomplete",
     "noborder",
     "noborderrule",
+    "positionrule",
+    "position",  # KWin fills/updates this under Remember; we clean it on removal
 )
 
 
@@ -65,6 +72,14 @@ def install_main_window_noborder() -> bool:
         rule_uuid = str(_uuid.uuid4())
         qs.setValue(_MAIN_NOBORDER_KEY, rule_uuid)
     _ensure_in_rules_list(rule_uuid)
+    # Already installed and correct? Do NOTHING — critically, DON'T reconfigure.
+    # A reconfigure reloads KWin's rulebook FROM DISK, discarding the window
+    # position KWin holds in memory under positionrule=Remember — that's what reset
+    # the window to KWin's default placement on every reload. Skipping the no-op
+    # refresh lets the remembered position survive a relaunch. We still self-heal
+    # (rewrite + reconfigure) whenever a field is missing or wrong.
+    if _rule_is_current(rule_uuid):
+        return True
     _write_noborder_rule_body(rule_uuid)
     _reconfigure_kwin()
     return True
@@ -204,12 +219,21 @@ def _remove_from_rules_list(rule_uuid: str) -> None:
     _kwriteconfig("General", "count", str(len(rules)))
 
 
-def _write_noborder_rule_body(rule_uuid: str) -> None:
-    """Scope: wmclass contains ``identity.app()`` (substring + complete=true, so
-    WM_CLASS quirks are tolerated). Action: noborder=true with noborderrule=2
-    (Force) — KWin draws no decoration for the matched window. ``noborderrule``
-    value 2 (= Force) verified against KWin 6.6."""
-    fields = {
+def _noborder_rule_fields() -> dict:
+    """The rule body we write. Scope: wmclass contains ``identity.app()`` (substring
+    + complete=true, so WM_CLASS quirks are tolerated). Actions:
+
+    - ``noborder=true`` / ``noborderrule=2`` (Force) — KWin draws no decoration.
+    - ``positionrule=4`` (Remember) — a Wayland client can't position ITSELF (the
+      protocol forbids it), so a reload/relaunch would otherwise land wherever
+      KWin's placement policy drops it. Remember hands position to the compositor:
+      KWin stores where the window last was and reapplies it on the next map, so
+      the window comes back where the maker left it. We deliberately DON'T write a
+      ``position`` value — KWin owns and updates it; writing one every launch would
+      clobber the remembered spot. (Size is restored client-side by Qt's
+      ``restoreGeometry`` and needs no rule.) ``*rule`` values are KWin's SetRule
+      enum (2 = Force, 4 = Remember), verified against KWin 6.7."""
+    return {
         "Description": _DESCRIPTION,
         "clientmachine": "localhost",
         "clientmachinematch": "0",
@@ -218,9 +242,23 @@ def _write_noborder_rule_body(rule_uuid: str) -> None:
         "wmclasscomplete": "true",
         "noborder": "true",
         "noborderrule": "2",  # 2 = Force
+        "positionrule": "4",  # 4 = Remember (KWin keeps the window where you left it)
     }
-    for key, val in fields.items():
+
+
+def _write_noborder_rule_body(rule_uuid: str) -> None:
+    for key, val in _noborder_rule_fields().items():
         _kwriteconfig(rule_uuid, key, val)
+
+
+def _rule_is_current(rule_uuid: str) -> bool:
+    """True iff the rule group already holds exactly the fields we'd write (the
+    KWin-managed ``position`` VALUE is ignored — only our own fields are checked).
+    When true, :func:`install_main_window_noborder` skips the rewrite +
+    reconfigure so KWin's in-memory remembered position isn't discarded."""
+    sentinel = "\x00"
+    return all(_kreadconfig(rule_uuid, key, sentinel) == val
+               for key, val in _noborder_rule_fields().items())
 
 
 def _delete_noborder_rule_group(rule_uuid: str) -> None:

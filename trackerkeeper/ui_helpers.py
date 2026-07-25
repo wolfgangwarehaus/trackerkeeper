@@ -1714,8 +1714,6 @@ def opaque_menu(parent=None, *, menu_cls=None, blur_corner_radius: int = 4) -> "
     so the blur doesn't bleed past the visible corners into a square halo;
     defaults to 4 to match this function's own QSS ``border-radius``.
     """
-    from trackerkeeper.theme import _hex_to_rgb
-
     menu = (menu_cls or QMenu)(parent)
     # Keep the menu surface translucent so its QSS rgba background composites
     # over compositor blur (the lifted-frosted-glass look) ONLY when blur is
@@ -1749,11 +1747,22 @@ def opaque_menu(parent=None, *, menu_cls=None, blur_corner_radius: int = 4) -> "
         )
     else:
         _harden_popup_opacity(menu)
+    menu.setStyleSheet(_opaque_menu_qss())
+    return menu
+
+
+def _opaque_menu_qss() -> str:
+    """The accent-/theme-dependent stylesheet for an :func:`opaque_menu`. Split
+    out so a PERSISTENT menu (one kept alive rather than rebuilt per open — e.g.
+    the top bar's hamburger) can be re-stamped on a live accent/theme change via
+    :func:`restyle_opaque_menu`; a per-open menu just picks it up at creation."""
+    from trackerkeeper.theme import _hex_to_rgb
+
     a_r, a_g, a_b = _hex_to_rgb(ACCENT)
     # Frosty fill when blur is verified behind the menu (lets the blur lift
     # through), opaque otherwise — mirrors the WA_TranslucentBackground gate
-    # above so the menu's paint and its surface translucency agree.
-    menu.setStyleSheet(f"""
+    # so the menu's paint and its surface translucency agree.
+    return f"""
         QMenu {{
             background-color: {popup_body_fill()};
             color: {TEXT};
@@ -1780,8 +1789,13 @@ def opaque_menu(parent=None, *, menu_cls=None, blur_corner_radius: int = 4) -> "
             background: {BORDER};
             margin: 4px 8px;
         }}
-    """)
-    return menu
+    """
+
+
+def restyle_opaque_menu(menu) -> None:
+    """Re-stamp a persistent :func:`opaque_menu`'s stylesheet with the CURRENT
+    accent/theme — call on ``AppBus.theme_changed`` for a menu you keep alive."""
+    menu.setStyleSheet(_opaque_menu_qss())
 
 
 def popup_fill_qcolor() -> QColor:
