@@ -16,8 +16,32 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent, QThread
+from PySide6.QtCore import (
+    QCoreApplication,
+    QEvent,
+    QSettings,
+    QStandardPaths,
+    QThread,
+)
 from PySide6.QtWidgets import QApplication
+
+# Keep the suite OUT of the maker's real settings — it had been writing straight
+# into them. Tests mutate settings through the shipped `get_settings()` handle
+# (save_collapsed, the tray toggles, the refresh interval), and that handle keys
+# off QSettings(identity.org(), identity.app()) — the SHIPPED path — so a plain
+# `pytest` was editing ~/.config/wolfgangwarehaus/trackerkeeper.conf. It really
+# did: `collapsed_groups` and `start_minimized` turned up there, written by the
+# suite, which means a run could quietly discard the groups you had folded.
+#
+# Two calls are needed, not one. Test mode redirects PATHS, but QSettings'
+# NativeFormat is a different store per platform and only Linux's is a path it
+# can reach — macOS uses a CFPreferences .plist and Windows the registry, and
+# neither is redirected. IniFormat routes all three through QStandardPaths so
+# the redirect is universal. Both must precede any QSettings construction: the
+# (org, app) ctor resolves its backend at construction time.
+# tests/test_settings_isolation.py is the guard that keeps this honest.
+QStandardPaths.setTestModeEnabled(True)
+QSettings.setDefaultFormat(QSettings.Format.IniFormat)
 
 
 @pytest.fixture(scope="session")
