@@ -283,6 +283,7 @@ note = "PUBLISHED 2026-07-25 — v0.1.0 live at github.com/wolfgangwarehaus/trac
 id = "0a95b7"
 text = "Ship Linux-first via the deliver board (AUR + deb/AppImage)"
 done = false
+note = "deb + AppImage ALREADY SHIP on every release (attached to v0.1.0 and v0.1.1). The only gap is AUR, and it is EXTERNALLY BLOCKED: needs an AUR_SSH_PRIVATE_KEY secret AND the AUR reopening new-package registration (frozen since the 2026 malware wave). Not actionable work — revisit when AUR reopens."
 
 [[delivery]]
 id = "78bb80"
@@ -298,7 +299,7 @@ text = "Cut v0.1.1 — the heartbeat release (rss + flatpak, 8 checkers)"
 done = true
 by = "agent"
 date = "2026-07-25"
-note = "TAGGED + built 2026-07-25: draft holds deb/AppImage/exe/portable/sdist/wheel/SHA256SUMS at 0.1.1. CI green first try — the .iss version-gate bug that broke v0.1.0 did not recur. Awaiting the human Publish gate."
+note = "PUBLISHED 2026-07-25 — v0.1.1 live on GitHub (7 artifacts) AND PyPI (wheel+sdist w/ Sigstore attestations, uploaded automatically now the publisher is registered). Verified: pip install trackerkeeper==0.1.1 in a clean venv gives 8 checkers + the heartbeat."
 
 [[improvements]]
 id = "bb5d4c"
