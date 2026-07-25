@@ -16,6 +16,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
 
@@ -59,3 +60,14 @@ def _isolate_qt_windows(qapp):
         w.close()
         w.deleteLater()
     qapp.processEvents()
+    # …and actually REAP them. processEvents() does not deliver DeferredDelete:
+    # Qt only reaps those when an event loop unwinds to the nesting level that
+    # posted them, and this fixture never runs one. Without this line every
+    # deleteLater'd widget in the suite stays alive until the first test that
+    # spins a real nested QEventLoop — test_single_instance_forwarding's _spin()
+    # — which then destroys hundreds of them at once, in arbitrary order, each
+    # carrying native blur / event-filter state. That is exactly the pile-up
+    # this fixture exists to prevent, and it aborted the run (SIGABRT on
+    # ubuntu/macos, a hard exit on windows) on most pushes. Reaping per test
+    # keeps destruction ordered and the process exit clean.
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
