@@ -128,6 +128,23 @@ def set_refresh_interval_minutes(minutes: int) -> None:
     get_settings()._s.setValue(_KEY_INTERVAL, int(minutes))
 
 
+class _Card(QFrame):
+    """A fleet card. Clicking anywhere that isn't a control opens the detail
+    view — the buttons and the changelog link are real children, so they consume
+    their own clicks and never reach this handler."""
+
+    def __init__(self, on_click) -> None:
+        super().__init__()
+        self._on_click = on_click
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, e):  # noqa: N802 (Qt override)
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._on_click()
+            return
+        super().mousePressEvent(e)
+
+
 class _GroupHeader(QFrame):
     """A category's clickable header row: a disclosure arrow, the name, and its
     count (or "N new" when the group is hiding updates — a collapsed section
@@ -650,7 +667,7 @@ class Dashboard(QWidget):
         self._sync_tray()
 
     def _card(self, item: catalog.Item) -> QWidget:
-        card = QFrame()
+        card = _Card(lambda i=item: self._show_detail(i))
         card.setStyleSheet(_CARD_NEW if item.has_update() else _CARD)
         narrow = self._tier == TIER_NARROW
         outer = QHBoxLayout(card)
@@ -780,7 +797,7 @@ class Dashboard(QWidget):
                 continue
             was_update_to = item.latest if item.has_update() else ""
             item.latest, item.latest_url, item.latest_date = res.latest, res.url, res.date
-            item.latest_at = res.at
+            item.latest_at, item.latest_notes = res.at, res.notes
             item.checked_at, item.error = now, ""
             # "newly new": it now has an update we hadn't already surfaced
             if item.has_update() and item.latest != was_update_to:
@@ -818,6 +835,13 @@ class Dashboard(QWidget):
         if action == "save" and result is not None:
             self._items.append(result)
             catalog.save(self._items)
+            self._render()
+
+    def _show_detail(self, item: catalog.Item) -> None:
+        from trackerkeeper.detail_dialog import DetailDialog
+
+        if DetailDialog(self._window or self, item=item).prompt() == "marked":
+            catalog.save(self._items)   # the dialog mutated `installed` in place
             self._render()
 
     def _edit_item(self, item: catalog.Item) -> None:

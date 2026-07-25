@@ -591,3 +591,84 @@ def test_flatpak_survives_a_junk_timestamp():
 def test_flatpak_rejects_a_ref_that_is_not_an_app_id():
     item = catalog.Item(name="X", kind="flatpak", ref="owner/repo")
     assert sources.check(item, _fake({})) is None
+
+
+# ── release notes ────────────────────────────────────────────────────────────
+
+
+def test_plain_notes_flattens_steam_bbcode():
+    raw = ("[b]BUG FIXES:[/b][list][*]Fixed a crash[*]Fixed plurals[/list]"
+           "[url=https://x]see more[/url]")
+    out = sources.plain_notes(raw)
+    assert "[" not in out and "]" not in out
+    assert "BUG FIXES:" in out
+    assert out.count("•") == 2
+    assert "see more" in out          # link TEXT survives, the markup doesn't
+
+
+def test_plain_notes_flattens_html_and_unescapes():
+    raw = "<p>Fixed &amp; improved</p><ul><li>one</li><li>two</li></ul>"
+    out = sources.plain_notes(raw)
+    assert "<" not in out
+    assert "Fixed & improved" in out
+    assert out.count("•") == 2
+
+
+def test_plain_notes_drops_steam_image_macros():
+    raw = "{STEAM_CLAN_IMAGE}/44971832/abc123.png Real content here"
+    assert sources.plain_notes(raw).strip() == "Real content here"
+
+
+def test_plain_notes_collapses_blank_lines_and_trims():
+    assert sources.plain_notes("a\n\n\n\n\nb   \n") == "a\n\nb"
+
+
+def test_plain_notes_truncates_with_a_pointer_to_the_changelog():
+    out = sources.plain_notes("x" * 9000)
+    assert len(out) < 9000
+    assert "truncated" in out
+
+
+def test_plain_notes_of_nothing_is_empty():
+    assert sources.plain_notes("") == ""
+    assert sources.plain_notes(None) == ""
+
+
+def test_github_captures_the_release_body():
+    item = catalog.Item(name="g", kind="github", ref="a/b")
+    http = _fake({"releases/latest": {"tag_name": "v2", "body": "## Fixed\r\n- a thing"}})
+    assert "Fixed" in sources.check(item, http).notes
+
+
+def test_appstore_captures_release_notes():
+    item = catalog.Item(name="a", kind="appstore", ref="123")
+    http = _fake({"itunes.apple.com": {"results": [
+        {"version": "3.5", "releaseNotes": "• Faster startup"}]}})
+    assert sources.check(item, http).notes == "• Faster startup"
+
+
+def test_flatpak_captures_the_release_description():
+    item = catalog.Item(name="f", kind="flatpak", ref="org.x.Y")
+    http = _fake({"flathub.org": {"releases": [
+        {"version": "1.0", "timestamp": "1767225600", "type": "stable",
+         "description": "<p>A hotfix</p>"}]}})
+    assert sources.check(item, http).notes == "A hotfix"
+
+
+def test_rss_prefers_the_full_body_over_the_teaser():
+    """content:encoded is the whole post; description is usually a blurb."""
+    feed = ("<rss><channel><item><title>Release 2.0</title><link>https://x/2</link>"
+            "<description>short blurb</description>"
+            "<content:encoded>the &lt;b&gt;full&lt;/b&gt; post</content:encoded>"
+            "</item></channel></rss>")
+    res = sources.check(_item(ref="https://x/feed"),
+                        http=_no_json, http_text=lambda u: feed)
+    assert "full" in res.notes and "blurb" not in res.notes
+
+
+def test_a_source_with_no_notes_is_simply_empty():
+    item = catalog.Item(name="k", kind="arch", ref="plasma-desktop")
+    http = _fake({"archlinux.org": {"results": [
+        {"pkgname": "plasma-desktop", "pkgver": "6.7.3", "pkgrel": "1",
+         "repo": "extra", "arch": "x86_64", "last_update": "2026-07-15T00:00:00Z"}]}})
+    assert sources.check(item, http).notes == ""

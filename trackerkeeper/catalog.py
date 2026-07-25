@@ -41,6 +41,7 @@ class Item:
     latest_date: str = ""       # ISO date (YYYY-MM-DD) the latest was published
     latest_at: str = ""         # full ISO timestamp of the latest, when the source
                                 # gives one — drives "N hours ago"; "" if day-only
+    latest_notes: str = ""      # what changed, plain text (sources.plain_notes)
     checked_at: str = ""        # ISO timestamp of the last successful check
     error: str = ""             # last check's error, if any (else "")
     seen_version: str = ""      # the `latest` you have actually laid eyes on

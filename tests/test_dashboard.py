@@ -338,3 +338,33 @@ def test_error_text_separates_the_two_failures():
     assert "check the handle" in error_text(sources.NOT_FOUND)
     assert "couldn't reach" in error_text(sources.UNREACHABLE)
     assert "couldn't reach" in error_text("")   # unknown -> the conservative read
+
+
+def test_results_store_the_release_notes(qapp):
+    dash = _dash(qapp, [catalog.Item(name="G", kind="github", installed="1.0")])
+    dash._on_results({"G": CheckResult(latest="1.1", date="2026-07-25",
+                                       notes="• Fixed a thing")})
+    assert dash._items[0].latest_notes == "• Fixed a thing"
+    assert catalog.load()[0].latest_notes == "• Fixed a thing"   # persisted
+
+
+def test_detail_dialog_builds_and_explains_an_empty_body(qapp):
+    from trackerkeeper.detail_dialog import DetailDialog
+
+    # a source that structurally cannot carry notes must SAY so, not show a blank
+    d = DetailDialog(item=catalog.Item(name="KDE", kind="arch", ref="plasma-desktop",
+                                       installed="6.7.3-1", latest="6.7.3-1"))
+    assert "package index" in d._no_notes_reason()
+    d2 = DetailDialog(item=catalog.Item(name="G", kind="github", installed="1.0",
+                                        latest="1.1", latest_notes="• Fixed"))
+    assert d2._item.latest_notes == "• Fixed"
+
+
+def test_detail_dialog_mark_updated_mutates_the_item(qapp):
+    from trackerkeeper.detail_dialog import DetailDialog
+
+    item = catalog.Item(name="G", kind="github", installed="1.0", latest="1.1")
+    d = DetailDialog(item=item)
+    d._on_mark()
+    assert item.installed == "1.1" and not item.has_update()
+    assert d._marked is True    # so prompt() reports "marked" and the caller saves

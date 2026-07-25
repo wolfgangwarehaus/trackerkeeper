@@ -11,6 +11,23 @@ no matching section). See `docs/RELEASING.md`.
 
 ## [Unreleased]
 
+### Added
+- **Per-item detail.** Click any card to see what actually changed — the release
+  notes the checkers were already fetching and throwing away. GitHub's release
+  body, Steam's announcement, the App Store's "What's New", Flathub's release
+  description, and any RSS entry's body all land here, normalised to plain text.
+  A source that structurally can't carry notes (a package index, an ISO mirror)
+  says so rather than showing an empty box.
+  Notes render as **plain text, never rich text**: the body is written by a third
+  party, and handing arbitrary remote HTML to a Qt rich-text widget would pull in
+  remote images and let a stranger control the markup. The changelog link still
+  goes to the fully formatted original.
+
+### Fixed
+- The Steam checker asked for `maxlength=1`, truncating every announcement body
+  to a single character — invisible while only the title was read, and exactly
+  what the detail view needed.
+
 ## [0.1.1] — 2026-07-25
 
 The watchtower actually watches now. v0.1.0 only checked at launch, so a

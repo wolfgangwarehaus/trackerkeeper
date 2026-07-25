@@ -38,6 +38,7 @@ class CheckResult:
     url: str = ""
     date: str = ""      # day precision (YYYY-MM-DD) — back-compat + sorting
     at: str = ""        # the source's full ISO timestamp when it gives one, else ""
+    notes: str = ""     # what actually changed, as plain text (see plain_notes)
 
 
 # The conditional-request cache: url -> (etag, last_modified, parsed payload).
@@ -135,6 +136,52 @@ def http_text(url: str) -> str | None:
     return _fetch(url, {}, lambda raw: raw.decode("utf-8", "ignore"))
 
 
+# How much release-notes text to keep. Long enough for a real patch-notes list,
+# short enough that the catalog stays a small file you could read by hand.
+_NOTES_LIMIT = 4000
+
+# Steam writes BBCode, Flathub and RSS write HTML, GitHub writes Markdown, and
+# the App Store writes plain bullets. Rather than render four dialects (and
+# invite remote <img> loads into the app), everything is flattened to plain text
+# and the "changelog →" link stays for the fully formatted original.
+_BBCODE_BLOCK = re.compile(r"\[/?(?:list|olist|table|tr|td|quote|code|noparse)[^\]]*\]",
+                           re.IGNORECASE)
+_BBCODE_INLINE = re.compile(r"\[/?(?:b|i|u|strike|h1|h2|h3|spoiler|previewyoutube"
+                            r"|url|img|dynamiclink)(?:=[^\]]*)?\]", re.IGNORECASE)
+_TAG = re.compile(r"<[^>]+>")
+
+
+def plain_notes(raw: str) -> str:
+    """Release notes as readable plain text, whatever dialect they arrived in.
+
+    Deliberately NOT rendered as rich text: the body comes from a third party,
+    and handing arbitrary remote HTML to a Qt rich-text widget would pull in
+    remote images (a tracking pixel by another name) and hand a stranger control
+    of the markup. Flattening keeps the same information with none of that."""
+    if not raw:
+        return ""
+    text = str(raw)
+    # Steam's clan-image macros are pure noise once images are gone.
+    text = re.sub(r"\{STEAM_CLAN(?:_A)?_IMAGE\}\S*", "", text)
+    # line-ish HTML first, so the structure survives tag-stripping
+    text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+    text = re.sub(r"(?i)</(?:p|div|li|h[1-6]|tr)>", "\n", text)
+    text = re.sub(r"(?i)<li[^>]*>", "• ", text)
+    text = _TAG.sub("", text)
+    # …then BBCode: list items become bullets, everything else just goes
+    text = re.sub(r"\[\*\]", "• ", text)
+    text = _BBCODE_BLOCK.sub("\n", text)
+    text = _BBCODE_INLINE.sub("", text)
+    text = html.unescape(text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)       # collapse runaway blank lines
+    text = "\n".join(line.rstrip() for line in text.split("\n")).strip()
+    if len(text) > _NOTES_LIMIT:
+        text = text[:_NOTES_LIMIT].rstrip() + "\n\n… (truncated — open the changelog)"
+    return text
+
+
 # ── the providers ────────────────────────────────────────────────────────────
 
 
@@ -157,6 +204,7 @@ def _github(item, http, http_text) -> CheckResult | None:
         url=data.get("html_url", "") or item.changelog_url,
         date=published[:10],
         at=published,
+        notes=plain_notes(data.get("body")),
     )
 
 
@@ -212,6 +260,7 @@ def _appstore(item, http, http_text) -> CheckResult | None:
         url=r.get("trackViewUrl", "") or item.changelog_url,
         date=released[:10],
         at=released,
+        notes=plain_notes(r.get("releaseNotes")),
     )
 
 
@@ -298,6 +347,7 @@ def _appledev(item, http, http_text) -> CheckResult | None:
                 latest=title,
                 url=_rss_field(entry, "link") or "https://developer.apple.com/news/releases/",
                 date=_rss_date(_rss_field(entry, "pubDate")),
+                notes=plain_notes(_entry_body(entry)),
             )
     return None
 
@@ -337,6 +387,7 @@ def _flatpak(item, http, http_text) -> CheckResult | None:
         url=r.get("url") or f"https://flathub.org/apps/{app_id}",
         date=_unix_date(ts),
         at=_unix_iso(ts),
+        notes=plain_notes(r.get("description")),
     )
 
 
@@ -355,6 +406,17 @@ def _entry_link(entry: str) -> str:
         return text
     m = re.search(r'<link[^>]*\bhref="([^"]+)"', entry)
     return m.group(1) if m else ""
+
+
+def _entry_body(entry: str) -> str:
+    """An entry's text. Prefer the full body over the teaser: RSS puts the whole
+    post in ``content:encoded`` and a summary in ``description``; Atom mirrors
+    that with ``content`` and ``summary``."""
+    for tag in ("content:encoded", "content", "description", "summary"):
+        val = _rss_field(entry, tag)
+        if val:
+            return val
+    return ""
 
 
 def _entry_date(entry: str) -> str:
@@ -421,6 +483,7 @@ def _rss(item, http, http_text) -> CheckResult | None:
             latest=_version_from_title(label),
             url=link or item.changelog_url,
             date=_entry_date(entry),
+            notes=plain_notes(_entry_body(entry)),
         )
     return None
 
@@ -436,7 +499,11 @@ def _steam(item, http, http_text) -> CheckResult | None:
     if not appid.isdigit():
         return None
     data = http("https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/"
-                f"?appid={appid}&count=20&maxlength=1")
+                # maxlength=0 is Steam's "full body" — it used to be 1, which
+                # truncated every announcement to a single character back when
+                # only the title was read. The notes need the actual text;
+                # plain_notes() bounds what we keep.
+                f"?appid={appid}&count=20&maxlength=0")
     if not isinstance(data, dict):
         return None
     items = (data.get("appnews") or {}).get("newsitems") or []
@@ -461,6 +528,7 @@ def _steam(item, http, http_text) -> CheckResult | None:
         url=url,
         date=_unix_date(ts),
         at=_unix_iso(ts),
+        notes=plain_notes(chosen.get("contents")),
     )
 
 

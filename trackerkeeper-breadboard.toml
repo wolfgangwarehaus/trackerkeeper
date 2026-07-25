@@ -118,9 +118,11 @@ note = "Item.seen_version + is_new(): NEW badge + tray tooltip count, banked on 
 [[baking]]
 id = "ba86e2"
 text = "Changelog links open in browser; per-item detail"
-done = false
+done = true
 priority = "later"
-note = "changelog links open in the browser — SHIPPED; only the per-item detail view remains"
+by = "agent"
+date = "2026-07-25"
+note = "Per-item detail dialog: click a card. CheckResult.notes + Item.latest_notes, populated by github(body)/steam(contents)/appstore(releaseNotes)/flatpak(description)/rss(content:encoded) and flattened by sources.plain_notes() — plain text, never rich text, so no remote-image loads or third-party markup. Also fixed steam maxlength=1 which truncated every body to 1 char."
 
 [[baking]]
 id = "eb70cb"
