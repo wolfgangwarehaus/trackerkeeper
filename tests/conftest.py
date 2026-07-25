@@ -43,6 +43,20 @@ from PySide6.QtWidgets import QApplication
 QStandardPaths.setTestModeEnabled(True)
 QSettings.setDefaultFormat(QSettings.Format.IniFormat)
 
+# …and pin WHERE the INI lives, because test mode doesn't reach it off Linux.
+# QSettings resolves its own base dir and only consults QStandardPaths on Linux
+# (via XDG_CONFIG_HOME, which test mode sets); macOS uses a hardcoded ~/.config
+# and Windows the raw %APPDATA%, so IniFormat alone still lands on the real
+# store in an INI coat. setPath() is Qt's explicit override and the only thing
+# that binds all three. Anchored to the test-mode config location so everything
+# stays under one qttest tree.
+QSettings.setPath(
+    QSettings.Format.IniFormat,
+    QSettings.Scope.UserScope,
+    QStandardPaths.writableLocation(
+        QStandardPaths.StandardLocation.GenericConfigLocation),
+)
+
 
 @pytest.fixture(scope="session")
 def qapp():
