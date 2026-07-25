@@ -98,14 +98,20 @@ note = "Arch package checker SHIPPED in the MVP; Flatpak still to add"
 [[baking]]
 id = "cc76e7"
 text = "Checker: RSS/Atom changelog feeds (KDE, distros, many apps)"
-done = false
+done = true
 priority = "next"
+by = "agent"
+date = "2026-07-25"
+note = "generic rss provider: feed URL + optional title filter, RSS+Atom, falls back to the entry link when a feed ships empty titles (KDE). Verified live vs KDE/Godot/python.org"
 
 [[baking]]
 id = "914799"
 text = "'New since you last looked' + desktop notifications (dough.notifications)"
-done = false
+done = true
 priority = "later"
+by = "agent"
+date = "2026-07-25"
+note = "Item.seen_version + is_new(): NEW badge + tray tooltip count, banked on hideEvent, persisted so a restart doesn't re-shout. Notifications still fire only when latest CHANGES (unseen-based would re-notify every cycle)"
 
 [[baking]]
 id = "ba86e2"
@@ -212,24 +218,62 @@ note = "clickable group header with ▾/▸; collapsed set persisted in settings
 [[baking]]
 id = "425bbb"
 text = "Settings UI for the tray (show_tray_icon / close_to_tray toggles) + start-minimized-to-tray"
-done = false
+done = true
 priority = "next"
 by = "agent"
-date = "2026-07-24"
+date = "2026-07-25"
+note = "Settings TRACKING section: check interval (15min-12h/manual, re-arms live via AppBus.tracking_prefs_changed), show tray icon, close-to-tray, start-in-tray (gated on tray.will_have_tray())"
 
 [[baking]]
 id = "09daf2"
 text = "Harden test_single_instance_forwarding — CI SIGABRT flake costs a re-run on most pushes"
+done = true
+priority = "next"
+by = "agent"
+date = "2026-07-25"
+note = "ROOT CAUSE: conftest's _isolate_qt_windows deleteLater'd widgets but processEvents() never delivers DeferredDelete, so the whole suite's widgets were reaped at once by the first real nested QEventLoop (_spin). Fixed with sendPostedEvents(DeferredDelete); also halved suite runtime 8-10s -> 4s"
+
+[[baking]]
+id = "cb0d95"
+text = "Conditional requests (ETag/If-None-Match) + optional GitHub token"
 done = false
 priority = "next"
 by = "agent"
-date = "2026-07-24"
-note = "3 of 4 pushes 2026-07-24 (ubuntu+macos); passes locally; rerun --failed always clears it"
+date = "2026-07-25"
+note = "now that checks run every 2h by default, 6 github items x 12/day approaches the 60/hr unauthenticated budget; a 304 costs nothing"
+
+[[baking]]
+id = "4e3124"
+text = "Distinguish 'no match' from 'unreachable' in a failed check"
+done = false
+priority = "next"
+by = "agent"
+date = "2026-07-25"
+note = "both render as 'couldn't check' today, so a typo'd ref (wrong appid, bad appledev filter) reads as a network blip"
+
+[[baking]]
+id = "086ae4"
+text = "Extract the Qt-free logic out of dashboard.py (704 lines)"
+done = false
+priority = "later"
+by = "agent"
+date = "2026-07-25"
+note = "humanize_age/_parse_iso/_bucket_days, the sort keys and width_tier are pure functions testable without a widget"
+
+[[baking]]
+id = "9a6b97"
+text = "Give Item a stable id — refresh results are keyed by name"
+done = false
+priority = "later"
+by = "agent"
+date = "2026-07-25"
+note = "_RefreshWorker emits {item.name: result}; ItemDialog enforces unique names so it works, but it's conventionally safe rather than structurally safe"
 
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"
 done = false
+note = "v0.1.0 TAGGED + built: draft release holds deb/AppImage/exe/portable/sdist/wheel/SHA256SUMS. Awaiting the one human gate — review + Publish on GitHub (publishing fires pypi-publish.yml)."
 
 [[delivery]]
 id = "0a95b7"
