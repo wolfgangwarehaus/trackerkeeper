@@ -32,7 +32,21 @@ class Settings:
     getter (with a sensible default) and a setter that writes + syncs."""
 
     def __init__(self) -> None:
-        self._s = QSettings(identity.org(), identity.app())
+        # The (format, scope, org, app) ctor — NOT the bare (org, app) one, which
+        # hardwires NativeFormat and ignores setDefaultFormat(). That difference
+        # is invisible on Linux, where NativeFormat already IS an INI file under
+        # XDG config, and load-bearing everywhere else: it is what lets the test
+        # suite redirect this handle into its sandbox instead of the maker's real
+        # CFPreferences plist (macOS) or HKEY_CURRENT_USER (Windows), neither of
+        # which QStandardPaths test mode can reach. defaultFormat() is
+        # NativeFormat in production, so shipped behaviour is unchanged.
+        # settings_migration.opened_store() has used this form all along.
+        self._s = QSettings(
+            QSettings.defaultFormat(),
+            QSettings.Scope.UserScope,
+            identity.org(),
+            identity.app(),
+        )
 
     def _set(self, key: str, value) -> None:
         self._s.setValue(key, value)

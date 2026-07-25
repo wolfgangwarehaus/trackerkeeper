@@ -71,6 +71,23 @@ def test_settings_default_format_is_ini():
     )
 
 
+def test_the_handle_actually_adopts_that_format(qapp):
+    """Setting the default format is not enough — the handle has to USE it.
+
+    ``QSettings(org, app)`` hardwires NativeFormat and ignores
+    ``setDefaultFormat()``. On Linux that is invisible, because NativeFormat is
+    already an INI file under XDG config, so every path assertion still passes
+    while macOS and Windows quietly resolve to a plist and the registry. This is
+    the one check that fails on ALL THREE platforms when the handle is built with
+    the bare ctor — which is why it exists as its own test.
+    """
+    assert get_settings()._s.format() == QSettings.Format.IniFormat, (
+        "the Settings handle ignored setDefaultFormat() — it must be built with "
+        "the (format, scope, org, app) ctor passing QSettings.defaultFormat(), "
+        "not the bare (org, app) form."
+    )
+
+
 def test_settings_handle_is_isolated(qapp):
     """The live Settings handle resolves inside the test sandbox on EVERY
     platform, and is not reachable from the real per-user config dir."""
