@@ -91,9 +91,11 @@ date = "2026-07-22"
 [[baking]]
 id = "f7a5a3"
 text = "Checker: Arch/AUR + Flatpak (the maker's Linux fleet)"
-done = false
+done = true
 priority = "next"
-note = "Arch package checker SHIPPED in the MVP; Flatpak still to add"
+by = "agent"
+date = "2026-07-25"
+note = "Flatpak checker via Flathub appstream API — prefers newest STABLE release (feed carries dev builds); verified live vs VLC/Steam/Krita/Discord. Arch half shipped in the MVP."
 
 [[baking]]
 id = "cc76e7"
@@ -236,20 +238,20 @@ note = "ROOT CAUSE: conftest's _isolate_qt_windows deleteLater'd widgets but pro
 [[baking]]
 id = "cb0d95"
 text = "Conditional requests (ETag/If-None-Match) + optional GitHub token"
-done = false
+done = true
 priority = "next"
 by = "agent"
 date = "2026-07-25"
-note = "now that checks run every 2h by default, 6 github items x 12/day approaches the 60/hr unauthenticated budget; a 304 costs nothing"
+note = "If-None-Match/If-Modified-Since + a process-local ETag cache; a GitHub 304 costs no rate-limit quota. Verified live: 200 then 304 on the same repo. Optional token via TRACKERKEEPER_GITHUB_TOKEN/GITHUB_TOKEN/GH_TOKEN, host-scoped to api.github.com only."
 
 [[baking]]
 id = "4e3124"
 text = "Distinguish 'no match' from 'unreachable' in a failed check"
-done = false
+done = true
 priority = "next"
 by = "agent"
 date = "2026-07-25"
-note = "both render as 'couldn't check' today, so a typo'd ref (wrong appid, bad appledev filter) reads as a network blip"
+note = "sources.check_with_reason() -> (result, UNREACHABLE|NOT_FOUND) by watching the network seams: no fetch attempted = bad handle, fetch returned None = source down. Card text differs per reason."
 
 [[baking]]
 id = "086ae4"
@@ -272,13 +274,23 @@ note = "_RefreshWorker emits {item.name: result}; ItemDialog enforces unique nam
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"
-done = false
-note = "v0.1.0 TAGGED + built: draft release holds deb/AppImage/exe/portable/sdist/wheel/SHA256SUMS. Awaiting the one human gate — review + Publish on GitHub (publishing fires pypi-publish.yml)."
+done = true
+by = "agent"
+date = "2026-07-25"
+note = "PUBLISHED 2026-07-25 — v0.1.0 live at github.com/wolfgangwarehaus/trackerkeeper/releases/tag/v0.1.0 with all 7 artifacts. Only the PyPI leg is outstanding (see 78bb80)."
 
 [[delivery]]
 id = "0a95b7"
 text = "Ship Linux-first via the deliver board (AUR + deb/AppImage)"
 done = false
+
+[[delivery]]
+id = "78bb80"
+text = "PyPI Trusted Publisher not registered — v0.1.0's pypi leg failed invalid-publisher"
+done = false
+by = "agent"
+date = "2026-07-25"
+note = "needs the maker's PyPI account: pending publisher for project 'trackerkeeper' (NOT -base; RELEASING.md had the wrong name, now fixed), owner wolfgangwarehaus, repo trackerkeeper, workflow pypi-publish.yml, environment pypi. Then: gh run rerun 30169204151"
 
 [[improvements]]
 id = "bb5d4c"

@@ -11,10 +11,12 @@ requires = ["setuptools>=68", "wheel", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-# The PyPI DISTRIBUTION name — "trackerkeeper" is squatted on PyPI (a 2015 third-party
-# package), so pip's name is trackerkeeper-base while the import package stays `trackerkeeper`
-# (distribution name ≠ import name, like beautifulsoup4/bs4). `trackerkeeper new` pins
-# a fork's name back to its slug.
+# The PyPI DISTRIBUTION name. Inherited lore warning: the BASE (dough) publishes
+# under a -base suffix because its own bare name is squatted, and baking rewrote
+# that comment with this slug — but `trackerkeeper` is free on PyPI, and `new`
+# pins a fork's name back to its slug, which is what happened here. This value is
+# authoritative: it names the wheel/sdist, deliver.py reads it, and it is what the
+# PyPI Trusted Publisher must be registered against (docs/RELEASING.md).
 name = "trackerkeeper"
 # version is DYNAMIC — the tag is the version (docs/BAKING.md §2 principle 4).
 # setuptools-scm derives it from the latest `git tag vX.Y.Z`; there is nothing

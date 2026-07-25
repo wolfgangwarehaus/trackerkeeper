@@ -12,6 +12,15 @@ no matching section). See `docs/RELEASING.md`.
 ## [Unreleased]
 
 ### Added
+- **A Flatpak checker** (`flatpak`) — Flathub app id (`org.videolan.VLC`) via
+  Flathub's appstream API. With `arch` beside it that's most of a Linux desktop
+  covered. Prefers the newest **stable** release: the feed carries development
+  builds too, and quietly promoting you onto a beta would misrepresent "latest".
+- **An optional GitHub token** — set `TRACKERKEEPER_GITHUB_TOKEN` (or
+  `GITHUB_TOKEN` / `GH_TOKEN`) to raise GitHub's unauthenticated 60 requests/hour
+  to 5000. Read from the environment, never stored by the app, and sent **only**
+  to `api.github.com` — a token in your environment is never handed to a distro
+  mirror or a changelog feed.
 - **A generic RSS / Atom checker** (`rss`) — the widest-coverage source yet, and
   the answer for the long tail: most projects publish releases as a feed even
   when they expose no API at all. `ref` is the feed URL, optionally followed by
@@ -28,6 +37,14 @@ no matching section). See `docs/RELEASING.md`.
 - **Checks run concurrently** (up to 8 at a time) rather than one after another.
   A refresh used to take as long as the *sum* of its sources, and one
   unreachable mirror stalled every item queued behind it.
+- **Conditional requests.** Every fetch now sends `If-None-Match` /
+  `If-Modified-Since` and serves the cached body on a `304`. On GitHub a 304
+  costs **no rate-limit quota**, which is what makes a two-hourly heartbeat
+  affordable in the first place.
+- **A failed check says which failure it was.** "Couldn't reach the source" and
+  "nothing matched this source — check the handle" need different reactions;
+  reporting both as "couldn't check" sent you debugging your network when the
+  actual problem was a typo'd app id.
 - **New since you last looked.** An update that arrives while you're away is
   now marked `NEW` until you actually open the window, and the state is stored
   — so a restart doesn't re-shout what you already saw, and it doesn't quietly

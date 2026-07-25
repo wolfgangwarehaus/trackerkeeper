@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from trackerkeeper import catalog, ui_helpers
+from trackerkeeper import catalog, sources, ui_helpers
 from trackerkeeper.bus import AppBus
 from trackerkeeper.design_tokens import (
     TYPE_CAPTION,
@@ -48,7 +48,7 @@ _CARD_NEW = (".QFrame{background:rgba(86,196,141,0.08);border:1px solid "
 # the release channel a kind maps to — the column + a sort axis
 _CHANNEL = {"github": "GitHub", "arch": "Arch", "appstore": "App Store",
             "cachyos": "CachyOS", "appledev": "Apple", "steam": "Steam",
-            "rss": "Feed", "manual": "Manual"}
+            "rss": "Feed", "flatpak": "Flatpak", "manual": "Manual"}
 
 # tracker keeper is a UTILITY window first — it lives in the tray and gets
 # opened in a corner, so it has to stay readable narrow. These are the sizes
@@ -170,6 +170,15 @@ def channel_label(item: catalog.Item) -> str:
     return _CHANNEL.get(item.kind, item.kind or "—")
 
 
+def error_text(error: str) -> str:
+    """What a failed check says on the card. The two failures need different
+    words because they need different actions: an unreachable source will
+    probably fix itself, a handle that matches nothing needs you to edit it."""
+    if error == sources.NOT_FOUND:
+        return "nothing matched this source — check the handle in ⋯"
+    return "couldn't reach the source — showing last known"
+
+
 def _parse_iso(iso: str):
     """An ISO date or timestamp → an aware datetime (UTC assumed when the string
     carries no offset), or None if unparseable."""
@@ -248,6 +257,7 @@ class _RefreshWorker(QThread):
     def __init__(self, snapshot, parent=None):
         super().__init__(parent)
         self._snapshot = snapshot  # list of Item (copies safe to read off-thread)
+        self.reasons: dict = {}    # name -> why it came back empty (read after `done`)
 
     def run(self) -> None:  # noqa: N802 (Qt override)
         from concurrent.futures import ThreadPoolExecutor
@@ -258,13 +268,18 @@ class _RefreshWorker(QThread):
         if not auto:
             self.done.emit({})
             return
-        # sources.check never raises (it swallows to None), so map() can't be
+        # check_with_reason never raises (it swallows to None), so map() can't be
         # derailed by one bad provider, and it keeps results aligned to inputs.
         with ThreadPoolExecutor(max_workers=min(MAX_PARALLEL_CHECKS, len(auto)),
                                 thread_name_prefix="tk-check") as pool:
-            results = list(pool.map(sources.check, auto))
+            outcomes = list(pool.map(sources.check_with_reason, auto))
+        # Why a check came back empty rides alongside, so a wrong handle reads as
+        # a wrong handle instead of "the internet is down".
+        self.reasons = {item.name: reason
+                        for item, (_res, reason) in zip(auto, outcomes, strict=True)
+                        if reason}
         self.done.emit({item.name: res
-                        for item, res in zip(auto, results, strict=True)
+                        for item, (res, _reason) in zip(auto, outcomes, strict=True)
                         if res is not None})
 
 
@@ -667,7 +682,7 @@ class Dashboard(QWidget):
         version.setMinimumWidth(1)
         left.addWidget(version)
         if item.error:
-            err = QLabel("couldn't check — showing last known")
+            err = QLabel(error_text(item.error))
             err.setStyleSheet("color:#c98a2b;" + type_qss(TYPE_TINY))
             left.addWidget(err)
         outer.addLayout(left, 1)
@@ -755,10 +770,13 @@ class Dashboard(QWidget):
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
         newly = []
         auto = [i for i in self._items if i.kind != "manual"]
+        # Default to "unreachable" when the reason is unknown (a direct
+        # _on_results call in a test): the conservative read of an empty result.
+        reasons = getattr(self._worker, "reasons", {}) or {}
         for item in auto:
             res = results.get(item.name)
             if res is None:
-                item.error = "unreachable"
+                item.error = reasons.get(item.name, "unreachable")
                 continue
             was_update_to = item.latest if item.has_update() else ""
             item.latest, item.latest_url, item.latest_date = res.latest, res.url, res.date

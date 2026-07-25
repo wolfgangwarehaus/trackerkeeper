@@ -5,8 +5,8 @@ The whole product thesis lives here: there is no single "latest version" API,
 so tracker keeper IS the uniform layer. Each provider is a small function
 ``(item, http, http_text) -> CheckResult | None`` for one KIND of source;
 growing coverage is adding providers, one world at a time (github, arch,
-appstore, cachyos, appledev, steam, and the generic rss feed reader today;
-flatpak next).
+appstore, cachyos, appledev, steam, flatpak, and the generic rss feed
+reader today).
 
 Network I/O goes through two injected seams — :func:`http_json` (JSON APIs) and
 :func:`http_text` (HTML / plain-text pages, e.g. a mirror's directory index) —
@@ -40,29 +40,99 @@ class CheckResult:
     at: str = ""        # the source's full ISO timestamp when it gives one, else ""
 
 
-def http_json(url: str) -> dict | None:
+# The conditional-request cache: url -> (etag, last_modified, parsed payload).
+# The heartbeat re-checks the same handful of URLs every couple of hours and
+# almost nothing has changed in between, so we ask "has this changed since the
+# copy I already have?" and the server answers 304 with an empty body. On GitHub
+# a 304 does NOT count against the 60-requests-an-hour unauthenticated budget,
+# which is what makes a frequent heartbeat affordable at all.
+#
+# Bounded by the number of distinct URLs in the fleet (tens), so it never needs
+# eviction; process-local, so a restart simply re-fetches once.
+_cache: dict = {}
+
+# Where an optional GitHub token is read from, in order. Checked at request time.
+_TOKEN_ENV = ("TRACKERKEEPER_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN")
+
+
+def clear_cache() -> None:
+    """Forget every cached ETag/body. For tests, and for a "check again, really"
+    that must not be answered from cache."""
+    _cache.clear()
+
+
+def github_token() -> str:
+    """An optional GitHub token from the environment — the first of
+    ``TRACKERKEEPER_GITHUB_TOKEN`` / ``GITHUB_TOKEN`` / ``GH_TOKEN`` that's set.
+
+    Raises GitHub's unauthenticated 60 requests/hour to 5000, which matters if
+    you track a lot of repos. Entirely optional, and deliberately read from the
+    environment rather than stored by the app: the token stays wherever you
+    already keep secrets, and nothing writes it to the catalog or settings."""
+    import os
+
+    for name in _TOKEN_ENV:
+        val = (os.environ.get(name) or "").strip()
+        if val:
+            return val
+    return ""
+
+
+def _auth_headers(url: str) -> dict:
+    """Authorization for ``api.github.com`` and nothing else. Host-scoped on
+    purpose: a token sitting in the environment must never be handed to a distro
+    mirror or a random changelog feed just because we happen to be fetching one."""
+    if not url.lower().startswith("https://api.github.com/"):
+        return {}
+    token = github_token()
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def _fetch(url: str, headers: dict, parse):
+    """GET ``url`` conditionally and return ``parse(body)``, or None on any
+    failure. A 304 means the cached payload is still current, so it's served
+    without re-parsing; a response carrying an ETag or Last-Modified is cached
+    for the next round."""
+    cached = _cache.get(url)
+    req_headers = {"User-Agent": _UA, **headers, **_auth_headers(url)}
+    if cached is not None:
+        etag, last_mod, _ = cached
+        if etag:
+            req_headers["If-None-Match"] = etag
+        if last_mod:
+            req_headers["If-Modified-Since"] = last_mod
+    try:
+        req = urllib.request.Request(url, headers=req_headers)
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            payload = parse(resp.read())
+            etag = resp.headers.get("ETag") or ""
+            last_mod = resp.headers.get("Last-Modified") or ""
+            if etag or last_mod:
+                _cache[url] = (etag, last_mod, payload)
+            return payload
+    # HTTPError subclasses URLError, so it MUST be caught first or a 304 would
+    # be swallowed as a plain failure and every check would look unreachable.
+    except urllib.error.HTTPError as e:
+        if e.code == 304 and cached is not None:
+            return cached[2]        # unchanged — reuse what we already parsed
+        return None
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def http_json(url: str):
     """GET ``url`` and parse JSON, or None on any failure (offline, 404, rate
     limit, malformed). Sends a User-Agent — GitHub rejects requests without one.
     A network seam: providers call it, tests replace it."""
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": _UA,
-                                                   "Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except (urllib.error.URLError, OSError, ValueError):
-        return None
+    return _fetch(url, {"Accept": "application/json"},
+                  lambda raw: json.loads(raw.decode("utf-8")))
 
 
 def http_text(url: str) -> str | None:
     """GET ``url`` and return the decoded body, or None on any failure. The seam
     for providers that read HTML or plain text (a directory index, an RSS feed)
     rather than a JSON API. Tests replace it with a canned string."""
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": _UA})
-        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-            return resp.read().decode("utf-8", "ignore")
-    except (urllib.error.URLError, OSError):
-        return None
+    return _fetch(url, {}, lambda raw: raw.decode("utf-8", "ignore"))
 
 
 # ── the providers ────────────────────────────────────────────────────────────
@@ -232,6 +302,44 @@ def _appledev(item, http, http_text) -> CheckResult | None:
     return None
 
 
+def _flatpak(item, http, http_text) -> CheckResult | None:
+    """Latest Flathub release for a Flatpak app id (``org.videolan.VLC``) via
+    Flathub's appstream API. With the arch checker beside it that's most of a
+    Linux desktop covered — Flatpak is where the sandboxed GUI apps live.
+
+    Prefers the newest ``stable`` release: the feed carries development builds
+    too, and a tracker that quietly promoted you onto a beta would be lying
+    about what "latest" means — the same rule ``_github`` follows by skipping
+    pre-releases. Releases aren't reliably ordered, so pick by timestamp rather
+    than trusting position."""
+    app_id = (item.ref or "").strip()
+    if not app_id or "/" in app_id:
+        return None
+    data = http(f"https://flathub.org/api/v2/appstream/{app_id}")
+    if not isinstance(data, dict):
+        return None
+    releases = [r for r in (data.get("releases") or [])
+                if isinstance(r, dict) and r.get("version")]
+    if not releases:
+        return None
+
+    def ts_of(r) -> int:
+        try:
+            return int(r.get("timestamp") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    stable = [r for r in releases if (r.get("type") or "stable") == "stable"]
+    r = max(stable or releases, key=ts_of)
+    ts = r.get("timestamp")
+    return CheckResult(
+        latest=str(r["version"]),
+        url=r.get("url") or f"https://flathub.org/apps/{app_id}",
+        date=_unix_date(ts),
+        at=_unix_iso(ts),
+    )
+
+
 def _feed_entries(xml: str) -> list:
     """Every entry of an RSS (``<item>``) or Atom (``<entry>``) feed, in feed
     order — which is newest-first for essentially every changelog feed."""
@@ -391,18 +499,55 @@ _PROVIDERS = {
     "appledev": _appledev,
     "steam": _steam,
     "rss": _rss,
+    "flatpak": _flatpak,
     "manual": _manual,
 }
+
+
+UNREACHABLE = "unreachable"
+NOT_FOUND = "not_found"
 
 
 def check(item, http=http_json, http_text=http_text) -> CheckResult | None:
     """Run ``item``'s provider. Unknown kind or manual → None. Never raises: a
     provider that throws is swallowed to None so one bad item can't sink a
     whole refresh (the dashboard shows it as 'couldn't check')."""
+    return check_with_reason(item, http, http_text)[0]
+
+
+def check_with_reason(item, http=http_json, http_text=http_text):
+    """``(result, reason)`` — :func:`check` plus WHY it came back empty.
+
+    ``reason`` is ``""`` on success, :data:`UNREACHABLE` when the source itself
+    couldn't be reached (offline, timeout, 5xx), and :data:`NOT_FOUND` when it
+    answered perfectly well but had nothing matching this item's ``ref`` — a
+    typo'd app id, a feed filter matching no entry, an unknown ISO edition.
+
+    Worth separating: conflating them sends you debugging your network when the
+    real problem is a wrong handle you can fix in the edit dialog. We tell them
+    apart by watching the network seams — if no fetch ever happened the provider
+    rejected the ref up front, and if a fetch returned None the source is down.
+    """
     provider = _PROVIDERS.get(item.kind)
     if provider is None:
-        return None
+        return None, ""
+    fetched = {"any": False, "ok": True}
+
+    def watch(seam):
+        def wrapped(url, *a, **kw):
+            fetched["any"] = True
+            out = seam(url, *a, **kw)
+            if out is None:
+                fetched["ok"] = False
+            return out
+        return wrapped
+
     try:
-        return provider(item, http, http_text)
+        res = provider(item, watch(http), watch(http_text))
     except Exception:
-        return None
+        return None, UNREACHABLE
+    if res is not None:
+        return res, ""
+    if item.kind == "manual":
+        return None, ""     # nothing to poll — never an error
+    return None, UNREACHABLE if (fetched["any"] and not fetched["ok"]) else NOT_FOUND

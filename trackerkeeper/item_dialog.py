@@ -25,6 +25,7 @@ from trackerkeeper.selector import Selector, selector_qss
 _KIND_LABELS = {
     "github": "GitHub releases  (owner/repo)",
     "arch": "Arch package  (package name)",
+    "flatpak": "Flatpak  (Flathub app id — org.videolan.VLC)",
     "appstore": "App Store  (iOS / Mac — app id or bundle id)",
     "cachyos": "CachyOS ISO  (edition: desktop / kde / handheld / cli)",
     "appledev": "Apple release  (OS filter — iOS 27, macOS 27, betas + finals)",
@@ -35,6 +36,7 @@ _KIND_LABELS = {
 _REF_HINT = {
     "github": "owner/repo  ·  e.g. ghostty-org/ghostty",
     "arch": "package name  ·  e.g. plasma-desktop",
+    "flatpak": "Flathub app id  ·  e.g. org.videolan.VLC  (in the flathub.org URL)",
     "appstore": "app id or bundle id  ·  e.g. 6449580241 or com.apple.FinalCutApp.companion",
     "cachyos": "edition  ·  desktop (default) · kde · handheld · cli",
     "appledev": "OS filter  ·  e.g. iOS 27 · iPadOS 27 · macOS 27 · watchOS 27",
@@ -160,6 +162,9 @@ class ItemDialog(FrostedDialog):
             return
         if kind == "steam" and not ref.isdigit():
             self._err.setText("Steam source wants a numeric app id (e.g. 2868840).")
+            return
+        if kind == "flatpak" and "." not in ref:
+            self._err.setText("Flatpak source wants a Flathub app id (e.g. org.videolan.VLC).")
             return
         if kind == "rss" and not ref.lower().startswith(("http://", "https://")):
             self._err.setText("Feed source wants the feed's URL (https://…).")

@@ -255,12 +255,12 @@ def test_worker_checks_sources_concurrently_and_skips_manual(qapp):
         time.sleep(0.05)
         with lock:
             inflight -= 1
-        return CheckResult(latest="9", date="2026-07-25")
+        return CheckResult(latest="9", date="2026-07-25"), ""
 
     import trackerkeeper.sources as sources_mod
 
-    real = sources_mod.check
-    sources_mod.check = fake_check
+    real = sources_mod.check_with_reason
+    sources_mod.check_with_reason = fake_check
     try:
         worker = _RefreshWorker([*items])
         got = {}
@@ -269,7 +269,7 @@ def test_worker_checks_sources_concurrently_and_skips_manual(qapp):
         assert worker.wait(10_000)
         qapp.processEvents()
     finally:
-        sources_mod.check = real
+        sources_mod.check_with_reason = real
 
     assert peak > 1, f"checks ran serially (peak in-flight {peak})"
     assert "manual-one" not in got      # manual items are never polled
@@ -329,3 +329,12 @@ def test_mark_seen_ignores_items_with_no_update(qapp):
     dash._mark_seen()
     # nothing to see → nothing recorded (an empty seen_version stays empty)
     assert dash._items[0].seen_version == ""
+
+
+def test_error_text_separates_the_two_failures():
+    from trackerkeeper import sources
+    from trackerkeeper.dashboard import error_text
+
+    assert "check the handle" in error_text(sources.NOT_FOUND)
+    assert "couldn't reach" in error_text(sources.UNREACHABLE)
+    assert "couldn't reach" in error_text("")   # unknown -> the conservative read

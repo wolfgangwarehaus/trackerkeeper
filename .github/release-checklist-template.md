@@ -7,7 +7,7 @@ it propagates. See `docs/RELEASING.md`.
 - [ ] **GitHub release** drafted by `release.yml` — `.deb`, AppImage + `.zsync`, sdist/wheel, `SHA256SUMS`, Sigstore attestations
 - [ ] Cross-distro **smoke tests** green (deb + AppImage self-containment)
 - [ ] **Review the draft** and click **Publish** ← the one human gate
-- [ ] **PyPI** — `pypi-publish.yml` uploaded `${V}`: https://pypi.org/project/trackerkeeper-base/${V}/
+- [ ] **PyPI** — `pypi-publish.yml` uploaded `${V}`: https://pypi.org/project/trackerkeeper/${V}/
 - [ ] Provenance verifies: `gh attestation verify <asset> --repo wolfgangwarehaus/trackerkeeper`
 
 ## Dormant / deferred — light up when configured (docs/TODO.md)

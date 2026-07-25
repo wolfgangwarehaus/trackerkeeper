@@ -358,3 +358,236 @@ def test_rss_skips_entries_it_cannot_name_at_all():
     res = sources.check(_item(ref="https://x/feed"),
                         http=_no_json, http_text=lambda u: feed)
     assert res.latest == "2.0"      # fell through to the entry it CAN name
+
+
+# ── conditional requests + the optional token ────────────────────────────────
+
+
+class _FakeResponse:
+    def __init__(self, body: bytes, headers: dict):
+        self._body, self.headers = body, headers
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _patch_urlopen(monkeypatch, responses):
+    """Replace urlopen with a scripted sequence; records each request's headers."""
+    import urllib.request
+
+    seen = []
+    queue = list(responses)
+
+    def fake_urlopen(req, timeout=None):
+        seen.append(dict(req.headers))
+        result = queue.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    return seen
+
+
+def test_second_fetch_sends_the_etag_and_a_304_reuses_the_payload(monkeypatch):
+    """The point of the whole thing: on GitHub a 304 costs no rate-limit quota."""
+    import urllib.error
+
+    sources.clear_cache()
+    seen = _patch_urlopen(monkeypatch, [
+        _FakeResponse(b'{"tag_name": "v2.0"}', {"ETag": '"abc123"'}),
+        urllib.error.HTTPError("u", 304, "Not Modified", {}, None),
+    ])
+    url = "https://api.github.com/repos/a/b/releases/latest"
+    assert sources.http_json(url) == {"tag_name": "v2.0"}
+    assert sources.http_json(url) == {"tag_name": "v2.0"}   # served from cache
+    # first request carries no validator; the second asks "still v2.0?"
+    assert "If-none-match" not in {k.lower(): k for k in seen[0]}
+    assert seen[1].get("If-none-match") == '"abc123"'
+    sources.clear_cache()
+
+
+def test_last_modified_is_used_when_there_is_no_etag(monkeypatch):
+    import urllib.error
+
+    sources.clear_cache()
+    seen = _patch_urlopen(monkeypatch, [
+        _FakeResponse(b"<rss/>", {"Last-Modified": "Wed, 23 Jul 2026 10:00:00 GMT"}),
+        urllib.error.HTTPError("u", 304, "Not Modified", {}, None),
+    ])
+    assert sources.http_text("https://x/feed") == "<rss/>"
+    assert sources.http_text("https://x/feed") == "<rss/>"
+    assert seen[1].get("If-modified-since") == "Wed, 23 Jul 2026 10:00:00 GMT"
+    sources.clear_cache()
+
+
+def test_a_304_with_nothing_cached_is_a_failure_not_a_lie(monkeypatch):
+    """Can't serve a body we never had — must be None, never a stale guess."""
+    import urllib.error
+
+    sources.clear_cache()
+    _patch_urlopen(monkeypatch, [urllib.error.HTTPError("u", 304, "", {}, None)])
+    assert sources.http_json("https://api.github.com/x") is None
+    sources.clear_cache()
+
+
+def test_a_real_http_error_is_still_a_failure(monkeypatch):
+    """HTTPError subclasses URLError — catching it for 304 must not swallow 404."""
+    import urllib.error
+
+    sources.clear_cache()
+    _patch_urlopen(monkeypatch, [urllib.error.HTTPError("u", 404, "Not Found", {}, None)])
+    assert sources.http_json("https://api.github.com/nope") is None
+    sources.clear_cache()
+
+
+def test_a_response_without_validators_is_not_cached(monkeypatch):
+    sources.clear_cache()
+    seen = _patch_urlopen(monkeypatch, [
+        _FakeResponse(b'{"a": 1}', {}),
+        _FakeResponse(b'{"a": 2}', {}),
+    ])
+    assert sources.http_json("https://x/j") == {"a": 1}
+    assert sources.http_json("https://x/j") == {"a": 2}   # refetched, not cached
+    assert "If-none-match" not in seen[1]
+    sources.clear_cache()
+
+
+def test_the_token_goes_to_github_and_nowhere_else(monkeypatch):
+    """A token in the environment must never reach a mirror or a feed."""
+    sources.clear_cache()
+    monkeypatch.setenv("TRACKERKEEPER_GITHUB_TOKEN", "ghp_secret")
+    seen = _patch_urlopen(monkeypatch, [
+        _FakeResponse(b"{}", {}),
+        _FakeResponse(b"body", {}),
+    ])
+    sources.http_json("https://api.github.com/repos/a/b/releases/latest")
+    sources.http_text("https://mirror.cachyos.org/ISO/desktop/")
+    assert seen[0].get("Authorization") == "Bearer ghp_secret"
+    assert "Authorization" not in seen[1]
+    sources.clear_cache()
+
+
+def test_no_token_means_no_authorization_header(monkeypatch):
+    sources.clear_cache()
+    for name in ("TRACKERKEEPER_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    seen = _patch_urlopen(monkeypatch, [_FakeResponse(b"{}", {})])
+    sources.http_json("https://api.github.com/repos/a/b/releases/latest")
+    assert "Authorization" not in seen[0]
+    sources.clear_cache()
+
+
+# ── why a check came back empty ──────────────────────────────────────────────
+
+
+def test_reason_is_not_found_when_the_source_answers_but_has_no_match():
+    """A typo'd app id: the API is perfectly reachable, it just has no such app."""
+    item = catalog.Item(name="X", kind="appstore", ref="9999999999")
+    res, reason = sources.check_with_reason(item, _fake({"itunes.apple.com": {"results": []}}))
+    assert res is None and reason == sources.NOT_FOUND
+
+
+def test_reason_is_unreachable_when_the_fetch_itself_fails():
+    item = catalog.Item(name="X", kind="appstore", ref="6449580241")
+    res, reason = sources.check_with_reason(item, _fake({}))   # every fetch -> None
+    assert res is None and reason == sources.UNREACHABLE
+
+
+def test_a_ref_rejected_before_any_fetch_is_not_found_not_unreachable():
+    """github with no slash never gets as far as the network — that's a bad
+    handle, and calling it 'unreachable' would send you debugging your wifi."""
+    item = catalog.Item(name="X", kind="github", ref="notarepo")
+    res, reason = sources.check_with_reason(item, _fake({}))
+    assert res is None and reason == sources.NOT_FOUND
+
+
+def test_rss_filter_matching_nothing_is_not_found():
+    item = catalog.Item(name="X", kind="rss", ref="https://x/feed nosuchthing")
+    res, reason = sources.check_with_reason(
+        item, _no_json, http_text=lambda u: _RSS_FEED)
+    assert res is None and reason == sources.NOT_FOUND
+
+
+def test_a_successful_check_has_no_reason():
+    item = catalog.Item(name="X", kind="rss", ref="https://x/feed")
+    res, reason = sources.check_with_reason(
+        item, _no_json, http_text=lambda u: _RSS_FEED)
+    assert res is not None and reason == ""
+
+
+def test_manual_items_are_never_an_error():
+    res, reason = sources.check_with_reason(catalog.Item(name="M", kind="manual"))
+    assert res is None and reason == ""
+
+
+def test_a_provider_that_raises_reads_as_unreachable():
+    def boom(url):
+        raise RuntimeError("kaboom")
+
+    item = catalog.Item(name="X", kind="arch", ref="plasma-desktop")
+    res, reason = sources.check_with_reason(item, boom)
+    assert res is None and reason == sources.UNREACHABLE
+
+
+# ── flatpak ──────────────────────────────────────────────────────────────────
+
+_FLATHUB = {"flathub.org/api/v2/appstream/org.videolan.VLC": {
+    "name": "VLC",
+    "releases": [
+        {"version": "3.0.22", "timestamp": "1750000000", "type": "stable"},
+        {"version": "4.0.0-dev", "timestamp": "1790000000", "type": "development"},
+        {"version": "3.0.23", "timestamp": "1767225600", "type": "stable",
+         "url": "https://vlc/news/3.0.23"},
+    ]}}
+
+
+def test_flatpak_takes_the_newest_STABLE_not_the_newest_overall():
+    """A development build is newer by timestamp — promoting the user onto it
+    would misrepresent 'latest', the same trap _github avoids with pre-releases."""
+    item = catalog.Item(name="VLC", kind="flatpak", ref="org.videolan.VLC")
+    res = sources.check(item, _fake(_FLATHUB))
+    assert res.latest == "3.0.23"
+    assert res.url == "https://vlc/news/3.0.23"
+    assert res.date == "2026-01-01"
+
+
+def test_flatpak_falls_back_to_the_flathub_page_without_a_release_url():
+    data = {"flathub.org/api/v2/appstream/org.kde.krita": {
+        "releases": [{"version": "5.3.2", "timestamp": "1767225600", "type": "stable"}]}}
+    item = catalog.Item(name="Krita", kind="flatpak", ref="org.kde.krita")
+    res = sources.check(item, _fake(data))
+    assert res.url == "https://flathub.org/apps/org.kde.krita"
+
+
+def test_flatpak_uses_development_only_when_there_is_no_stable():
+    data = {"flathub.org/api/v2/appstream/x.y": {
+        "releases": [{"version": "0.9-beta", "timestamp": "1767225600",
+                      "type": "development"}]}}
+    res = sources.check(catalog.Item(name="X", kind="flatpak", ref="x.y"), _fake(data))
+    assert res.latest == "0.9-beta"
+
+
+def test_flatpak_with_no_releases_is_not_found():
+    data = {"flathub.org/api/v2/appstream/x.y": {"name": "X", "releases": []}}
+    res, reason = sources.check_with_reason(
+        catalog.Item(name="X", kind="flatpak", ref="x.y"), _fake(data))
+    assert res is None and reason == sources.NOT_FOUND
+
+
+def test_flatpak_survives_a_junk_timestamp():
+    data = {"flathub.org/api/v2/appstream/x.y": {
+        "releases": [{"version": "1.0", "timestamp": "not-a-number", "type": "stable"}]}}
+    res = sources.check(catalog.Item(name="X", kind="flatpak", ref="x.y"), _fake(data))
+    assert res.latest == "1.0" and res.date == ""
+
+
+def test_flatpak_rejects_a_ref_that_is_not_an_app_id():
+    item = catalog.Item(name="X", kind="flatpak", ref="owner/repo")
+    assert sources.check(item, _fake({})) is None

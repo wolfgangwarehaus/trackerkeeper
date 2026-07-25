@@ -19,8 +19,8 @@ from pathlib import Path
 
 # source KINDS the app knows how to check (sources.py owns the checkers). A
 # manual item has no checker — you set `installed` yourself and it never fetches.
-KINDS = ("github", "arch", "appstore", "cachyos", "appledev", "steam", "rss",
-         "manual")
+KINDS = ("github", "arch", "flatpak", "appstore", "cachyos", "appledev", "steam",
+         "rss", "manual")
 
 
 @dataclass

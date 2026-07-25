@@ -32,10 +32,26 @@ uploads workflow artifacts but creates no release.
 
 ## One-time setup
 
-- **PyPI Trusted Publishing** — add a pending publisher at
-  <https://pypi.org/manage/account/publishing/> matching `pypi-publish.yml`
-  (project `trackerkeeper-base`, owner `wolfgangwarehaus`, repo `trackerkeeper`, workflow
-  `pypi-publish.yml`, environment `pypi`). See the header of that workflow.
+- **PyPI Trusted Publishing** *(not yet configured — this is what failed on the
+  v0.1.0 publish)* — add a pending publisher at
+  <https://pypi.org/manage/account/publishing/>. The project name must match
+  `[project] name` in `pyproject.toml`, which for this loaf is **`trackerkeeper`**
+  — NOT the dough base's own PyPI project. Register exactly these, which are the
+  claims GitHub actually presented on the v0.1.0 run:
+
+  | field | value |
+  | --- | --- |
+  | PyPI project name | `trackerkeeper` |
+  | Owner | `wolfgangwarehaus` |
+  | Repository name | `trackerkeeper` |
+  | Workflow name | `pypi-publish.yml` |
+  | Environment name | `pypi` |
+
+  Until it exists, publishing a release fails that one leg with
+  `invalid-publisher: valid token, but no corresponding publisher` — the GitHub
+  release itself still publishes with every artifact, so only PyPI is missing.
+  After registering, re-run the failed job (`gh run rerun <id>`) or dispatch
+  `pypi-publish.yml` with the tag; nothing needs re-tagging.
 - **AUR** *(dormant)* — `aur.yml` publishes the PKGBUILD on `release: released`,
   but skips until you add an `AUR_SSH_PRIVATE_KEY` secret (a dedicated AUR deploy
   keypair; the public half on your AUR account) **and** the AUR reopens
