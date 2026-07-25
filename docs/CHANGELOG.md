@@ -11,6 +11,13 @@ no matching section). See `docs/RELEASING.md`.
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-07-25
+
+The watchtower actually watches now. v0.1.0 only checked at launch, so a
+tray-resident app showed you whatever the world looked like when you booted it;
+this release adds the heartbeat, tells you what's new *since you last looked*,
+and grows the checker count from six to eight.
+
 ### Added
 - **A Flatpak checker** (`flatpak`) — Flathub app id (`org.videolan.VLC`) via
   Flathub's appstream API. With `arch` beside it that's most of a Linux desktop
@@ -58,6 +65,25 @@ no matching section). See `docs/RELEASING.md`.
 - A changelog URL is now escaped before it reaches the card's rich-text label —
   those URLs are user-entered, and an unescaped quote could close the `href` and
   let the rest of the string render as markup.
+- **The release tooling broke its own first release.** The Inno Setup template
+  carried a sample `/DAppVersion=0.1.0`, and the gate asserting no committed file
+  bakes the current version saw that as live the moment v0.1.0 was tagged. That
+  gate also matched substrings, so `1.0.0` would have matched inside the MSIX
+  placeholder `1.0.0.0` and failed the same way at v1.0.0. Both fixed upstream in
+  dough, so no future release — here or in any other app built from it — trips
+  over them.
+
+### Internal
+- **The test suite was writing to your real settings.** It had no isolation at
+  all, so `pytest` edited `~/.config/<org>/trackerkeeper.conf` — a run could
+  silently discard collapsed groups you'd set. Closing it properly took three
+  Qt calls plus the shipped `Settings` constructor (which used the bare
+  `QSettings(org, app)` form, hardwiring NativeFormat); production behaviour is
+  unchanged.
+- **The intermittent CI abort had a root cause**, and it wasn't the test being
+  blamed: `processEvents()` never delivers `DeferredDelete`, so the whole suite's
+  widgets were destroyed at once by the first test to spin a real nested event
+  loop. Fixing it also roughly halved the suite's runtime.
 
 ## [0.1.0] — 2026-07-25
 
