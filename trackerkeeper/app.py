@@ -445,11 +445,23 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     return app.exec()
 
 
-def main() -> None:
-    """The default entry: boot tracker keeper with the update dashboard."""
+def content_factory():
+    """The factory :func:`main` hands to :func:`run_app` — the app's REAL first
+    screen, exposed as a seam so tooling can build it without booting.
+
+    The rig's visual baseline is the caller that matters: it used to grab
+    ``_placeholder()`` directly, so a loaf's goldens guarded dough's "your app
+    starts here" screen — a surface its users never see — and would have gone on
+    passing through any dashboard regression. Reading the factory from here means
+    the goldens track whatever the app actually shows."""
     from trackerkeeper.dashboard import build_content
 
-    sys.exit(run_app(build_content))
+    return build_content
+
+
+def main() -> None:
+    """The default entry: boot tracker keeper with the update dashboard."""
+    sys.exit(run_app(content_factory()))
 
 
 if __name__ == "__main__":

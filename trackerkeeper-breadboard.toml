@@ -127,8 +127,11 @@ note = "Per-item detail dialog: click a card. CheckResult.notes + Item.latest_no
 [[baking]]
 id = "eb70cb"
 text = "rig baseline goldens once the UI settles"
-done = false
+done = true
 priority = "later"
+by = "agent"
+date = "2026-07-25"
+note = "Goldens baked — but first fixed the rig itself: _grab_shots hardcoded A._placeholder(), so a loaf's window golden guarded dough's 'your app starts here' screen and would have passed through ANY dashboard regression. Now grabs A.content_factory()(w) (the same factory main() uses) with QStandardPaths test mode on, so persisted state is scratch and the grab is byte-identical across runs."
 
 [[baking]]
 id = "5ca9f9"

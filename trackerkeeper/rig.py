@@ -236,12 +236,22 @@ def _grab_shots(out_dir: Path) -> int:
         "import sys\n"
         f"import {_PKG}\n"
         f"{_PKG}.configure(org={_PKG + '_rig'!r}, app={_PKG + '_rig_baseline'!r})\n"
+        "from PySide6.QtCore import QStandardPaths\n"
+        # Scratch every persisted location too, not just the identity: an app
+        # whose first screen reads saved state (a catalog, a library, a recents
+        # list) would otherwise bake the MAKER'S data into the golden and drift
+        # on every machine — and on every ordinary use of the app.
+        "QStandardPaths.setTestModeEnabled(True)\n"
         "from PySide6.QtWidgets import QApplication\n"
         "app = QApplication(sys.argv)\n"
         f"import {_PKG}.app as A\n"
         f"from {_PKG}.window import AppWindow\n"
         f"w = AppWindow(title={_PKG!r}); w.resize(1100, 760)\n"
-        "w.set_content(A._placeholder()); w.show(); app.processEvents()\n"
+        # The app's REAL first screen, via the same factory main() uses — NOT
+        # _placeholder(). Grabbing the placeholder meant a loaf's golden guarded
+        # dough's "your app starts here" screen, which its users never see, and
+        # would have passed through any regression in the actual UI.
+        "w.set_content(A.content_factory()(w)); w.show(); app.processEvents()\n"
         f"w.grab().save({str(out_dir)!r} + '/window.png')\n"
         f"from {_PKG}.settings_dialog import SettingsDialog\n"
         "d = SettingsDialog(w); d.show(); app.processEvents()\n"
