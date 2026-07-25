@@ -42,15 +42,50 @@ def _second_launch(key: str, args: list[str]) -> subprocess.Popen:
     )
 
 
+def _reap_deferred_deletes(qapp) -> None:
+    """Actually destroy everything handed to ``deleteLater()``.
+
+    ``_on_new_connection`` defers every incoming QLocalSocket this way, so a test
+    that ends without a real event-loop pass leaves live sockets queued for
+    destruction. Reaping them explicitly — while their server is still alive — is
+    the difference between a clean teardown and Qt destroying them later, in the
+    wrong order, which aborts the whole pytest process with no traceback.
+    """
+    from PySide6.QtCore import QCoreApplication, QEvent
+
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    QCoreApplication.processEvents()
+
+
 @pytest.fixture()
 def primary(qapp):
     si = SingleInstance(f"si-fwd-{uuid.uuid4().hex[:8]}")
     assert si.acquire() is True
+
     yield si
+
+    # Teardown order is load-bearing — see _reap_deferred_deletes. Drop the
+    # tests' own connections first so a late-delivered signal can't re-enter a
+    # lambda holding a list that's already gone out of scope.
+    from PySide6.QtNetwork import QLocalServer
+
+    for signal in (si.raise_requested, si.files_received):
+        try:
+            signal.disconnect()
+        except (RuntimeError, TypeError):
+            pass        # nothing was connected — Qt raises rather than no-op'ing
     if si._server is not None:
         si._server.close()
+        _reap_deferred_deletes(qapp)     # sockets die while the server still exists
+        si._server.deleteLater()
+        si._server = None
     if si._mem is not None:
         si._mem.detach()
+        si._mem = None
+    # Unlink the stale socket file. Without this a crashed/killed run leaves one
+    # behind and the NEXT listen() on that name inherits it.
+    QLocalServer.removeServer(si._socket_name)
+    _reap_deferred_deletes(qapp)
 
 
 def _spin(qapp, cond=None, timeout_ms: int = 3000) -> None:

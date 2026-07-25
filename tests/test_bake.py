@@ -19,6 +19,7 @@ jinja2 is a build-time-only (``bake``/``dev``) dependency; a env without it skip
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -109,9 +110,14 @@ def test_renders_are_version_stable(packaging_dir: Path) -> None:
     commit (setuptools-scm bumps __version__ each commit). The version reaches
     manifests only at release time (docs/BAKING.md §6.2)."""
     version = trackerkeeper.__version__
+    # Match the version as a WHOLE token. A bare `in` also fires when the current
+    # version merely PREFIXES a longer literal — "1.0.0" inside the MSIX
+    # placeholder "1.0.0.0" — which would turn this gate red at v1.0.0 for a file
+    # that bakes nothing at all.
+    token = re.compile(rf"(?<![\w.]){re.escape(version)}(?![\w.])")
     offenders: list[str] = []
     for path in _committed_files(packaging_dir):
-        if version in path.read_text(encoding="utf-8"):
+        if token.search(path.read_text(encoding="utf-8")):
             offenders.append(str(path.relative_to(packaging_dir)))
     assert not offenders, f"version {version!r} baked into: " + ", ".join(offenders)
 
