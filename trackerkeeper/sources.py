@@ -5,7 +5,8 @@ The whole product thesis lives here: there is no single "latest version" API,
 so tracker keeper IS the uniform layer. Each provider is a small function
 ``(item, http, http_text) -> CheckResult | None`` for one KIND of source;
 growing coverage is adding providers, one world at a time (github, arch,
-appstore, cachyos today; rss, flatpak next).
+appstore, cachyos, appledev, steam, and the generic rss feed reader today;
+flatpak next).
 
 Network I/O goes through two injected seams — :func:`http_json` (JSON APIs) and
 :func:`http_text` (HTML / plain-text pages, e.g. a mirror's directory index) —
@@ -231,6 +232,91 @@ def _appledev(item, http, http_text) -> CheckResult | None:
     return None
 
 
+def _feed_entries(xml: str) -> list:
+    """Every entry of an RSS (``<item>``) or Atom (``<entry>``) feed, in feed
+    order — which is newest-first for essentially every changelog feed."""
+    entries = re.findall(r"<item[\s>](.*?)</item>", xml, re.DOTALL)
+    return entries or re.findall(r"<entry[\s>](.*?)</entry>", xml, re.DOTALL)
+
+
+def _entry_link(entry: str) -> str:
+    """An entry's URL. RSS puts it in ``<link>text</link>``; Atom uses a
+    self-closing ``<link href="…"/>``, which has no text for _rss_field to find."""
+    text = _rss_field(entry, "link")
+    if text:
+        return text
+    m = re.search(r'<link[^>]*\bhref="([^"]+)"', entry)
+    return m.group(1) if m else ""
+
+
+def _entry_date(entry: str) -> str:
+    """An entry's publication date as ISO ``YYYY-MM-DD``. RSS carries RFC-822 in
+    ``<pubDate>``; Atom carries ISO-8601 in ``<published>`` / ``<updated>``."""
+    pub = _rss_field(entry, "pubDate")
+    if pub:
+        return _rss_date(pub)
+    for tag in ("published", "updated"):
+        val = _rss_field(entry, tag)
+        if re.match(r"\d{4}-\d{2}-\d{2}", val):
+            return val[:10]
+    return ""
+
+
+def _entry_label(entry: str) -> str:
+    """What names this entry: its title, or — when the feed leaves titles empty —
+    the version out of its link. KDE's own announcement feed does exactly that,
+    shipping ``<title/>`` and putting the release in the URL
+    (``…/announcements/plasma/6/6.7.3/``), so a title-only reader sees nothing."""
+    title = _rss_field(entry, "title")
+    if title:
+        return title
+    m = re.search(r"/v?(\d+(?:\.\d+)*)/?$", _entry_link(entry))
+    return m.group(1) if m else ""
+
+
+def _version_from_title(title: str) -> str:
+    """A version out of an entry title when there's an obvious one ("Plasma
+    6.7.3 released" → "6.7.3"), else the title itself. Same rule the Steam
+    checker uses: a title IS a usable version when it's all the source gives."""
+    m = re.search(r"\bv?(\d+(?:\.\d+)+)", title)
+    return m.group(1) if m else title.strip()
+
+
+def _rss(item, http, http_text) -> CheckResult | None:
+    """Latest entry from ANY RSS or Atom feed — the widest-coverage checker here.
+    Most projects, distros, and desktops publish releases as a feed even when
+    they expose no API at all, so this is the generic answer for the long tail.
+
+    ``item.ref`` is the feed URL, optionally followed by a space and a filter
+    phrase the entry title must contain (``https://…/feed.xml plasma``) — one
+    busy feed can then serve several tracked items. URLs can't contain spaces,
+    so the split is unambiguous. The newest matching entry wins.
+    """
+    ref = (item.ref or "").strip()
+    url, _, needle = ref.partition(" ")
+    if not url.lower().startswith(("http://", "https://")):
+        return None
+    xml = http_text(url)
+    if not xml:
+        return None
+    needle = needle.strip().lower()
+    for entry in _feed_entries(xml):
+        label = _entry_label(entry)
+        if not label:
+            continue
+        link = _entry_link(entry)
+        # Filter on the link as well as the title: a title-less feed (KDE) can
+        # only be narrowed by its URL path, and "plasma" reads the same either way.
+        if needle and needle not in f"{label} {link}".lower():
+            continue
+        return CheckResult(
+            latest=_version_from_title(label),
+            url=link or item.changelog_url,
+            date=_entry_date(entry),
+        )
+    return None
+
+
 def _steam(item, http, http_text) -> CheckResult | None:
     """Latest update for a Steam game via the public (no-auth) news API.
     ``item.ref`` is the numeric appid (e.g. Slay the Spire 2 = ``2868840``). The
@@ -304,6 +390,7 @@ _PROVIDERS = {
     "cachyos": _cachyos,
     "appledev": _appledev,
     "steam": _steam,
+    "rss": _rss,
     "manual": _manual,
 }
 

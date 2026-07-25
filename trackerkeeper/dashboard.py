@@ -48,7 +48,7 @@ _CARD_NEW = (".QFrame{background:rgba(86,196,141,0.08);border:1px solid "
 # the release channel a kind maps to — the column + a sort axis
 _CHANNEL = {"github": "GitHub", "arch": "Arch", "appstore": "App Store",
             "cachyos": "CachyOS", "appledev": "Apple", "steam": "Steam",
-            "manual": "Manual"}
+            "rss": "Feed", "manual": "Manual"}
 
 # tracker keeper is a UTILITY window first — it lives in the tray and gets
 # opened in a corner, so it has to stay readable narrow. These are the sizes

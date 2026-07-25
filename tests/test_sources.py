@@ -228,3 +228,133 @@ def test_offline_http_returns_none_not_a_fake_version():
     """The cardinal rule: unreachable → None, never an invented 'latest'."""
     item = catalog.Item(name="x", kind="github", ref="a/b")
     assert sources.check(item, lambda url: None) is None
+
+
+# ── the generic RSS / Atom checker ───────────────────────────────────────────
+
+_RSS_FEED = """<?xml version="1.0"?>
+<rss version="2.0"><channel>
+  <title>KDE Announcements</title>
+  <item>
+    <title>Plasma 6.7.4 released</title>
+    <link>https://kde.org/announcements/plasma/6/6.7.4/</link>
+    <pubDate>Thu, 24 Jul 2026 09:00:00 GMT</pubDate>
+  </item>
+  <item>
+    <title>Plasma 6.7.3 released</title>
+    <link>https://kde.org/announcements/plasma/6/6.7.3/</link>
+    <pubDate>Tue, 15 Jul 2026 09:00:00 GMT</pubDate>
+  </item>
+  <item>
+    <title>KDE Gear 26.08 released</title>
+    <link>https://kde.org/announcements/gear/26.08.0/</link>
+    <pubDate>Wed, 23 Jul 2026 09:00:00 GMT</pubDate>
+  </item>
+</channel></rss>"""
+
+_ATOM_FEED = """<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>Release v3.2.1</title>
+    <link rel="alternate" href="https://example.org/releases/3.2.1"/>
+    <updated>2026-07-20T12:30:00Z</updated>
+  </entry>
+</feed>"""
+
+
+def _no_json(url: str):
+    """The JSON seam for feed tests — a feed checker must never reach for it."""
+    raise AssertionError(f"an RSS check requested JSON: {url}")
+
+
+def _item(**kw):
+    kw.setdefault("name", "F")
+    kw.setdefault("kind", "rss")
+    return catalog.Item(**kw)
+
+
+def test_rss_takes_the_newest_entry_and_extracts_the_version():
+    res = sources.check(_item(ref="https://kde.org/feed.xml"),
+                        http=_no_json, http_text=lambda u: _RSS_FEED)
+    assert res.latest == "6.7.4"          # parsed out of the title
+    assert res.url == "https://kde.org/announcements/plasma/6/6.7.4/"
+    assert res.date == "2026-07-24"
+
+
+def test_rss_title_filter_selects_within_one_busy_feed():
+    """One feed, several tracked items — the filter is what separates them."""
+    res = sources.check(_item(ref="https://kde.org/feed.xml gear"),
+                        http=_no_json, http_text=lambda u: _RSS_FEED)
+    assert res.latest == "26.08"
+    assert res.date == "2026-07-23"       # NOT the newest entry overall
+
+
+def test_rss_filter_matching_nothing_returns_none():
+    assert sources.check(_item(ref="https://kde.org/feed.xml krita"),
+                         http=_no_json, http_text=lambda u: _RSS_FEED) is None
+
+
+def test_atom_feed_reads_href_links_and_iso_dates():
+    """Atom's self-closing <link href> and ISO <updated> need different parsing
+    from RSS's <link>text</link> and RFC-822 <pubDate>."""
+    res = sources.check(_item(ref="https://example.org/atom.xml"),
+                        http=_no_json, http_text=lambda u: _ATOM_FEED)
+    assert res.latest == "3.2.1"
+    assert res.url == "https://example.org/releases/3.2.1"
+    assert res.date == "2026-07-20"
+
+
+def test_rss_title_without_a_version_falls_back_to_the_title():
+    feed = ("<rss><channel><item><title>Big summer update</title>"
+            "<link>https://x/y</link></item></channel></rss>")
+    res = sources.check(_item(ref="https://x/feed"),
+                        http=_no_json, http_text=lambda u: feed)
+    assert res.latest == "Big summer update"
+
+
+def test_rss_rejects_a_non_url_ref_without_fetching():
+    """A ref that isn't a URL must fail closed, not get pasted into a request."""
+    called = []
+    assert sources.check(_item(ref="plasma-desktop"),
+                         http=_no_json,
+                         http_text=lambda u: called.append(u) or "") is None
+    assert called == []
+
+
+def test_rss_unreachable_feed_is_none_not_a_guess():
+    assert sources.check(_item(ref="https://x/feed"),
+                         http=_no_json, http_text=lambda u: None) is None
+
+
+_TITLELESS_FEED = """<?xml version="1.0"?>
+<rss><channel>
+  <item><title/><link>https://kde.org/announcements/plasma/6/6.7.3/</link>
+    <pubDate>Tue, 14 Jul 2026 00:00:00 +0000</pubDate></item>
+  <item><title/><link>https://kde.org/announcements/gear/26.04.3/</link>
+    <pubDate>Thu, 02 Jul 2026 00:00:00 +0000</pubDate></item>
+</channel></rss>"""
+
+
+def test_rss_reads_a_feed_with_empty_titles():
+    """KDE's own announcement feed ships <title/> and puts the release in the
+    URL — a title-only reader sees an empty feed."""
+    res = sources.check(_item(ref="https://kde.org/announcements/index.xml"),
+                        http=_no_json, http_text=lambda u: _TITLELESS_FEED)
+    assert res.latest == "6.7.3"
+    assert res.date == "2026-07-14"
+
+
+def test_rss_filter_matches_the_link_when_there_is_no_title():
+    res = sources.check(_item(ref="https://kde.org/announcements/index.xml gear"),
+                        http=_no_json, http_text=lambda u: _TITLELESS_FEED)
+    assert res.latest == "26.04.3"
+
+
+def test_rss_skips_entries_it_cannot_name_at_all():
+    """No title, no version in the link → skip it rather than invent a version."""
+    feed = ("<rss><channel><item><title/><link>https://x/blog/hello</link></item>"
+            "<item><title>Release 2.0</title><link>https://x/r/2.0</link></item>"
+            "</channel></rss>")
+    res = sources.check(_item(ref="https://x/feed"),
+                        http=_no_json, http_text=lambda u: feed)
+    assert res.latest == "2.0"      # fell through to the entry it CAN name

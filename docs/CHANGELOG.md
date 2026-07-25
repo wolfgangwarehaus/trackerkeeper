@@ -12,6 +12,12 @@ no matching section). See `docs/RELEASING.md`.
 ## [Unreleased]
 
 ### Added
+- **A generic RSS / Atom checker** (`rss`) — the widest-coverage source yet, and
+  the answer for the long tail: most projects publish releases as a feed even
+  when they expose no API at all. `ref` is the feed URL, optionally followed by
+  a space and a filter phrase (`https://…/index.xml plasma`) so one busy feed
+  can serve several tracked items. Handles both feed dialects, and falls back to
+  the entry link when a feed ships empty titles — as KDE's own does.
 - **The heartbeat.** tracker keeper now re-checks on a timer (every 2 hours by
   default, 15 minutes minimum, `0` for manual-only) instead of once at launch —
   and the timer runs whether or not the window is open, because a watchtower
