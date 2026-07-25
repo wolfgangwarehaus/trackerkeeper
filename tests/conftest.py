@@ -16,7 +16,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtCore import QCoreApplication, QEvent, QThread
 from PySide6.QtWidgets import QApplication
 
 
@@ -56,6 +56,16 @@ def _isolate_qt_windows(qapp):
     Deleting per test, while the QApplication is healthy, keeps each test's Qt
     world isolated and the process exit clean."""
     yield
+    # A widget can own a RUNNING QThread — Dashboard parents its _RefreshWorker
+    # to itself — and destroying one mid-flight aborts the process ("QThread:
+    # Destroyed while thread is still running"). Let them finish before the
+    # delete below can take their parent out from under them. Caught in dough,
+    # where the breadboard's channel probe hit exactly this once the reap landed.
+    for w in qapp.topLevelWidgets():
+        for t in w.findChildren(QThread):
+            if t.isRunning():
+                t.quit()          # ends an event loop; a blocking run() ignores it
+                t.wait(10_000)    # …so this is what actually makes it safe
     for w in qapp.topLevelWidgets():
         w.close()
         w.deleteLater()
