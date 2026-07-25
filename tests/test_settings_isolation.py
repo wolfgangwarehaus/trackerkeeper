@@ -95,8 +95,16 @@ def test_settings_handle_is_isolated(qapp):
     sandbox = _config_root(test_mode=True)
     real = _config_root(test_mode=False)
 
+    # Two assertions, and deliberately NOT "real is not an ancestor": on Windows
+    # the sandbox lives INSIDE the real root (…\AppData\Local\qttest vs
+    # …\AppData\Local), so that phrasing can never pass there even when the
+    # isolation is perfect. Together these are airtight without assuming any
+    # particular nesting — if test mode were off the roots would be equal, and if
+    # the handle escaped it would not be under the sandbox.
+    assert sandbox != real, (
+        f"test mode is not redirecting the config location at all: {sandbox}"
+    )
     assert sandbox in path.parents, f"settings escaped the sandbox: {path}"
-    assert real not in path.parents, f"settings hit the real config dir: {path}"
 
 
 def test_the_handle_is_a_plain_file(qapp):
