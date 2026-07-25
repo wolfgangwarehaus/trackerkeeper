@@ -287,10 +287,10 @@ done = false
 [[delivery]]
 id = "78bb80"
 text = "PyPI Trusted Publisher not registered — v0.1.0's pypi leg failed invalid-publisher"
-done = false
+done = true
 by = "agent"
 date = "2026-07-25"
-note = "needs the maker's PyPI account: pending publisher for project 'trackerkeeper' (NOT -base; RELEASING.md had the wrong name, now fixed), owner wolfgangwarehaus, repo trackerkeeper, workflow pypi-publish.yml, environment pypi. Then: gh run rerun 30169204151"
+note = "REGISTERED by August 2026-07-25; rerun of the failed leg succeeded. trackerkeeper 0.1.0 is live on PyPI (wheel + sdist), verified by a clean-venv 'pip install trackerkeeper' — correct version, app id, and all 5 entry points."
 
 [[delivery]]
 id = "b74f0a"
