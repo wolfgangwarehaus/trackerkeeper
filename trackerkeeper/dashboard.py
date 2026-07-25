@@ -92,6 +92,42 @@ def save_collapsed(names) -> None:
     get_settings()._s.setValue(_KEY_COLLAPSED, json.dumps(sorted(names)))
 
 
+# ── the heartbeat ────────────────────────────────────────────────────────────
+# tracker keeper rests in the tray for days at a time. Checking only at launch
+# would mean the board shows you whatever the world looked like when you last
+# booted it — which is exactly the thing this app exists to fix. The periodic
+# check is what makes "what dropped today" true while the window is closed, and
+# it's what gives the notifications something to fire about.
+_KEY_INTERVAL = "app/refresh_interval_minutes"
+DEFAULT_INTERVAL_MIN = 120
+# A floor, not a preference: every checker hits someone else's server, and the
+# unauthenticated GitHub API allows 60 requests an hour. Nothing below this is
+# more useful — it's just louder.
+MIN_INTERVAL_MIN = 15
+
+
+def refresh_interval_minutes() -> int:
+    """How often to re-check, in minutes. ``0`` disables the periodic check
+    entirely (launch and the Check button still work); anything positive is
+    clamped up to :data:`MIN_INTERVAL_MIN`."""
+    from trackerkeeper.settings import get_settings
+
+    raw = get_settings()._s.value(_KEY_INTERVAL)
+    if raw is None or str(raw).strip() == "":
+        return DEFAULT_INTERVAL_MIN
+    try:
+        minutes = int(str(raw))
+    except (TypeError, ValueError):
+        return DEFAULT_INTERVAL_MIN
+    return max(MIN_INTERVAL_MIN, minutes) if minutes > 0 else 0
+
+
+def set_refresh_interval_minutes(minutes: int) -> None:
+    from trackerkeeper.settings import get_settings
+
+    get_settings()._s.setValue(_KEY_INTERVAL, int(minutes))
+
+
 class _GroupHeader(QFrame):
     """A category's clickable header row: a disclosure arrow, the name, and its
     count (or "N new" when the group is hiding updates — a collapsed section
@@ -195,9 +231,17 @@ def humanize_age(iso: str, now=None) -> str:
     return "yesterday" if days == 1 else _bucket_days(days)
 
 
+# How many source checks are in flight at once. Each one is a blocking HTTP GET
+# with an 8s timeout, so checking serially made the whole refresh as slow as the
+# SUM of its sources — and one unreachable mirror stalled every item queued
+# behind it. Bounded so a large fleet can't open a socket per item.
+MAX_PARALLEL_CHECKS = 8
+
+
 class _RefreshWorker(QThread):
-    """Checks every auto item off the UI thread. Emits ``{name: CheckResult}``
-    for the ones that answered (missing name = couldn't check / manual)."""
+    """Checks every auto item off the UI thread, several at a time. Emits
+    ``{name: CheckResult}`` for the ones that answered (a missing name = couldn't
+    check / manual)."""
 
     done = Signal(object)
 
@@ -206,16 +250,22 @@ class _RefreshWorker(QThread):
         self._snapshot = snapshot  # list of Item (copies safe to read off-thread)
 
     def run(self) -> None:  # noqa: N802 (Qt override)
+        from concurrent.futures import ThreadPoolExecutor
+
         from trackerkeeper import sources
 
-        out = {}
-        for item in self._snapshot:
-            if item.kind == "manual":
-                continue
-            res = sources.check(item)
-            if res is not None:
-                out[item.name] = res
-        self.done.emit(out)
+        auto = [i for i in self._snapshot if i.kind != "manual"]
+        if not auto:
+            self.done.emit({})
+            return
+        # sources.check never raises (it swallows to None), so map() can't be
+        # derailed by one bad provider, and it keeps results aligned to inputs.
+        with ThreadPoolExecutor(max_workers=min(MAX_PARALLEL_CHECKS, len(auto)),
+                                thread_name_prefix="tk-check") as pool:
+            results = list(pool.map(sources.check, auto))
+        self.done.emit({item.name: res
+                        for item, res in zip(auto, results, strict=True)
+                        if res is not None})
 
 
 class Dashboard(QWidget):
@@ -230,6 +280,10 @@ class Dashboard(QWidget):
         self._tier = TIER_WIDE   # re-derived from the real width in resizeEvent
         self._tray = None
         self._collapsed = load_collapsed()   # category names folded shut
+        # The heartbeat timer. Stays None under offscreen (tests, CI, rig) — it
+        # doubles as the "this is a real display, network is allowed" sentinel.
+        self._periodic: object | None = None
+        self._last_refresh: float | None = None   # time.monotonic() of the last result
 
         # Utility sizing: a slim default and a genuinely small floor. The
         # window only takes the default when there's no saved geometry (run_app
@@ -323,6 +377,13 @@ class Dashboard(QWidget):
 
             QTimer.singleShot(1500, self._refresh)
 
+            # …and keep checking. The timer runs whether or not the window is
+            # visible — a watchtower hidden in the tray is still watching, and
+            # this is the path that fires the "N new updates" notification.
+            self._periodic = QTimer(self)
+            self._periodic.timeout.connect(self._refresh)
+            self.apply_refresh_interval()
+
             # The tray presence — a watchtower's resting state. Real displays
             # only (offscreen/CI has no tray), and self-disabling when the
             # desktop doesn't support one.
@@ -333,6 +394,34 @@ class Dashboard(QWidget):
                 self._window.top_bar.add_menu_action(
                     "Hide to tray", self._tray._hide_window)
                 self._sync_tray()
+
+    # ── the heartbeat ──
+    def apply_refresh_interval(self) -> None:
+        """(Re)arm the periodic check from the stored setting — at startup, and
+        whenever Settings changes it. A no-op where there's no timer (offscreen)."""
+        if self._periodic is None:
+            return
+        minutes = refresh_interval_minutes()
+        if minutes <= 0:
+            self._periodic.stop()
+        else:
+            self._periodic.start(minutes * 60 * 1000)
+
+    def showEvent(self, e):  # noqa: N802 (Qt override)
+        super().showEvent(e)
+        # Opening the window from the tray should show a current board, not what
+        # the last check found hours ago — but only when the data has actually
+        # gone stale, so toggling the window isn't a burst of requests.
+        self._refresh_if_stale()
+
+    def _refresh_if_stale(self) -> None:
+        if self._periodic is None or self._last_refresh is None:
+            return      # offscreen, or the launch check hasn't landed yet
+        import time
+
+        minutes = refresh_interval_minutes()
+        if minutes > 0 and (time.monotonic() - self._last_refresh) >= minutes * 60:
+            self._refresh()
 
     # ── responsive: columns and labels drop off as the window narrows ──
     def resizeEvent(self, e):  # noqa: N802 (Qt override)
@@ -574,7 +663,11 @@ class Dashboard(QWidget):
         # every pixel counts — the tooltip keeps it discoverable)
         if item.changelog_url or item.latest_url:
             text = "→" if self._tier == TIER_NARROW else "changelog →"
-            link = QLabel(f'<a href="{item.latest_url or item.changelog_url}" '
+            # Escape the URL: it's user-entered (the Add/Edit dialog), and an
+            # unescaped quote would close the href and let the rest of the string
+            # become markup in a rich-text label.
+            href = _esc(item.latest_url or item.changelog_url)
+            link = QLabel(f'<a href="{href}" '
                           f'style="color:{_ACCENT};text-decoration:none;">{text}</a>')
             link.setToolTip("Open the changelog")
             link.setTextFormat(Qt.TextFormat.RichText)
@@ -627,8 +720,10 @@ class Dashboard(QWidget):
         self._worker.start()
 
     def _on_results(self, results: dict) -> None:
+        import time
         from datetime import datetime, timezone
 
+        self._last_refresh = time.monotonic()   # what _refresh_if_stale measures
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
         newly = []
         auto = [i for i in self._items if i.kind != "manual"]

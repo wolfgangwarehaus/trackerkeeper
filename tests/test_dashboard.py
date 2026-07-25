@@ -197,3 +197,92 @@ def test_dashboard_construction_never_touches_the_network(qapp):
     """Offscreen construction must not auto-refresh (no network in CI/tests)."""
     dash = _dash(qapp, catalog.default_fleet())
     assert dash._worker is None  # no refresh worker was started
+
+
+# ── the refresh heartbeat ────────────────────────────────────────────────────
+
+
+def test_refresh_interval_defaults_clamps_and_disables(qapp):
+    from trackerkeeper.dashboard import (
+        DEFAULT_INTERVAL_MIN,
+        MIN_INTERVAL_MIN,
+        refresh_interval_minutes,
+        set_refresh_interval_minutes,
+    )
+    from trackerkeeper.settings import get_settings
+
+    try:
+        set_refresh_interval_minutes(240)
+        assert refresh_interval_minutes() == 240
+        # below the floor is raised to it — every check hits someone else's server
+        set_refresh_interval_minutes(1)
+        assert refresh_interval_minutes() == MIN_INTERVAL_MIN
+        # 0 means "manual only", and is NOT clamped up
+        set_refresh_interval_minutes(0)
+        assert refresh_interval_minutes() == 0
+        # a garbage stored value falls back to the default rather than raising
+        get_settings()._s.setValue("app/refresh_interval_minutes", "soon")
+        assert refresh_interval_minutes() == DEFAULT_INTERVAL_MIN
+    finally:
+        get_settings()._s.remove("app/refresh_interval_minutes")
+
+
+def test_offscreen_dashboard_arms_no_timer(qapp):
+    """The heartbeat must never start headless — it would reach the network."""
+    dash = _dash(qapp, catalog.default_fleet())
+    assert dash._periodic is None
+    dash.apply_refresh_interval()        # safe no-op, not an AttributeError
+    dash._refresh_if_stale()             # ditto — and starts no worker
+    assert dash._worker is None
+
+
+def test_worker_checks_sources_concurrently_and_skips_manual(qapp):
+    """One slow source must not hold up the others (the old serial loop did)."""
+    import threading
+    import time
+
+    from trackerkeeper.dashboard import _RefreshWorker
+
+    items = [catalog.Item(name=f"I{n}", kind="github", ref="a/b") for n in range(6)]
+    items.append(catalog.Item(name="manual-one", kind="manual"))
+    inflight, peak, lock = 0, 0, threading.Lock()
+
+    def fake_check(item, *a, **kw):
+        nonlocal inflight, peak
+        with lock:
+            inflight += 1
+            peak = max(peak, inflight)
+        time.sleep(0.05)
+        with lock:
+            inflight -= 1
+        return CheckResult(latest="9", date="2026-07-25")
+
+    import trackerkeeper.sources as sources_mod
+
+    real = sources_mod.check
+    sources_mod.check = fake_check
+    try:
+        worker = _RefreshWorker([*items])
+        got = {}
+        worker.done.connect(got.update)
+        worker.start()
+        assert worker.wait(10_000)
+        qapp.processEvents()
+    finally:
+        sources_mod.check = real
+
+    assert peak > 1, f"checks ran serially (peak in-flight {peak})"
+    assert "manual-one" not in got      # manual items are never polled
+    assert len(got) == 6
+
+
+def test_worker_with_only_manual_items_emits_empty(qapp):
+    from trackerkeeper.dashboard import _RefreshWorker
+
+    worker = _RefreshWorker([catalog.Item(name="M", kind="manual")])
+    got = []
+    worker.done.connect(got.append)
+    worker.start()
+    assert worker.wait(5_000)
+    qapp.processEvents()
+    assert got == [{}]

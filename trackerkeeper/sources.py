@@ -158,10 +158,13 @@ def _cachyos(item, http, http_text) -> CheckResult | None:
     edition = (item.ref or "desktop").strip().lower()
     if edition not in _CACHY_EDITIONS:
         return None
-    html = http_text(f"https://mirror.cachyos.org/ISO/{edition}/")
-    if not html:
+    # NOT named `html` — that would shadow the module-level `import html` that
+    # _rss_field's unescape depends on, and the next person to reach for it here
+    # would get a string back instead of the module.
+    page = http_text(f"https://mirror.cachyos.org/ISO/{edition}/")
+    if not page:
         return None
-    snapshots = re.findall(r'href="(\d{6})/"', html)  # YYMMDD folders
+    snapshots = re.findall(r'href="(\d{6})/"', page)  # YYMMDD folders
     if not snapshots:
         return None
     latest = max(snapshots)  # fixed-width YYMMDD sorts chronologically

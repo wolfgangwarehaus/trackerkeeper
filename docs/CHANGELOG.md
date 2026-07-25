@@ -11,6 +11,23 @@ no matching section). See `docs/RELEASING.md`.
 
 ## [Unreleased]
 
+### Added
+- **The heartbeat.** tracker keeper now re-checks on a timer (every 2 hours by
+  default, 15 minutes minimum, `0` for manual-only) instead of once at launch —
+  and the timer runs whether or not the window is open, because a watchtower
+  resting in the tray is still watching. Opening the window from the tray also
+  re-checks when the data has gone stale, so what you see is current.
+
+### Changed
+- **Checks run concurrently** (up to 8 at a time) rather than one after another.
+  A refresh used to take as long as the *sum* of its sources, and one
+  unreachable mirror stalled every item queued behind it.
+
+### Fixed
+- A changelog URL is now escaped before it reaches the card's rich-text label —
+  those URLs are user-entered, and an unescaped quote could close the `href` and
+  let the rest of the string render as markup.
+
 ## [0.1.0] — 2026-07-25
 
 The first release. tracker keeper is a **watchtower, not an updater**: it tells
