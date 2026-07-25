@@ -292,6 +292,14 @@ by = "agent"
 date = "2026-07-25"
 note = "needs the maker's PyPI account: pending publisher for project 'trackerkeeper' (NOT -base; RELEASING.md had the wrong name, now fixed), owner wolfgangwarehaus, repo trackerkeeper, workflow pypi-publish.yml, environment pypi. Then: gh run rerun 30169204151"
 
+[[delivery]]
+id = "b74f0a"
+text = "Cut v0.1.1 — the heartbeat release (rss + flatpak, 8 checkers)"
+done = true
+by = "agent"
+date = "2026-07-25"
+note = "TAGGED + built 2026-07-25: draft holds deb/AppImage/exe/portable/sdist/wheel/SHA256SUMS at 0.1.1. CI green first try — the .iss version-gate bug that broke v0.1.0 did not recur. Awaiting the human Publish gate."
+
 [[improvements]]
 id = "bb5d4c"
 text = "Grow the checker library: store pages, more feeds, per-platform firmware"
