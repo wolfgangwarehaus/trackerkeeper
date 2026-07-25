@@ -88,3 +88,30 @@ def test_a_restored_geometry_is_never_overridden(qapp):
     win.set_content(Dashboard(win))
     assert (win.width(), win.height()) == (900, 700)
     win.close()
+
+
+def test_tooltip_reports_the_unseen_count():
+    from trackerkeeper.tray import tooltip_text
+
+    assert tooltip_text("tk", 3, 1) == "tk — 3 updates available, 1 new"
+    assert tooltip_text("tk", 3, 0) == "tk — 3 updates available"   # no ", 0 new"
+    assert tooltip_text("tk", 0, 0) == "tk — all current"
+
+
+def test_start_minimized_defaults_off_and_round_trips():
+    from trackerkeeper import tray
+
+    try:
+        assert tray.start_minimized() is False   # a silent first run loses users
+        tray.set_start_minimized(True)
+        assert tray.start_minimized() is True
+    finally:
+        tray.set_start_minimized(False)
+
+
+def test_will_have_tray_is_false_without_a_desktop_tray(qapp):
+    """Offscreen has no tray — the predicate that gates start-in-tray must say
+    so, or the app could launch with neither icon nor window."""
+    from trackerkeeper import tray
+
+    assert tray.will_have_tray() is False

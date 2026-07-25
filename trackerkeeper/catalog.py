@@ -42,10 +42,19 @@ class Item:
                                 # gives one — drives "N hours ago"; "" if day-only
     checked_at: str = ""        # ISO timestamp of the last successful check
     error: str = ""             # last check's error, if any (else "")
+    seen_version: str = ""      # the `latest` you have actually laid eyes on
 
     def has_update(self) -> bool:
         """True when the source found a version you don't have yet."""
         return bool(self.latest) and self.latest != self.installed
+
+    def is_new(self) -> bool:
+        """True when this update is *news* — available AND not yet seen on the
+        dashboard. Distinct from :meth:`has_update`, which stays true forever
+        until you install: an update you looked at last week is still pending,
+        but it isn't new. Persisted, so "new since you last looked" survives a
+        restart — which is the whole point of it."""
+        return self.has_update() and self.latest != self.seen_version
 
     def sort_key(self) -> tuple:
         """Newest-update-first: items WITH an update rank above those without,

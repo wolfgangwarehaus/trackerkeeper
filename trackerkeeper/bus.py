@@ -36,6 +36,11 @@ class AppBus(QObject):
     #                                   trackerkeeper.updates found a newer release; the
     #                                   top-bar UpdateChip listens
 
+    # ── Tracking ──────────────────────────────────────────────────────
+    tracking_prefs_changed = Signal()  # the check interval / tray prefs were edited in
+    #                                    Settings; the live Dashboard re-arms its
+    #                                    heartbeat rather than waiting for a relaunch
+
     # ── System ────────────────────────────────────────────────────────
     hotkeys_changed = Signal()        # global hotkeys reconfigured
     dpr_changed = Signal()            # device-pixel-ratio changed → re-rasterize cached art

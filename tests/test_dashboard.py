@@ -286,3 +286,46 @@ def test_worker_with_only_manual_items_emits_empty(qapp):
     assert worker.wait(5_000)
     qapp.processEvents()
     assert got == [{}]
+
+
+# ── "new since you last looked" ──────────────────────────────────────────────
+
+
+def test_is_new_is_distinct_from_has_update():
+    it = catalog.Item(name="X", installed="1.0", latest="1.1")
+    assert it.has_update() and it.is_new()      # available AND unseen
+    it.seen_version = "1.1"
+    assert it.has_update() and not it.is_new()  # still pending, no longer news
+    it.latest = "1.2"                           # a newer one lands → news again
+    assert it.is_new()
+    it.installed = "1.2"
+    assert not it.has_update() and not it.is_new()
+
+
+def test_seen_state_persists_across_a_reload(qapp):
+    dash = _dash(qapp, [catalog.Item(name="G", kind="github", installed="1.0",
+                                     latest="1.1")])
+    assert dash._items[0].is_new()
+    dash._mark_seen()
+    # the whole point: a restart must not re-shout an update you already saw
+    assert catalog.load()[0].seen_version == "1.1"
+    assert not catalog.load()[0].is_new()
+    assert catalog.load()[0].has_update()      # but it IS still pending
+
+
+def test_hiding_the_window_banks_what_you_saw(qapp):
+    dash = _dash(qapp, [catalog.Item(name="G", kind="github", installed="1.0",
+                                     latest="1.1")])
+    dash.show()                                 # Qt only delivers hideEvent
+    qapp.processEvents()                        # to a widget that was visible
+    dash.hide()
+    qapp.processEvents()
+    assert not dash._items[0].is_new()
+
+
+def test_mark_seen_ignores_items_with_no_update(qapp):
+    dash = _dash(qapp, [catalog.Item(name="G", kind="github", installed="1.0",
+                                     latest="1.0")])
+    dash._mark_seen()
+    # nothing to see → nothing recorded (an empty seen_version stays empty)
+    assert dash._items[0].seen_version == ""

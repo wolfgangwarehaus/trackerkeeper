@@ -383,6 +383,9 @@ class Dashboard(QWidget):
             self._periodic = QTimer(self)
             self._periodic.timeout.connect(self._refresh)
             self.apply_refresh_interval()
+            # Changing the interval in Settings re-arms the timer immediately —
+            # a watchtower shouldn't need a relaunch to change how often it looks.
+            AppBus.get().tracking_prefs_changed.connect(self.apply_refresh_interval)
 
             # The tray presence — a watchtower's resting state. Real displays
             # only (offscreen/CI has no tray), and self-disabling when the
@@ -413,6 +416,26 @@ class Dashboard(QWidget):
         # the last check found hours ago — but only when the data has actually
         # gone stale, so toggling the window isn't a burst of requests.
         self._refresh_if_stale()
+
+    def hideEvent(self, e):  # noqa: N802 (Qt override)
+        super().hideEvent(e)
+        # You've looked — bank it. Marking seen on HIDE rather than on show is
+        # what keeps the NEW badges visible for the whole time the window is
+        # open; marking on show would clear them in the same instant they
+        # appeared, which is the same as never showing them at all.
+        self._mark_seen()
+
+    def _mark_seen(self) -> None:
+        """Record every currently-new update as seen, so the next time this
+        window opens they're pending-but-not-news. Persisted — that's what makes
+        "new since you last looked" survive a restart."""
+        changed = False
+        for item in self._items:
+            if item.is_new():
+                item.seen_version = item.latest
+                changed = True
+        if changed:
+            catalog.save(self._items)
 
     def _refresh_if_stale(self) -> None:
         if self._periodic is None or self._last_refresh is None:
@@ -449,7 +472,9 @@ class Dashboard(QWidget):
 
     def _sync_tray(self) -> None:
         if self._tray is not None and self._tray.available:
-            self._tray.set_update_count(sum(1 for i in self._items if i.has_update()))
+            self._tray.set_update_count(
+                sum(1 for i in self._items if i.has_update()),
+                sum(1 for i in self._items if i.is_new()))
 
     # ── styling helpers ──
     def _chip_button(self, text: str, slot) -> QPushButton:
@@ -624,6 +649,9 @@ class Dashboard(QWidget):
         topline = QLabel(
             (f'<span style="color:{_NEW};">●</span> ' if item.has_update() else "")
             + f'<b style="color:{ui_helpers.TEXT};">{_esc(item.name)}</b>'
+            # NEW marks what arrived since you last had the window open — an
+            # update you've already seen keeps the dot but loses the shout.
+            + (f'  <span style="color:{_NEW};">NEW</span>' if item.is_new() else "")
             + (f'  <span style="color:{ui_helpers.TEXT_DIM};">'
                f'{_esc(item.platform)}</span>' if item.platform else ""))
         topline.setTextFormat(Qt.TextFormat.RichText)

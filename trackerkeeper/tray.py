@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 _KEY_SHOW = "app/show_tray_icon"
 _KEY_CLOSE = "app/close_to_tray"
+_KEY_START_MIN = "app/start_minimized"
 
 
 def _as_bool(val, default: bool) -> bool:
@@ -59,11 +60,35 @@ def set_close_to_tray(v: bool) -> None:
     get_settings()._s.setValue(_KEY_CLOSE, bool(v))
 
 
-def tooltip_text(app_name: str, n_updates: int) -> str:
+def start_minimized() -> bool:
+    """Launch straight to the tray without showing the window — the natural
+    pairing with launch-on-login, so a boot leaves a watching icon rather than a
+    window you have to dismiss. OFF by default: a first run that appears to do
+    nothing is how you lose a user. Only ever honoured when a tray icon is
+    actually live, or the app would start with no way to reach it."""
+    return _as_bool(get_settings()._s.value(_KEY_START_MIN), False)
+
+
+def set_start_minimized(v: bool) -> None:
+    get_settings()._s.setValue(_KEY_START_MIN, bool(v))
+
+
+def will_have_tray() -> bool:
+    """Whether a tray icon will actually exist this session — the desktop
+    supports one AND the user hasn't turned it off. The single predicate for
+    gating tray-dependent behaviour, so "start in the tray" can never strand the
+    app with no icon and no window."""
+    return show_tray_icon() and QSystemTrayIcon.isSystemTrayAvailable()
+
+
+def tooltip_text(app_name: str, n_updates: int, n_new: int = 0) -> str:
     """The hover text: the fleet's headline, no window needed."""
     if n_updates <= 0:
         return f"{app_name} — all current"
-    return f"{app_name} — {n_updates} update{'s' if n_updates != 1 else ''} available"
+    text = f"{app_name} — {n_updates} update{'s' if n_updates != 1 else ''} available"
+    # "…, 1 new" answers the question the tray icon exists to answer: is there
+    # anything in there I haven't already looked at?
+    return f"{text}, {n_new} new" if n_new > 0 else text
 
 
 class AppTray(QObject):
@@ -79,7 +104,7 @@ class AppTray(QObject):
         self._quitting = False
         self._icon: QSystemTrayIcon | None = None
 
-        if not (show_tray_icon() and QSystemTrayIcon.isSystemTrayAvailable()):
+        if not will_have_tray():
             return
 
         from trackerkeeper.ui_helpers import make_app_icon, opaque_menu
@@ -116,10 +141,11 @@ class AppTray(QObject):
         user hasn't turned it off). Everything else no-ops when False."""
         return self._icon is not None
 
-    def set_update_count(self, n: int) -> None:
-        """Reflect the fleet's update total in the tooltip."""
+    def set_update_count(self, n: int, n_new: int = 0) -> None:
+        """Reflect the fleet's update total (and how many are unseen) in the
+        tooltip."""
         if self._icon is not None:
-            self._icon.setToolTip(tooltip_text(self._app_name, n))
+            self._icon.setToolTip(tooltip_text(self._app_name, n, n_new))
 
     def notify(self, title: str, body: str) -> None:
         """A tray balloon — the fallback when the OS notification backend

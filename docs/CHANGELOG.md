@@ -22,6 +22,14 @@ no matching section). See `docs/RELEASING.md`.
 - **Checks run concurrently** (up to 8 at a time) rather than one after another.
   A refresh used to take as long as the *sum* of its sources, and one
   unreachable mirror stalled every item queued behind it.
+- **New since you last looked.** An update that arrives while you're away is
+  now marked `NEW` until you actually open the window, and the state is stored
+  — so a restart doesn't re-shout what you already saw, and it doesn't quietly
+  drop it either. The tray tooltip reports it too ("3 updates available, 1 new").
+- **Settings gained a Tracking section**: how often to check (15 minutes to 12
+  hours, or only when you ask), show the tray icon, close-to-tray, and start in
+  the tray. The interval re-arms live — no relaunch to change how often a
+  watchtower watches.
 
 ### Fixed
 - A changelog URL is now escaped before it reaches the card's rich-text label —

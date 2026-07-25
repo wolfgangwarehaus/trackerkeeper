@@ -392,7 +392,18 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     except Exception:
         pass
 
-    win.show()
+    # "Start in the tray" — pairs with launch-on-login so a boot leaves a
+    # watching icon rather than a window to dismiss. Gated on a tray ACTUALLY
+    # being available: skipping the show without one would launch a process with
+    # no icon and no window, which is indistinguishable from a failed start.
+    from trackerkeeper import tray as _tray_prefs
+
+    if _tray_prefs.start_minimized() and _tray_prefs.will_have_tray():
+        import logging as _logging
+
+        _logging.getLogger(__name__).info("starting in the tray (window not shown)")
+    else:
+        win.show()
 
     # KWin drag-repaint effect — installed AFTER show (off the first-paint path;
     # it only matters once a drag begins). Forces KWin's full-repaint render path

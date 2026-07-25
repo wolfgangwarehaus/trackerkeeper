@@ -36,6 +36,18 @@ _FONT_SIZES = [
     ("Large", "large"),
     ("Largest", "largest"),
 ]
+# How often the fleet is re-checked. Nothing below 15 minutes is offered — every
+# check hits someone else's server (dashboard.MIN_INTERVAL_MIN enforces the same
+# floor on a hand-edited value). 0 means "only when I ask".
+_CHECK_INTERVALS = [
+    ("Every 15 minutes", 15),
+    ("Every 30 minutes", 30),
+    ("Every hour", 60),
+    ("Every 2 hours", 120),
+    ("Every 6 hours", 360),
+    ("Every 12 hours", 720),
+    ("Only when I ask", 0),
+]
 
 
 class SettingsDialog(FrostedDialog):
@@ -129,6 +141,40 @@ class SettingsDialog(FrostedDialog):
             self.language_sel.setFixedWidth(256)
             self.language_sel.currentIndexChanged.connect(self._on_language)
             self.content_layout.addWidget(self.language_sel)
+
+        # ── Tracking: how tracker keeper watches while you're not looking ──
+        # The heartbeat interval and the tray presence. Both take effect live
+        # (AppBus.tracking_prefs_changed) — a watchtower asking for a relaunch
+        # to change how often it watches would be absurd.
+        from trackerkeeper import tray as tray_prefs
+        from trackerkeeper.dashboard import refresh_interval_minutes
+
+        self.content_layout.addWidget(self._label(self.tr("TRACKING")))
+        self.interval_sel = Selector(accessible_name=self.tr("Check for updates every"))
+        for _label_text, _minutes in _CHECK_INTERVALS:
+            self.interval_sel.addItem(self.tr(_label_text), _minutes)
+        self._select(self.interval_sel, refresh_interval_minutes())
+        self.interval_sel.setFixedWidth(256)
+        self.interval_sel.currentIndexChanged.connect(self._on_interval)
+        self.content_layout.addWidget(self.interval_sel)
+
+        self.tray_check = QCheckBox(self.tr("Show tray icon"))
+        self.tray_check.setChecked(tray_prefs.show_tray_icon())
+        self.tray_check.toggled.connect(self._on_show_tray)
+        self.content_layout.addWidget(self.tray_check)
+
+        self.close_tray_check = QCheckBox(self.tr("Closing the window hides it to the tray"))
+        self.close_tray_check.setChecked(tray_prefs.close_to_tray())
+        self.close_tray_check.toggled.connect(self._on_close_to_tray)
+        self.content_layout.addWidget(self.close_tray_check)
+
+        self.start_min_check = QCheckBox(self.tr("Start in the tray"))
+        self.start_min_check.setToolTip(
+            self.tr("Launch straight to the tray, without opening the window"))
+        self.start_min_check.setChecked(tray_prefs.start_minimized())
+        self.start_min_check.toggled.connect(self._on_start_minimized)
+        self.content_layout.addWidget(self.start_min_check)
+        self._sync_tray_dependents()
 
         # Launch on login — only offered when a platform backend can actually
         # fulfil it (XDG autostart / Run key / StartupTask / LaunchAgent). The
@@ -285,6 +331,39 @@ class SettingsDialog(FrostedDialog):
 
     def _on_check_updates(self, on: bool) -> None:
         self.s.check_for_updates = bool(on)
+
+    # ── Tracking ────────────────────────────────────────────────────────────
+    def _on_interval(self, _idx: int) -> None:
+        from trackerkeeper.dashboard import set_refresh_interval_minutes
+
+        set_refresh_interval_minutes(int(self.interval_sel.currentData()))
+        AppBus.get().tracking_prefs_changed.emit()   # the Dashboard re-arms live
+
+    def _on_show_tray(self, on: bool) -> None:
+        from trackerkeeper import tray as tray_prefs
+
+        tray_prefs.set_show_tray_icon(bool(on))
+        self._sync_tray_dependents()
+        # The icon itself is created once at startup, so removing/adding it is
+        # the one tracking pref that genuinely needs a relaunch.
+        self._restart_note.setText(self.tr("The tray icon changes after a restart."))
+
+    def _on_close_to_tray(self, on: bool) -> None:
+        from trackerkeeper import tray as tray_prefs
+
+        tray_prefs.set_close_to_tray(bool(on))
+
+    def _on_start_minimized(self, on: bool) -> None:
+        from trackerkeeper import tray as tray_prefs
+
+        tray_prefs.set_start_minimized(bool(on))
+
+    def _sync_tray_dependents(self) -> None:
+        """Close-to-tray and start-in-tray are meaningless without an icon —
+        a window that hid to a tray that isn't there would be unreachable."""
+        on = self.tray_check.isChecked()
+        self.close_tray_check.setEnabled(on)
+        self.start_min_check.setEnabled(on)
 
     def _on_copy_diagnostics(self) -> None:
         from trackerkeeper import diagnostics
