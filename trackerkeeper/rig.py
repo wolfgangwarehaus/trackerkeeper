@@ -72,6 +72,34 @@ def _launch_app(extra_env: dict | None = None) -> subprocess.Popen:
     )
 
 
+def _already_running(proc: subprocess.Popen, settle: float = 2.0) -> bool:
+    """True when THIS launch was refused because an instance is already up.
+
+    The rig launches the app as a subprocess and observes it. Single-instance
+    means a second launch forwards its argv to the running copy and exits
+    immediately — so the rig sits there measuring a process that is already
+    gone, and reports "the window never appeared" or "capture failed". Both are
+    true and neither is the actual problem.
+
+    Detected via the app's own behaviour rather than a pgrep or a socket probe:
+    a launch that exits within a couple of seconds was refused. A real launch is
+    still on screen."""
+    deadline = time.monotonic() + settle
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def _decline_because_running(verb: str) -> int:
+    print(f"{verb}: an instance of {_PKG} is already running — close it first.\n"
+          f"       This launches its own copy to observe; single-instance hands "
+          f"the second one\n       straight back to the first, so there is "
+          f"nothing here to measure.")
+    return 2
+
+
 def _kwin_windows(qdbus: str) -> list[str]:
     """Load a one-shot KWin script that prints every window's class/caption/
     noBorder, run it, and read the lines back from the user journal."""
@@ -148,8 +176,10 @@ def cmd_probe() -> int:
 
     # ── Wayland leg ──────────────────────────────────────────────────────
     proc = _launch_app()
+    if _already_running(proc):
+        return _decline_because_running("probe")
     try:
-        time.sleep(4)
+        time.sleep(2)
         lines = [ln for ln in _kwin_windows(qdbus) if f"class={want_id} " in ln
                  or f"class={slug} " in ln]
     finally:
@@ -198,8 +228,10 @@ def cmd_shot(out: str | None) -> int:
         return 2
     dest = out or f"{_PKG}-rig-shot.png"
     proc = _launch_app()
+    if _already_running(proc):
+        return _decline_because_running("shot")
     try:
-        time.sleep(4)
+        time.sleep(2)
         r = subprocess.run(["spectacle", "-abn", "-o", dest], capture_output=True)
     finally:
         proc.terminate()

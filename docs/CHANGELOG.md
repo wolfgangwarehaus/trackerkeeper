@@ -11,6 +11,22 @@ no matching section). See `docs/RELEASING.md`.
 
 ## [Unreleased]
 
+### Changed
+- **A checker is declared once.** Adding a source used to mean editing six
+  places across four files, with nothing keeping them in step — a missing label
+  was a `KeyError` the moment the Add dialog opened, and a missing validation
+  arm silently accepted a handle that would never resolve. There's now one
+  `Source` record per checker and everything derives from it.
+
+### Fixed
+- `rig probe` / `rig shot` no longer fail opaquely when the app is already
+  running. Both launch their own copy to observe; single-instance hands the
+  second launch back to the first, so they were measuring a process that had
+  already exited and reporting "the window never appeared". They now say so and
+  tell you to close it.
+- The changelog is linted by the test suite, because `release.yml` lifts it
+  verbatim into the release notes and nothing else reads it until it ships.
+
 ## [0.1.2] — 2026-07-26
 
 The looks pass. tracker keeper stops wearing dough's placeholder, learns to tell
