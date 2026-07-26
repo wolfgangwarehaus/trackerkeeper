@@ -11,76 +11,78 @@ no matching section). See `docs/RELEASING.md`.
 
 ## [Unreleased]
 
-### Changed
-- **The app name now reads in full at every width.** The title steps down the
-  type ladder as the bar tightens (subhead → body → caption) instead of eliding
-  to `trac…`, and the update badge shortens with it — `· 3 updates available`,
-  then `· 3 new`, then just `· 3`, since at 300px the app's own name is worth
-  more of the bar than two extra words. The only case that still elides is the
-  300px floor with a two-digit count.
-- **Category sections actually read as sections.** A dim caps label over a flat
-  run of cards left the groups blending into one list. The header is now
-  brighter and carries a hairline rule, the cards step in beneath it, and
-  sections are separated by a gap. (Cards don't indent at the narrow tier —
-  there, every pixel is already spoken for.)
+## [0.1.2] — 2026-07-26
 
-### Fixed
-- **The app is legible at its minimum width now.** At 300px the fleet list was
-  unusable: names chopped to `Stea` / `Game` / `Slay`, versions to `202607`, the
-  age column showing `hours ago` with the number cut off the front, and the
-  window title reading `tracker keepeı`. Four causes, all fixed —
-  `QLabel` clips instead of eliding (there's now a shared
-  `ui_helpers.ElidedLabel` that ends in `…`); the name shared one rich-text
-  label with the platform tag, so it was the part that disappeared; the
-  full-text *changelog →* and *mark updated* buttons cost ~175px of a 430px row
-  and are now a `→` and a `✓` below the widest tier; and the age column gets
-  compact forms (`13h`, `4d`, `2w`, `3mo`) that fit whole, with the full phrase
-  on hover.
-- **An empty update badge no longer reserves space.** Its width floor was
-  computed once per layout tier from whatever text happened to be there, so a
-  badge that later emptied out (everything current) kept holding ~59px — and the
-  title paid for it, eliding to `trac…` beside an invisible label occupying a
-  sixth of the bar.
-
-### Changed
-- **The fleet list has a foreground now.** A card had two states — pending or
-  not — so a month-old update looked exactly like one from an hour ago, and nine
-  rows all wore the same green. Now there are three:
-  **fresh** (an update inside a week) leads with a full-white name and the accent
-  on the dot, the new build and the changelog link; **pending but older** keeps
-  its dot and its *mark updated* button — it's still yours to install — but eases
-  back to neutral text; **current** sits quietest of all.
-- **One accent, not two near-identical greens.** The "new" colour (`#56c48d`)
-  sat a few points off the accent (`#2fbe8a`) while meaning something different,
-  which read as a printing error rather than a distinction. The accent is now the
-  single colour that means *live news*, and card tints are derived from whatever
-  accent is active rather than a frozen hex — so picking a different accent
-  recolours the list properly.
+The looks pass. tracker keeper stops wearing dough's placeholder, learns to tell
+you *what* changed rather than only *that* something did, and becomes usable at
+the 300px width it always advertised.
 
 ### Added
-- **A real logo, and a brand accent to match.** tracker keeper shipped its first
-  two releases wearing dough's placeholder blob. The mark is now a refresh wheel
-  closing on a check — the ring is the update cycle, the check is "you're
-  current" — with the gap and arrowhead in the bottom-right, the one quadrant
-  the check's diagonal never crosses. One accent throughout, because a two-tone
-  draft put a near-white check on the ring that vanished on light backgrounds.
-  The default accent moves from dough's violet to the brand green `#2fbe8a`
-  (already the "Green" preset), so a fresh profile's chrome matches its own icon.
+- **A real logo, and a brand accent to match.** The first two releases shipped
+  wearing dough's placeholder blob. The mark is a refresh wheel closing on a
+  check — the ring is the update cycle, the check is "you're current" — with the
+  gap and arrowhead in the bottom-right, the one quadrant the check's diagonal
+  never crosses. One accent throughout, because a two-tone draft put a
+  near-white check on the ring that vanished on light backgrounds. The default
+  accent moves from dough's violet to the brand green `#2fbe8a` (already the
+  "Green" preset), so a fresh profile's chrome matches its own icon.
 - **Per-item detail.** Click any card to see what actually changed — the release
   notes the checkers were already fetching and throwing away. GitHub's release
   body, Steam's announcement, the App Store's "What's New", Flathub's release
-  description, and any RSS entry's body all land here, normalised to plain text.
+  description and any RSS entry's body all land here, normalised to plain text.
   A source that structurally can't carry notes (a package index, an ISO mirror)
   says so rather than showing an empty box.
-  Notes render as **plain text, never rich text**: the body is written by a third
-  party, and handing arbitrary remote HTML to a Qt rich-text widget would pull in
-  remote images and let a stranger control the markup. The changelog link still
-  goes to the fully formatted original.
+
+  Notes render as **plain text, never rich text**: the body is written by a
+  third party, and handing arbitrary remote HTML to a Qt rich-text widget would
+  pull in remote images and let a stranger control the markup. The changelog
+  link still goes to the fully formatted original.
+
+### Changed
+- **The fleet list has a foreground.** A card had two states — pending or not —
+  so a month-old update looked exactly like one from an hour ago, and every row
+  wore the same green. Now there are three: **fresh** (an update inside a week)
+  leads with a full-white name and the accent on the dot, the new build and the
+  changelog link; **pending but older** keeps its dot and its *mark updated*
+  button — it's still yours to install — but eases back to neutral; **current**
+  sits quietest of all.
+- **One accent, not two near-identical greens.** The "new" colour (`#56c48d`)
+  sat a few points off the accent (`#2fbe8a`) while meaning something different,
+  which read as a printing error rather than a distinction. The accent is now
+  the single colour meaning *live news*, and card tints derive from whatever
+  accent is active rather than a frozen hex — so picking another accent
+  recolours the list properly.
+- **Category sections read as sections.** A dim caps label over a flat run of
+  cards left the groups blending into one list. The header is brighter and
+  carries a hairline rule, the cards step in beneath it, and sections are
+  separated by a gap.
+- **The app name reads in full at every width.** The title steps down the type
+  ladder as the bar tightens (subhead → body → caption) instead of eliding, and
+  the update badge shortens with it — `· 3 updates available`, then `· 3 new`,
+  then just `· 3`. At 300px the app's own name is worth more of that row than
+  two extra words.
 
 ### Fixed
+- **The app is legible at its minimum width.** At 300px the fleet list was
+  unusable: names chopped to `Stea` / `Game` / `Slay`, versions to `202607`, the
+  age column showing `hours ago` with the number cut off the front, and the title
+  reading `tracker keepeı`. Four causes: `QLabel` clips instead of eliding (there
+  is now a shared `ui_helpers.ElidedLabel`); the name shared one rich-text label
+  with the platform tag, so the name was what disappeared; the full-text
+  *changelog →* and *mark updated* buttons cost ~175px of a 430px row and are now
+  a `→` and a `✓` below the widest tier; and the age column gets compact forms
+  (`13h`, `4d`, `2w`, `3mo`) that fit whole, with the full phrase on hover.
+- **An empty update badge no longer reserves space.** Its width floor was
+  computed once per layout tier from whatever text happened to be there, so a
+  badge that later emptied out kept holding ~59px — and the title paid for it,
+  eliding beside an invisible label occupying a sixth of the bar.
 - The Steam checker asked for `maxlength=1`, truncating every announcement body
   to a single character — invisible while only the title was read, and exactly
   what the detail view needed.
+- **The visual baseline was guarding a screen users never see.** The rig grabbed
+  dough's placeholder canvas rather than the app's own first screen, so the
+  golden would have passed through any dashboard regression. Fixed upstream in
+  dough, so every app built from it gets a baseline that tracks its real UI.
 
 ## [0.1.1] — 2026-07-25
 
