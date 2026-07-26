@@ -15,7 +15,7 @@ the hamburger menu. See :class:`~trackerkeeper.dashboard.Dashboard`.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel
+from PySide6.QtWidgets import QHBoxLayout
 
 from trackerkeeper import ui_helpers
 from trackerkeeper.bus import AppBus
@@ -51,8 +51,13 @@ class TopBar(ui_helpers.CenteredBar):
         lay.addWidget(self.settings_btn)
 
         # ── title, then a slot right after it for an app badge (update count) ──
-        self.title = QLabel(title)
-        lay.addWidget(self.title)
+        # An ELIDING label: at the app's minimum width the title used to clip
+        # mid-glyph ("tracker keepeı") and shove the update badge off the bar —
+        # the one item on that row you can't infer just by looking at the
+        # window. The floor keeps it from vanishing altogether.
+        self.title = ui_helpers.ElidedLabel(title)
+        self.title.setMinimumWidth(48)
+        lay.addWidget(self.title, 0)
         self._title_slot = QHBoxLayout()
         self._title_slot.setContentsMargins(4, 0, 0, 0)
         self._title_slot.setSpacing(6)
@@ -133,6 +138,10 @@ class TopBar(ui_helpers.CenteredBar):
             btn = getattr(self, attr, None)
             if btn is not None:
                 btn.setIcon(icon(name))
+
+    def set_title(self, title: str) -> None:
+        """Change the bar's title (stays elidable)."""
+        self.title.setText(title)
 
     def _toggle_max(self) -> None:
         w = self._window

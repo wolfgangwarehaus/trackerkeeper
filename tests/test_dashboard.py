@@ -418,3 +418,66 @@ def test_card_tint_follows_the_live_accent(qapp):
     assert _rgba("", 0.5).startswith("rgba(255,255,255")   # malformed → safe neutral
     r, g, b = (int(ui_helpers.ACCENT.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
     assert f"rgba({r},{g},{b}," in _card_qss(True)
+
+
+# ── legibility at the minimum width ──────────────────────────────────────────
+
+
+def test_elided_label_shortens_with_an_ellipsis_not_a_chop(qapp):
+    from trackerkeeper.ui_helpers import ElidedLabel
+
+    lab = ElidedLabel("SteamOS (Armada)")
+    lab.show()          # Qt defers resize events for hidden widgets
+    lab.resize(40, 20)
+    assert lab.text() != "SteamOS (Armada)"
+    assert lab.text().endswith("…")          # not "Stea"
+    assert lab.full_text() == "SteamOS (Armada)"
+    lab.resize(400, 20)
+    assert lab.text() == "SteamOS (Armada)"  # room again → whole string back
+
+
+def test_elided_label_sizehint_reports_the_FULL_text(qapp):
+    """The feedback loop that made a title read "trac…" on a roomy bar: eliding
+    shrinks QLabel's own sizeHint, so the layout hands it less, so it elides
+    harder. The hint has to describe the full string."""
+    from trackerkeeper.ui_helpers import ElidedLabel
+
+    lab = ElidedLabel("a very long application title indeed")
+    lab.show()
+    wide = lab.sizeHint().width()
+    lab.resize(30, 20)                       # force a hard elide
+    assert lab.text().endswith("…")
+    assert lab.sizeHint().width() == wide    # unchanged by what's painted
+
+
+def test_elided_label_minimum_does_not_grow_with_its_text(qapp):
+    """QLabel's default minimumSizeHint tracks the text and would put a floor
+    under the whole row — the reason a long name could block the resize."""
+    from trackerkeeper.ui_helpers import ElidedLabel
+
+    short, long = ElidedLabel("hi"), ElidedLabel("x" * 400)
+    assert long.minimumSizeHint().width() == short.minimumSizeHint().width()
+
+
+def test_short_age_keeps_the_number(qapp):
+    """The narrow tier rendered the full phrase into a 62px box, which cut the
+    NUMBER off and left "hours ago" — the half carrying no information."""
+    from datetime import datetime, timedelta, timezone
+
+    from trackerkeeper.dashboard import humanize_age_short
+
+    now = datetime(2026, 7, 26, 12, tzinfo=timezone.utc)
+
+    def ago(**kw):
+        return (now - timedelta(**kw)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    assert humanize_age_short(ago(minutes=30), now) == "30m"
+    assert humanize_age_short(ago(hours=13), now) == "13h"
+    assert humanize_age_short(ago(days=4), now) == "4d"
+    assert humanize_age_short(ago(days=21), now) == "3w"
+    assert humanize_age_short(ago(days=90), now) == "3mo"
+    assert humanize_age_short(ago(days=800), now) == "2y"
+    assert humanize_age_short("", now) == ""
+    # every form stays inside the narrow column's budget
+    for v in ("30m", "13h", "4d", "3w", "3mo", "2y"):
+        assert len(v) <= 3

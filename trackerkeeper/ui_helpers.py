@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QScrollBar,
+    QSizePolicy,
     QSlider,
     QStyle,
     QStyleOptionSlider,
@@ -2275,6 +2276,76 @@ def frost_scroll_surface(area) -> None:
     area.setPalette(palette)
     if viewport is not None:
         viewport.setPalette(palette)
+
+
+class ElidedLabel(QLabel):
+    """A QLabel that ends in "…" instead of being chopped mid-glyph.
+
+    QLabel has no elide mode: give it less room than its text and it simply
+    clips, so a narrow window turns names into stubs ("SteamOS (Armada)" →
+    "Stea") and a title into a broken glyph ("tracker keepeı").
+
+    It elides in its OWN ``resizeEvent``, which is the load-bearing detail —
+    eliding from a parent's resize handler reads this widget's width *before*
+    Qt has laid it out, so the text is measured against a stale (larger) width
+    and paints over its neighbours.
+
+    Horizontally it is **Preferred with an explicit minimum**: it asks for its
+    natural width, shrinks toward the minimum when the row is tight, and elides
+    to fit whatever it ends up with. (``Ignored`` is the tempting choice — the
+    label stops pinning a floor under the row — but a widget with no width
+    preference is handed its *minimum* even when the window is enormous, so the
+    title elided at 700px with half the bar empty.) Callers that want the label
+    to soak up leftover space add it with a layout stretch; callers that need it
+    never to vanish raise ``setMinimumWidth``."""
+
+    def __init__(self, text: str = "", parent=None) -> None:
+        super().__init__(parent)
+        self._full = text
+        self.setMinimumWidth(1)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        self._restamp()
+
+    def setText(self, text: str) -> None:  # noqa: N802 (Qt override)
+        self._full = text
+        self._restamp()
+
+    def full_text(self) -> str:
+        """The un-elided string, whatever is currently painted."""
+        return self._full
+
+    def resizeEvent(self, e):  # noqa: N802 (Qt override)
+        super().resizeEvent(e)
+        self._restamp()
+
+    def sizeHint(self):  # noqa: N802 (Qt override)
+        """The width of the FULL string, never the elided one.
+
+        Without this the label eats itself: eliding shortens the painted text,
+        which shrinks QLabel's own sizeHint, so the layout hands it even less
+        room on the next pass, so it elides harder. The title sat at "trac…" on
+        a 430px bar with space to spare. Reporting the full width keeps the
+        request honest — the layout shrinks it only under real pressure."""
+        from PySide6.QtCore import QSize
+
+        return QSize(self.fontMetrics().horizontalAdvance(self._full) + 2,
+                     super().sizeHint().height())
+
+    def minimumSizeHint(self):  # noqa: N802 (Qt override)
+        """Pinned to the explicit minimum — QLabel's default grows with the text
+        and would put a floor under the whole row."""
+        from PySide6.QtCore import QSize
+
+        return QSize(self.minimumWidth(), super().minimumSizeHint().height())
+
+    def _restamp(self) -> None:
+        avail = max(0, self.width())
+        if not avail:
+            QLabel.setText(self, self._full)
+            return
+        fm = self.fontMetrics()
+        QLabel.setText(self, fm.elidedText(self._full, Qt.TextElideMode.ElideRight,
+                                           avail))
 
 
 class CenteredBar(QWidget):

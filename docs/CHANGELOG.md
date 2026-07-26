@@ -11,6 +11,23 @@ no matching section). See `docs/RELEASING.md`.
 
 ## [Unreleased]
 
+### Fixed
+- **The app is legible at its minimum width now.** At 300px the fleet list was
+  unusable: names chopped to `Stea` / `Game` / `Slay`, versions to `202607`, the
+  age column showing `hours ago` with the number cut off the front, and the
+  window title reading `tracker keepeı`. Four causes, all fixed —
+  `QLabel` clips instead of eliding (there's now a shared
+  `ui_helpers.ElidedLabel` that ends in `…`); the name shared one rich-text
+  label with the platform tag, so it was the part that disappeared; the
+  full-text *changelog →* and *mark updated* buttons cost ~175px of a 430px row
+  and are now a `→` and a `✓` below the widest tier; and the age column gets
+  compact forms (`13h`, `4d`, `2w`, `3mo`) that fit whole, with the full phrase
+  on hover.
+- **The top-bar title yields to the update count** instead of the reverse. Both
+  used to shrink together, so a narrow window showed a clipped title *and* a
+  clipped badge — and the count is the only thing on that row you can't work out
+  by looking at the window.
+
 ### Changed
 - **The fleet list has a foreground now.** A card had two states — pending or
   not — so a month-old update looked exactly like one from an hour ago, and nine

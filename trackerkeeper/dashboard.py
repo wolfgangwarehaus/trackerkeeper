@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -277,6 +278,39 @@ def _bucket_days(days: int) -> str:
         return f"{m} month{'s' if m != 1 else ''} ago"
     y = days // 365
     return f"{y} year{'s' if y != 1 else ''} ago"
+
+
+def humanize_age_short(iso: str, now=None) -> str:
+    """The age as 2–3 characters: ``9h``, ``4d``, ``2w``, ``3mo``, ``1y``.
+
+    The narrow tier used to render the full phrase into a 62px box, which cut
+    the NUMBER off the front and left "hours ago" — the one part carrying no
+    information. Short forms fit whole."""
+    iso = (iso or "").strip()
+    if not iso:
+        return ""
+    from datetime import datetime, timezone
+
+    then = _parse_iso(iso)
+    if then is None:
+        return ""
+    now = now or datetime.now(timezone.utc)
+    sec = max(0, (now - then).total_seconds())
+    if "T" in iso:
+        if sec < 3600:
+            return "now" if sec < 60 else f"{int(sec // 60)}m"
+        if sec < 86400:
+            return f"{int(sec // 3600)}h"
+    days = (now.date() - then.date()).days
+    if days <= 0:
+        return "today"
+    if days < 7:
+        return f"{days}d"
+    if days < 30:
+        return f"{days // 7}w"
+    if days < 365:
+        return f"{days // 30}mo"
+    return f"{days // 365}y"
 
 
 def humanize_age(iso: str, now=None) -> str:
@@ -556,7 +590,11 @@ class Dashboard(QWidget):
         self._add_btn.setVisible(wide)          # menu keeps it below wide
         self._refresh_btn.setVisible(not narrow)
         self._refresh_btn.setText("Check for updates" if wide else "Check")
-        self._count.setMinimumWidth(1)          # the badge clips before the buttons do
+        # The badge holds its full width and the TITLE gives way instead. Both
+        # were Preferred and shrank together, so a 300px bar showed "tracker
+        # ke…" beside a clipped "· 3" — and of the two, the count is the only
+        # thing on that row you can't work out by looking at the window.
+        self._count.setMinimumWidth(self._count.sizeHint().width())
 
     def _sync_tray(self) -> None:
         if self._tray is not None and self._tray.available:
@@ -578,7 +616,6 @@ class Dashboard(QWidget):
         # Never let the top bar squeeze a label into a sliver ("Add…" → "dd."):
         # the button holds its text width and the tier rules decide whether it's
         # shown at all.
-        from PySide6.QtWidgets import QSizePolicy
 
         b.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         b.clicked.connect(slot)
@@ -741,35 +778,52 @@ class Dashboard(QWidget):
         # left: name + platform + versions
         left = QVBoxLayout()
         left.setSpacing(1)
+        # The name line is a ROW of separate labels rather than one rich-text
+        # label, so the name alone can elide while the dot, the NEW badge and
+        # the platform tag keep their size. As one label, Qt clipped the whole
+        # string at the frame edge and the name — the only part you navigate
+        # by — was what disappeared.
+        topline = QWidget()
+        top_row = QHBoxLayout(topline)
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(5)
         # The dot marks "you have something to install" either way — a pending
         # update must never become invisible just because it got old — but it
         # only carries the accent while the news is fresh.
-        dot = (f'<span style="color:{accent if fresh else _TEXT_PAST_DIM};">●</span> '
-               if item.has_update() else "")
-        topline = QLabel(
-            dot
-            + f'<b style="color:{name_colour};">{_esc(item.name)}</b>'
-            # NEW marks what arrived since you last had the window open — an
-            # update you've already seen keeps the dot but loses the shout.
-            # It follows FRESHNESS for colour: if you've been away a month, a
-            # three-week-old release is still news to you and still says NEW,
-            # but it has no business shouting in accent next to this morning's.
-            + (f'  <span style="color:{accent if fresh else _TEXT_PAST_DIM};">NEW</span>'
-               if item.is_new() else "")
-            + (f'  <span style="color:{ui_helpers.TEXT_DIM};">'
-               f'{_esc(item.platform)}</span>' if item.platform else ""))
-        topline.setTextFormat(Qt.TextFormat.RichText)
+        if item.has_update():
+            dot = QLabel("●")
+            dot.setStyleSheet(f"color:{accent if fresh else _TEXT_PAST_DIM};"
+                              + type_qss(TYPE_CAPTION))
+            top_row.addWidget(dot, 0)
+        name = ui_helpers.ElidedLabel(item.name)
         # One tier down from body — the list scans denser, and because these are
         # tokens (not literal px) the Settings font-scale still applies.
-        topline.setStyleSheet(type_qss(TYPE_CAPTION))
-        # A label's size hint is its full text width, which would pin a floor on
-        # how narrow the window can go — let both text lines shrink (and clip)
-        # instead of blocking the resize.
-        topline.setMinimumWidth(1)
+        name.setStyleSheet(f"color:{name_colour};font-weight:700;"
+                           + type_qss(TYPE_CAPTION))
+        # A floor. Ignored size policy means the name yields space to every
+        # fixed sibling, which at the medium tier squeezed it to NOTHING — the
+        # card showed a platform tag and no name at all. It may elide; it may
+        # not vanish.
+        name.setMinimumWidth(64)
+        top_row.addWidget(name, 1)
+        # NEW marks what arrived since you last had the window open — an
+        # update you've already seen keeps the dot but loses the shout.
+        # It follows FRESHNESS for colour: if you've been away a month, a
+        # three-week-old release is still news to you and still says NEW,
+        # but it has no business shouting in accent next to this morning's.
+        if item.is_new():
+            badge = QLabel("NEW")
+            badge.setStyleSheet(f"color:{accent if fresh else _TEXT_PAST_DIM};"
+                                + type_qss(TYPE_CAPTION))
+            top_row.addWidget(badge, 0)
+        # The platform tag is a hint, and the name it was crowding is not — so
+        # it only appears at the widest tier, alongside the channel column.
+        if item.platform and self._tier == TIER_WIDE:
+            plat = QLabel(item.platform)
+            plat.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_CAPTION))
+            top_row.addWidget(plat, 0)
         left.addWidget(topline)
-        version = self._version_line(item)
-        version.setMinimumWidth(1)
-        left.addWidget(version)
+        left.addWidget(self._version_row(item, fresh, narrow))
         if item.error:
             err = QLabel(error_text(item.error))
             err.setStyleSheet("color:#c98a2b;" + type_qss(TYPE_TINY))
@@ -785,8 +839,11 @@ class Dashboard(QWidget):
             chan.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             chan.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_TINY))
             outer.addWidget(chan)
-        age = QLabel(humanize_age(item.latest_at or item.latest_date))
-        age.setFixedWidth(62 if self._tier == TIER_NARROW else 80)
+        stamp = item.latest_at or item.latest_date
+        age = QLabel(humanize_age_short(stamp) if narrow else humanize_age(stamp))
+        if narrow:
+            age.setToolTip(humanize_age(stamp))   # the full phrase on hover
+        age.setFixedWidth(34 if narrow else 80)
         age.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         age.setStyleSheet("color:#8a8a8a;" + type_qss(TYPE_TINY))
         outer.addWidget(age)
@@ -794,7 +851,11 @@ class Dashboard(QWidget):
         # right: changelog + actions ("changelog →" collapses to the arrow when
         # every pixel counts — the tooltip keeps it discoverable)
         if item.changelog_url or item.latest_url:
-            text = "→" if self._tier == TIER_NARROW else "changelog →"
+            # Full labels only at the WIDE tier. At 430px "changelog →" plus
+            # "mark updated" cost ~175px of the row, which is why the NAME was
+            # eliding to "SteamOS…" — the labels were being paid for out of the
+            # one column that matters. Tooltips carry the meaning either way.
+            text = "changelog →" if self._tier == TIER_WIDE else "→"
             # Escape the URL: it's user-entered (the Add/Edit dialog), and an
             # unescaped quote would close the href and let the rest of the string
             # become markup in a rich-text label.
@@ -811,29 +872,51 @@ class Dashboard(QWidget):
             link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
             outer.addWidget(link)
         if item.has_update():
-            mark = self._mini("mark updated", lambda: self._mark_updated(item))
+            # "mark updated" is ~90px of button on a 300px window — it was
+            # taking the room the name needed. A tick says the same thing.
+            mark = self._mini("mark updated" if self._tier == TIER_WIDE else "✓",
+                              lambda: self._mark_updated(item))
+            mark.setToolTip(f"Mark {item.name} as updated to {item.latest}")
             outer.addWidget(mark)
         outer.addWidget(self._mini("⋯", lambda: self._edit_item(item)))
         return card
 
-    def _version_line(self, item: catalog.Item) -> QLabel:
-        inst = item.installed or "—"
+    def _version_row(self, item: catalog.Item, fresh: bool, narrow: bool) -> QWidget:
+        """The version line as a row of labels, so the BUILD you'd move to keeps
+        its colour and its room while the version you already have gives way."""
+        row = QWidget()
+        lay = QHBoxLayout(row)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(5)
         if item.has_update():
             # The BUILD you'd move to is the one number worth colouring — but
             # only while it's news. Past that it's just a fact, in plain text.
-            new_colour = ui_helpers.ACCENT if is_fresh(item) else _TEXT_PAST
-            body = (f'<span style="color:{ui_helpers.TEXT_DIM};">{_esc(inst)}</span>'
-                    f'  <span style="color:{ui_helpers.TEXT_DIM};">→</span>  '
-                    f'<b style="color:{new_colour};">{_esc(item.latest)}</b>')
-        elif item.latest:
-            body = (f'<span style="color:{_TEXT_PAST_DIM};">{_esc(item.latest)} '
-                    f'· current</span>')
+            new_colour = ui_helpers.ACCENT if fresh else _TEXT_PAST
+            # At the narrow tier the version you HAVE is dropped entirely. Two
+            # versions and an arrow in ~180px produced "202607" and "0.109." —
+            # both unreadable. The one that matters is where you're going; the
+            # detail view still shows the full before/after.
+            if not narrow:
+                have = ui_helpers.ElidedLabel(item.installed or "—")
+                have.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};"
+                                   + type_qss(TYPE_CAPTION))
+                arrow = QLabel("→")
+                arrow.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};"
+                                    + type_qss(TYPE_CAPTION))
+                lay.addWidget(have, 1)
+                lay.addWidget(arrow, 0)
+            want = ui_helpers.ElidedLabel(item.latest)
+            want.setStyleSheet(f"color:{new_colour};font-weight:700;"
+                               + type_qss(TYPE_CAPTION))
+            lay.addWidget(want, 0 if not narrow else 1)
+            if not narrow:
+                lay.addStretch(1)
         else:
-            body = f'<span style="color:{_TEXT_PAST_DIM};">{_esc(inst)}</span>'
-        lab = QLabel(body)
-        lab.setTextFormat(Qt.TextFormat.RichText)
-        lab.setStyleSheet(type_qss(TYPE_CAPTION))
-        return lab
+            text = f"{item.latest} · current" if item.latest else (item.installed or "—")
+            lab = ui_helpers.ElidedLabel(text)
+            lab.setStyleSheet(f"color:{_TEXT_PAST_DIM};" + type_qss(TYPE_CAPTION))
+            lay.addWidget(lab, 1)
+        return row
 
     def _mini(self, text: str, slot) -> QPushButton:
         b = QPushButton(text)
