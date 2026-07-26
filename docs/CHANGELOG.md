@@ -12,6 +12,12 @@ no matching section). See `docs/RELEASING.md`.
 ## [Unreleased]
 
 ### Changed
+- **The app name now reads in full at every width.** The title steps down the
+  type ladder as the bar tightens (subhead → body → caption) instead of eliding
+  to `trac…`, and the update badge shortens with it — `· 3 updates available`,
+  then `· 3 new`, then just `· 3`, since at 300px the app's own name is worth
+  more of the bar than two extra words. The only case that still elides is the
+  300px floor with a two-digit count.
 - **Category sections actually read as sections.** A dim caps label over a flat
   run of cards left the groups blending into one list. The header is now
   brighter and carries a hairline rule, the cards step in beneath it, and
@@ -30,10 +36,11 @@ no matching section). See `docs/RELEASING.md`.
   and are now a `→` and a `✓` below the widest tier; and the age column gets
   compact forms (`13h`, `4d`, `2w`, `3mo`) that fit whole, with the full phrase
   on hover.
-- **The top-bar title yields to the update count** instead of the reverse. Both
-  used to shrink together, so a narrow window showed a clipped title *and* a
-  clipped badge — and the count is the only thing on that row you can't work out
-  by looking at the window.
+- **An empty update badge no longer reserves space.** Its width floor was
+  computed once per layout tier from whatever text happened to be there, so a
+  badge that later emptied out (everything current) kept holding ~59px — and the
+  title paid for it, eliding to `trac…` beside an invisible label occupying a
+  sixth of the bar.
 
 ### Changed
 - **The fleet list has a foreground now.** A card had two states — pending or

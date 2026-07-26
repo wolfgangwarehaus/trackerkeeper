@@ -526,3 +526,47 @@ def test_sections_are_separated_by_a_gap(qapp):
         assert spacers == 2      # the inter-section gap + the trailing stretch
     finally:
         save_collapsed(set())
+
+
+def test_an_empty_badge_reserves_no_width(qapp):
+    """The bug that elided the title to "trac…" on a 360px bar: the count's
+    width floor was computed once per tier from whatever text was there, so a
+    badge that later emptied out kept holding ~59px of the row."""
+    dash = _dash(qapp, [catalog.Item(name="A", kind="github", installed="1", latest="1")])
+    dash._render()
+    assert dash._count.text().strip() in ("", "· all current")
+    assert dash._count.minimumWidth() == 0
+
+
+def test_the_badge_gets_shorter_as_the_bar_tightens(qapp):
+    from trackerkeeper.dashboard import TIER_MEDIUM, TIER_NARROW, TIER_WIDE
+
+    dash = _dash(qapp, [catalog.Item(name="A", kind="github", installed="1", latest="2")])
+    seen = {}
+    for tier in (TIER_NARROW, TIER_MEDIUM, TIER_WIDE):
+        dash._tier = tier
+        dash._render()
+        seen[tier] = dash._count.text()
+    assert seen[TIER_NARROW] == "· 1"                 # just the number
+    assert "new" in seen[TIER_MEDIUM]
+    assert "available" in seen[TIER_WIDE]
+    # strictly shorter as it narrows — the app's name gets the difference
+    assert (len(seen[TIER_NARROW]) < len(seen[TIER_MEDIUM])
+            < len(seen[TIER_WIDE]))
+
+
+def test_the_app_name_fits_at_the_minimum_width(qapp):
+    """The whole point: "tracker keeper" must READ at 300px, not elide."""
+    from trackerkeeper.dashboard import MIN_SIZE, Dashboard
+    from trackerkeeper.window import AppWindow
+
+    catalog.save([catalog.Item(name=f"item {n}", kind="github", installed="1",
+                               latest="1", latest_date="2026-07-01") for n in range(6)])
+    win = AppWindow(title="tracker keeper")
+    win.set_content(Dashboard(win))
+    win.resize(*MIN_SIZE)
+    win.show()
+    for _ in range(8):
+        qapp.processEvents()
+    assert win.top_bar.title.text() == "tracker keeper"
+    win.close()

@@ -600,16 +600,30 @@ class Dashboard(QWidget):
         narrow, wide = self._tier == TIER_NARROW, self._tier == TIER_WIDE
         m = 8 if narrow else 12
         self._root.setContentsMargins(m, 6 if narrow else 8, m, 8 if narrow else 10)
+        # A smaller title that reads in full beats a bigger one that elides —
+        # step it down as the bar tightens.
+        top_bar = getattr(self._window, "top_bar", None)
+        if top_bar is not None and hasattr(top_bar, "set_title_scale"):
+            top_bar.set_title_scale(0 if wide else (2 if narrow else 1))
         self._sort_lab.setVisible(not narrow)
         self._status.setVisible(wide)
         self._add_btn.setVisible(wide)          # menu keeps it below wide
         self._refresh_btn.setVisible(not narrow)
         self._refresh_btn.setText("Check for updates" if wide else "Check")
-        # The badge holds its full width and the TITLE gives way instead. Both
-        # were Preferred and shrank together, so a 300px bar showed "tracker
-        # ke…" beside a clipped "· 3" — and of the two, the count is the only
-        # thing on that row you can't work out by looking at the window.
-        self._count.setMinimumWidth(self._count.sizeHint().width())
+        # (the badge's width floor is set in _render, where its TEXT is known)
+
+    def _sync_count_width(self, has_news: bool) -> None:
+        """Give the badge a width floor that matches the text it's ACTUALLY
+        showing — and none at all when it's showing nothing.
+
+        This was set once per tier change, from whatever text happened to be
+        there at the time, so a badge that later emptied out (everything
+        current) kept reserving ~59px. The title paid for it: on a 360px bar it
+        elided to "trac…" beside an invisible label holding a sixth of the row."""
+        # No floor, ever. A reserved width here is width taken from the app's
+        # own name — and an EMPTY badge reserving ~59px is what elided the title
+        # to "trac…" on a 360px bar with visible space beside it.
+        self._count.setMinimumWidth(0)
 
     def _sync_tray(self) -> None:
         if self._tray is not None and self._tray.available:
@@ -769,11 +783,18 @@ class Dashboard(QWidget):
                 self._list.addWidget(self._card(item))
         self._list.addStretch(1)
         n = sum(1 for i in self._items if i.has_update())
-        if self._tier == TIER_NARROW:   # the badge earns its width or goes
-            self._count.setText(f"· {n} new" if n else "")
+        if self._tier == TIER_NARROW:
+            # Just the number. At this width the app's own NAME is worth more
+            # bar than the word "new" is, and the count still reads.
+            self._count.setText(f"· {n}" if n else "")
+        elif self._tier == TIER_MEDIUM:
+            # A middle length: the full phrase is ~150px and pushed the title to
+            # "tracke…" at 420px, which is a poor trade for two extra words.
+            self._count.setText(f"· {n} new" if n else "· all current")
         else:
             self._count.setText(
                 f"· {n} update{'s' if n != 1 else ''} available" if n else "· all current")
+        self._sync_count_width(n > 0)
         self._sync_tray()
 
     def _indent(self, card: QWidget) -> QWidget:

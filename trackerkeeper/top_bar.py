@@ -19,7 +19,12 @@ from PySide6.QtWidgets import QHBoxLayout
 
 from trackerkeeper import ui_helpers
 from trackerkeeper.bus import AppBus
-from trackerkeeper.design_tokens import TYPE_SUBHEAD, type_qss
+from trackerkeeper.design_tokens import (
+    TYPE_BODY,
+    TYPE_CAPTION,
+    TYPE_SUBHEAD,
+    type_qss,
+)
 from trackerkeeper.icon_button import IconButton
 from trackerkeeper.icons import icon
 
@@ -127,7 +132,8 @@ class TopBar(ui_helpers.CenteredBar):
 
     def restyle(self) -> None:
         """Re-read theme colors (call on AppBus.theme_changed) + refresh icons."""
-        self.title.setStyleSheet(f"color: {ui_helpers.TEXT}; {type_qss(TYPE_SUBHEAD)}")
+        token = self.TITLE_STEPS[getattr(self, "_title_step", 0)]
+        self.title.setStyleSheet(f"color: {ui_helpers.TEXT}; {type_qss(token)}")
         for name, attr in (
             ("menu", "menu_btn"),
             ("settings", "settings_btn"),
@@ -138,6 +144,19 @@ class TopBar(ui_helpers.CenteredBar):
             btn = getattr(self, attr, None)
             if btn is not None:
                 btn.setIcon(icon(name))
+
+    #: Type tokens the title can take, largest first. An app folding its own
+    #: controls onto this bar steps DOWN as it narrows — a smaller title that
+    #: reads in full beats a subhead-sized one elided to "trac…".
+    TITLE_STEPS = (TYPE_SUBHEAD, TYPE_BODY, TYPE_CAPTION)
+
+    def set_title_scale(self, step: int) -> None:
+        """Pick a title size: 0 full, 1 compact, 2 smallest. Sticky across
+        restyle(), so a theme change doesn't undo it."""
+        step = max(0, min(step, len(self.TITLE_STEPS) - 1))
+        if getattr(self, "_title_step", 0) != step:
+            self._title_step = step
+            self.restyle()
 
     def set_title(self, title: str) -> None:
         """Change the bar's title (stays elidable)."""
