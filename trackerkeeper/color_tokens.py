@@ -77,7 +77,7 @@ TOKENS: dict[str, ColorToken] = {
     # ── Accent ─────────────────────────────────────────────────────────
     "ACCENT": ColorToken(
         name="ACCENT",
-        default="#967de1",
+        default="#2fbe8a",
         kind="hex",
         category="accent",
         description="Primary accent. Active controls, fills, focus rings.",
@@ -85,7 +85,7 @@ TOKENS: dict[str, ColorToken] = {
     ),
     "ACCENT_DEEP": ColorToken(
         name="ACCENT_DEEP",
-        default="#7c66d0",
+        default="#2aab7c",
         kind="hex",
         category="accent",
         description="Pressed / active accent (≈10% darker than ACCENT).",

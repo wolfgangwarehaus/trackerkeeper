@@ -276,13 +276,16 @@ _DARK_TOKENS = dict(
 )
 
 
-# Default accent: a slightly-subdued violet (#967de1). Was violet-400
-# (#a78bfa) — that read as too bright on dark backgrounds where the
-# accent shows up at full-bleed (Sign in button, accent icons,
-# selected-row backgrounds). Each accent_color setting overrides
-# this at runtime via get_active_theme().
-_DEFAULT_ACCENT = "#967de1"
-_DEFAULT_ACCENT_DEEP = "#7c66d0"
+# Default accent: tracker keeper's brand green. The same hex as the "Green"
+# preset below AND as the logo's single accent, so a fresh profile's chrome
+# matches its own icon out of the box. (dough ships a subdued violet here; a
+# loaf is expected to move this to its brand.) Like violet-400 before it, the
+# preset value is ~10% darker than its Tailwind baseline so it reads as a
+# deliberate dark-mode accent rather than competing with text for the eye —
+# DEEP applies that same channel * 0.9 rule again for the pressed state.
+# Each accent_color setting overrides this at runtime via get_active_theme().
+_DEFAULT_ACCENT = "#2fbe8a"
+_DEFAULT_ACCENT_DEEP = "#2aab7c"
 
 
 FROSTED_DARK = Theme(

@@ -436,7 +436,7 @@ def _resolve_icon_accent() -> str:
 
         return get_active_theme().accent
     except Exception:
-        return "#967de1"
+        return "#2fbe8a"   # the brand accent — matches theme._DEFAULT_ACCENT
 
 
 ICON_ACCENT = _resolve_icon_accent()

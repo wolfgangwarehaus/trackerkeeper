@@ -39,7 +39,10 @@ date = "2026-07-22"
 [[ingredients]]
 id = "ac9750"
 text = "Brand: replace the placeholder logo SVG + pick an accent"
-done = false
+done = true
+by = "agent"
+date = "2026-07-26"
+note = "Logo + accent shipped. Mark: refresh wheel closing on a check (X5) — gap/arrowhead bottom-right, the one quadrant the check's diagonal never crosses; single accent because a two-tone draft's near-white check vanished on light backgrounds. Default accent violet -> brand green #2fbe8a (deep #2aab7c) across settings/theme/color_tokens/icons. One SVG feeds deb/AppImage/MSIX/macOS iconset/Windows .ico/make_app_icon. Goldens re-baked."
 
 [[ingredients]]
 id = "ff911b"

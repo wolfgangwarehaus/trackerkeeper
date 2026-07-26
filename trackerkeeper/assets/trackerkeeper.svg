@@ -1,12 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="dg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#9D8AE8"/>
-      <stop offset="1" stop-color="#7C66D0"/>
-    </linearGradient>
-  </defs>
-  <!-- a soft trackerkeeper blob -->
-  <path d="M32 7c15 0 25 8.5 25 22.5C57 46 46 57 32 57S7 46 7 29.5C7 15.5 17 7 32 7z"
-        fill="url(#dg)"/>
-  <ellipse cx="23" cy="23" rx="7" ry="4.5" fill="#ffffff" opacity="0.22"/>
+  <!-- tracker keeper — a refresh wheel closing on a check.
+       The ring is the update cycle; the check is "you're current".
+
+       The gap and arrowhead sit BOTTOM-RIGHT: the check runs lower-left to
+       upper-right, so that quadrant is the one area it never crosses, and the
+       two elements never crowd each other. Every version that grew the check
+       ran its tip into the ring stroke instead.
+
+       ONE accent, ring and check at the same weight — an earlier two-tone draft
+       put a near-white check on the ring, which vanished completely on light
+       backgrounds.
+
+       This file is the single brand source: the .deb, AppImage, MSIX, macOS
+       iconset, Windows .ico and ui_helpers.make_app_icon() all derive from it. -->
+  <g transform="rotate(90 32 32)">
+    <path d="M49.7,14.3 A25,25 0 1,0 57,32" fill="none" stroke="#2fbe8a"
+          stroke-width="7" stroke-linecap="round"/>
+    <path d="M54,6 L59,25 L40,21 Z" fill="#2fbe8a"/>
+  </g>
+  <path d="M19,33 l10,10 l19,-21" fill="none" stroke="#2fbe8a" stroke-width="7"
+        stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

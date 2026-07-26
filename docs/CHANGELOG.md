@@ -12,6 +12,14 @@ no matching section). See `docs/RELEASING.md`.
 ## [Unreleased]
 
 ### Added
+- **A real logo, and a brand accent to match.** tracker keeper shipped its first
+  two releases wearing dough's placeholder blob. The mark is now a refresh wheel
+  closing on a check — the ring is the update cycle, the check is "you're
+  current" — with the gap and arrowhead in the bottom-right, the one quadrant
+  the check's diagonal never crosses. One accent throughout, because a two-tone
+  draft put a near-white check on the ring that vanished on light backgrounds.
+  The default accent moves from dough's violet to the brand green `#2fbe8a`
+  (already the "Green" preset), so a fresh profile's chrome matches its own icon.
 - **Per-item detail.** Click any card to see what actually changed — the release
   notes the checkers were already fetching and throwing away. GitHub's release
   body, Steam's announcement, the App Store's "What's New", Flathub's release
