@@ -555,18 +555,47 @@ def test_the_badge_gets_shorter_as_the_bar_tightens(qapp):
             < len(seen[TIER_WIDE]))
 
 
-def test_the_app_name_fits_at_the_minimum_width(qapp):
-    """The whole point: "tracker keeper" must READ at 300px, not elide."""
-    from trackerkeeper.dashboard import MIN_SIZE, Dashboard
+def test_the_title_is_not_starved_by_the_bar(qapp):
+    """The bug this guards: an empty badge reserved ~59px and the title elided
+    beside it. Asserts the MECHANISM, not a pixel outcome — how many characters
+    fit at a given width depends on the system font, and hard-coding this
+    machine's metrics fails on any platform with a wider one (it did: Windows
+    rendered "tracker…" where Linux fit the lot).
+
+    At a comfortable width the title must get everything it asks for."""
+    from trackerkeeper.dashboard import Dashboard
     from trackerkeeper.window import AppWindow
 
     catalog.save([catalog.Item(name=f"item {n}", kind="github", installed="1",
                                latest="1", latest_date="2026-07-01") for n in range(6)])
     win = AppWindow(title="tracker keeper")
     win.set_content(Dashboard(win))
-    win.resize(*MIN_SIZE)
+    win.resize(900, 400)
     win.show()
     for _ in range(8):
         qapp.processEvents()
-    assert win.top_bar.title.text() == "tracker keeper"
+    title = win.top_bar.title
+    assert title.width() >= title.sizeHint().width()   # nothing is starving it
+    assert title.text() == title.full_text()           # …so nothing is elided
+    win.close()
+
+
+def test_the_title_shrinks_its_type_as_the_bar_tightens(qapp):
+    """The other half of fitting the name: step down the type ladder rather than
+    elide. Checked via the scale API so it holds whatever the system font is."""
+    from trackerkeeper.dashboard import TIER_MEDIUM, TIER_NARROW, TIER_WIDE, Dashboard
+    from trackerkeeper.top_bar import TopBar
+    from trackerkeeper.window import AppWindow
+
+    catalog.save([catalog.Item(name="A", kind="github", installed="1", latest="1")])
+    win = AppWindow(title="tracker keeper")
+    dash = Dashboard(win)
+    win.set_content(dash)
+    steps = {}
+    for tier in (TIER_WIDE, TIER_MEDIUM, TIER_NARROW):
+        dash._tier = tier
+        dash._apply_tier()
+        steps[tier] = getattr(win.top_bar, "_title_step", 0)
+    assert steps[TIER_WIDE] < steps[TIER_MEDIUM] < steps[TIER_NARROW]
+    assert steps[TIER_NARROW] <= len(TopBar.TITLE_STEPS) - 1
     win.close()
