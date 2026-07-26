@@ -27,7 +27,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from trackerkeeper import metadata
+from trackerkeeper import identity, metadata
 
 # trackerkeeper's own dev scaffolding — a fork is an app, not the base, so these go.
 # Includes the tests for base-only tooling that `dev/` carries (sync_loaf, the
@@ -174,7 +174,7 @@ def _identity_org_repairs(
     ]
 
 
-def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str, summary: str | None) -> None:
+def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str, summary: str | None, accent: str | None = None) -> None:
     sidecar = metadata.load()
     old_slug = sidecar["app_slug"]
     old_org = sidecar["org_slug"]
@@ -251,6 +251,21 @@ def _scaffold(root: Path, slug: str, display: str, new_org: str, new_owner: str,
     # (The PyPI distribution name is handled tree-wide in 3.1 — it used to be
     # patched here, in pyproject.toml only, which is exactly how a loaf ended up
     # with docs contradicting its own package name.)
+    if accent:
+        # The brand accent goes on the identity seam, NOT into theme.py /
+        # color_tokens.py / settings.py / icons.py. A loaf that edited those
+        # had its whole brand reverted by the next sync — they are base files
+        # and sync owns them. identity.py is already the loaf's to keep.
+        _sub_in_file(root / slug / "identity.py",
+                     [('_accent = "#967de1"', f'_accent = "{accent}"'),
+                      ('_accent_deep: str | None = "#7c66d0"',
+                       "_accent_deep: str | None = None  # derived from _accent")])
+        ti = root / "tests" / "test_identity.py"
+        if ti.is_file():
+            _sub_in_file(ti, [('identity.accent() == "#967de1"',
+                               f'identity.accent() == "{accent}"'),
+                              ('identity.accent_deep() == "#7c66d0"',
+                               f'identity.accent_deep() == "{identity._darken(accent)}"')])
     if display != slug:
         fixes.append((f'display_name = "{slug}"', f'display_name = "{display}"'))
         _sub_in_file(root / slug / "identity.py", [(f'_display_name = "{slug}"', f'_display_name = "{display}"')])
@@ -317,6 +332,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--org", help="org / vendor slug (default: keep trackerkeeper's)")
     parser.add_argument("--owner", help="GitHub owner for the reverse-DNS app-id (default: --org)")
     parser.add_argument("--summary", help="one-line app summary")
+    parser.add_argument("--accent", help="brand accent hex (e.g. #2fbe8a) — the "
+                                         "pressed shade is derived from it")
     parser.add_argument("--root", type=Path, default=None, help="repo root (default: this checkout)")
     args = parser.parse_args(argv)
 
@@ -336,7 +353,7 @@ def main(argv: list[str] | None = None) -> int:
     new_owner = args.owner or new_org
 
     print(f"trackerkeeper new → scaffolding '{slug}' (display '{display}', org '{new_org}') in {root}")
-    _scaffold(root, slug, display, new_org, new_owner, args.summary)
+    _scaffold(root, slug, display, new_org, new_owner, args.summary, args.accent)
     rc = _validate(root, slug)
     if rc == 0:
         print(f"✓ {slug} is ready — owned, rendered, and green. Build your app.")

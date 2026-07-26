@@ -63,6 +63,16 @@ FILENAME = f"{_PKG}-breadboard.toml"
 # streaming turn. Tests override it.
 AGENT_IDLE_SECONDS = 4.0
 
+# What the Wind down… button TYPES at a live agent (the board write is the
+# durable half; this is the poke that makes it happen now). Phrased as the maker
+# would ask for it, and it names the ritual + the clear so the agent doesn't have
+# to go looking. TRACKERKEEPER_WIND_DOWN_PROMPT overrides it.
+WIND_DOWN_PROMPT = (
+    "wind down — I pressed the button, so the board's agent_request asks for it. "
+    "Run the wind-down ritual in docs/WIND-DOWN.md, and clear agent_request in "
+    "the same commit that lands the work."
+)
+
 
 # ── the file half ────────────────────────────────────────────────────────────
 
@@ -786,6 +796,7 @@ def _make_view(path: Path, restore: dict | None = None, window=None):
                 + ("  — resuming" if resume else ""))
             self._term = terminal.TerminalWidget(argv, cwd=self._root)
             self._term.exited.connect(self._on_agent_exit)
+            self._term.submitted.connect(self._on_agent_submitted)
             self._term_slot.addWidget(self._term)
 
         def _stop_agent(self) -> None:
@@ -1152,11 +1163,51 @@ def _make_view(path: Path, restore: dict | None = None, window=None):
             return self._path == self._home_path
 
         def _request_wind_down(self) -> None:
+            """The board write is the durable half — it survives a closed window and
+            whoever opens the project next. But a file nothing announces is a request
+            an agent mid-session never sees, so when THIS project's agent is live we
+            also type the ask straight into its prompt."""
             self._board["agent_request"] = (
                 f"wind down — requested by the maker {date.today().isoformat()}"
             )
             self._write()
-            self._winddown_note.setText("wind-down requested — the agent will land it")
+            prompt = os.environ.get("TRACKERKEEPER_WIND_DOWN_PROMPT") or WIND_DOWN_PROMPT
+            self._winddown_note.setText(
+                "handing the wind-down to the agent…" if self._send_to_agent(prompt)
+                else "wind-down requested — the agent will land it")
+
+        def _send_to_agent(self, text: str) -> bool:
+            """Hand `text` to this project's live agent and REVEAL the drawer, so the
+            maker watches it arrive instead of trusting a note. False when no agent is
+            running here (nothing to poke — the board write stands on its own).
+
+            True means only that a live terminal took the keystrokes; whether they
+            SUBMITTED lands later on ``submitted`` (the terminal withholds the Return
+            when the text never echoes — see :meth:`terminal.TerminalWidget.send_prompt`).
+            Revealing the drawer either way is the point: if a dialog is sitting on the
+            agent's prompt, the maker now sees the dialog instead of a silent nothing.
+
+            Mid-turn is fine and deliberate: Claude Code queues input typed while it
+            works, so the ask lands at the end of the current turn rather than being
+            dropped. The current project's agent is always ``self._term`` — a sibling's
+            is parked, and parked agents belong to their own board's button."""
+            term = self._term
+            if term is None or not term.send_prompt(text):
+                return False
+            if not self._agent_btn.isChecked():  # closed (or never opened) → show it
+                self._agent_btn.setChecked(True)
+                self._toggle_agent()
+            return True
+
+        def _on_agent_submitted(self, ok: bool) -> None:
+            """Settle the wind-down note once the terminal knows whether its Return
+            went in. Leaves any OTHER status alone — a queued reload owns the same
+            label and must not be overwritten by a stale send."""
+            if not self._winddown_note.text().startswith("handing the wind-down"):
+                return
+            self._winddown_note.setText(
+                "wind-down sent to the agent" if ok else
+                "the agent didn't take it — the request is on the board")
 
         # ── phases ────────────────────────────────────────────────────────
         def _first_open_phase(self) -> str:

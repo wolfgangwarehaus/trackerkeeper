@@ -19,7 +19,7 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QSize, QSocketNotifier, Qt, Signal
+from PySide6.QtCore import QSize, QSocketNotifier, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter
 from PySide6.QtWidgets import QWidget
 
@@ -62,6 +62,14 @@ _RADIUS = 10                             # rounded panel corners — match the l
 _MOUSE_MODES = frozenset({1000 << 5, 1002 << 5, 1003 << 5})
 _SGR_MOUSE = 1006 << 5
 
+# send_prompt: how we wait for a programmatic paste to ECHO before pressing
+# Return on it. Poll fast (the maker should see one motion, not two), give the
+# TUI a generous window to redraw, and match on a short leading fragment so a
+# narrow docked drawer wrapping the line can't turn a landed paste into a miss.
+_ECHO_POLL_MS = 60
+_ECHO_TIMEOUT_MS = 1500
+_ECHO_PROBE_CHARS = 16
+
 
 def _qcolor(token: str, default: QColor) -> QColor:
     if token == "default":
@@ -102,6 +110,9 @@ class TerminalWidget(QWidget):
     child process ends."""
 
     exited = Signal(int)
+    #: The outcome of a :meth:`send_prompt` — True when the Return went in (the
+    #: child took the message), False when it was withheld (see send_prompt).
+    submitted = Signal(bool)
 
     def __init__(self, argv, cwd=None, parent=None) -> None:
         super().__init__(parent)
@@ -115,6 +126,9 @@ class TerminalWidget(QWidget):
         self._dead = False
         self._last_output = time.monotonic()  # for idle_seconds() — see below
         self._wheel_accum = 0  # sub-notch wheel delta, so touchpads scroll too
+        self._probe = ""  # send_prompt: the text we're waiting to see echoed
+        self._probe_before = 0
+        self._submit_deadline = 0.0
 
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.IBeamCursor)
@@ -258,6 +272,54 @@ class TerminalWidget(QWidget):
             os.write(self._fd, data)
         except OSError:
             pass
+
+    def send_prompt(self, text: str) -> bool:
+        """Type ``text`` into the agent's prompt and submit it — the programmatic
+        version of the maker pasting a line and hitting Enter. Returns False when
+        there's no live child to take it; :attr:`submitted` then reports whether
+        the Return actually went in, so a caller can say which happened.
+
+        The Return rides a timer rather than the same write, for two reasons. The
+        child has to see the bracketed paste CLOSE first, or Claude Code folds the
+        newline into the pasted text and the message sits there unsent. And a
+        blind Return is DANGEROUS: when the TUI is showing a modal — the trust
+        prompt, a permission request, a chooser — the paste goes nowhere and the
+        Return ANSWERS THE DIALOG (this is exactly how a first run in a fresh dir
+        auto-accepted "Yes, I trust this folder"). So we only submit what we can
+        SEE we typed: the Return waits until the text echoes onto the screen, and
+        is withheld entirely if it never does. The timer is bound to ``self``, so
+        a terminal torn down in the gap (project switch, reload) drops it instead
+        of firing into a freed widget."""
+        if self._dead or self._fd < 0:
+            return False
+        # A probe short enough to survive a narrow (docked) drawer without
+        # wrapping. Counted BEFORE the paste so a re-send doesn't match the
+        # previous message still sitting in the transcript.
+        self._probe = " ".join(text.split())[:_ECHO_PROBE_CHARS]
+        self._probe_before = self._screen_text().count(self._probe) if self._probe else 0
+        self._submit_deadline = time.monotonic() + _ECHO_TIMEOUT_MS / 1000
+        self._write(self._bracketed(text))
+        QTimer.singleShot(_ECHO_POLL_MS, self, self._submit_prompt)
+        return True
+
+    def _submit_prompt(self) -> None:
+        """Poll for our own text on screen, then commit it with a Return."""
+        if self._dead or self._fd < 0:
+            self.submitted.emit(False)
+            return
+        if self._probe and self._screen_text().count(self._probe) <= self._probe_before:
+            if time.monotonic() < self._submit_deadline:
+                QTimer.singleShot(_ECHO_POLL_MS, self, self._submit_prompt)
+                return
+            self.submitted.emit(False)  # never landed — do NOT press Return blind
+            return
+        self._write(b"\r")
+        self.submitted.emit(True)
+
+    def _screen_text(self) -> str:
+        """The rendered screen as one whitespace-collapsed line (the TUI pads with
+        NBSP, which would otherwise never match a plain space in our probe)."""
+        return " ".join(" ".join(self._screen.display).replace("\xa0", " ").split())
 
     def keyPressEvent(self, e) -> None:  # noqa: N802
         if self._dead or self._fd < 0:

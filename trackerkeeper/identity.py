@@ -53,13 +53,17 @@ def configure(
     app: str | None = None,
     display_name: str | None = None,
     owner: str | None = None,
+    accent: str | None = None,
+    accent_deep: str | None = None,
 ) -> None:
     """Set the app identity. Call ONCE, before importing ``trackerkeeper.design_tokens``
     or ``trackerkeeper.app`` (the font-scale loader reads the org/app pair at import
     time). Any argument left ``None`` keeps its current value, so a fork can pass
     only what differs. ``owner`` is the GitHub owner for the reverse-DNS app-id;
-    leave it unset and it tracks ``org``."""
-    global _org, _app, _display_name, _owner
+    leave it unset and it tracks ``org``. ``accent`` is the brand colour every
+    themed surface defaults to; ``accent_deep`` (the pressed/active shade) is
+    derived from it unless given."""
+    global _org, _app, _display_name, _owner, _accent, _accent_deep
     if org is not None:
         _org = org
     if app is not None:
@@ -68,6 +72,35 @@ def configure(
         _display_name = display_name
     if owner is not None:
         _owner = owner
+    if accent is not None:
+        _accent = accent
+        # Setting the accent RESETS the pressed shade to "derive from it".
+        # dough pins its own deep value, and without this reset a loaf that
+        # passed only `accent` inherited that pin — a green app with violet
+        # button presses. Pass `accent_deep` too to override the derivation.
+        _accent_deep = None
+    if accent_deep is not None:
+        _accent_deep = accent_deep
+
+
+def _darken(hex_colour: str, factor: float = 0.9) -> str:
+    """Each channel * factor — the same rule theme.ACCENT_PRESETS uses to sit a
+    preset below its Tailwind baseline, applied again for the pressed state."""
+    h = (hex_colour or "").lstrip("#")
+    if len(h) != 6:
+        return hex_colour
+    return "#" + "".join(f"{int(int(h[i:i + 2], 16) * factor):02x}" for i in (0, 2, 4))
+
+
+def accent() -> str:
+    """The brand accent — what a fresh profile's chrome uses before the user
+    picks one in Settings."""
+    return _accent
+
+
+def accent_deep() -> str:
+    """The pressed / active shade. Derived from :func:`accent` unless set."""
+    return _accent_deep or _darken(_accent)
 
 
 def org() -> str:

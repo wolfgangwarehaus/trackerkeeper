@@ -12,6 +12,13 @@ no matching section). See `docs/RELEASING.md`.
 ## [Unreleased]
 
 ### Changed
+- **The brand accent moved to the identity seam.** It had been edited into
+  `theme.py`, `color_tokens.py`, `settings.py` and `icons.py` — base files the
+  dough sync owns — and a routine `sync_loaf --apply` reverted the whole brand
+  to dough's violet in one command, with the test suite green throughout. It now
+  lives in `identity.py` (the file this app already owns), the pressed shade
+  derives from it, and those four sync cleanly again. Verified by running a full
+  sync and checking the brand came out the other side.
 - **A checker is declared once.** Adding a source used to mean editing six
   places across four files, with nothing keeping them in step — a missing label
   was a `KeyError` the moment the Add dialog opened, and a missing validation

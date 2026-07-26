@@ -4,7 +4,7 @@
 # The dough commit this loaf was last reconciled against. `--record` stamps it.
 # Seeded to dough HEAD at init; set it to the commit you actually forked from if
 # you want the first sync to surface everything dough changed since.
-synced_from = "9acb395"
+synced_from = "0bfca3b"
 
 # Files (relative to the trackerkeeper/ package dir) the fork OWNS — net-new app code or
 # modules it fully rewrote. Sync never reads or writes these.
@@ -30,17 +30,12 @@ manual = [
     "settings_dialog.py",  # the TRACKING section (check interval + the tray toggles)
     "bus.py",              # AppBus.tracking_prefs_changed — Settings re-arms the live heartbeat
     "rig.py",              # baseline grabs the app's real content, not dough's placeholder
-    # ── the BRAND four ────────────────────────────────────────────────────────
-    # These carry the loaf's accent, and a sync that overwrote them reverted the
-    # whole brand to dough's violet in one command (caught before commit, but
-    # only because the diff was read). Every loaf that picks an accent
-    # customizes exactly these, so every loaf must classify them.
-    #
-    # The deeper fix is upstream: a brand accent belongs in the metadata sidecar
-    # and should reach the theme through identity, so no loaf ever edits these
-    # at all. Recorded in dough's docs/BACKPORT.md. Until then: manual.
-    "settings.py",         # accent_color default = the brand green
-    "theme.py",            # _DEFAULT_ACCENT / _DEFAULT_ACCENT_DEEP
-    "color_tokens.py",     # ACCENT / ACCENT_DEEP token defaults
-    "icons.py",            # the icon-accent fallback
 ]
+
+# NOT listed, deliberately: settings.py / theme.py / color_tokens.py / icons.py.
+# They briefly WERE, because the brand accent had been edited into all four and
+# one `sync_loaf --apply` reverted the whole brand to dough's violet. The fix
+# was upstream rather than here — the accent now lives on the identity seam
+# (identity.accent(), already `manual` above), those four carry no accent
+# literal, and they go back to syncing cleanly. Classifying them would have
+# meant hand-porting every future base improvement to four large files forever.
