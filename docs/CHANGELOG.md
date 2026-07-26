@@ -194,9 +194,8 @@ downloads, installs, or applies anything.
   `trackerkeeper bake` renderer, and the first channels — PyPI, a loose `.deb`, and an
   AppImage — generated from one source and verified against drift.
 
-### The rule it lives by
-A card only ever shows a version a **real source returned**. A check that can't
-reach a source keeps the last-known value and says "couldn't check" — tracker
-keeper never invents a latest.
+**The rule it lives by:** a card only ever shows a version a **real source
+returned**. A check that can't reach a source keeps the last-known value and
+says "couldn't check" — tracker keeper never invents a latest.
 
 <!-- release-notes-end -->
