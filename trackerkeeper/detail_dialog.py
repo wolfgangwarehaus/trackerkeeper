@@ -27,7 +27,8 @@ from trackerkeeper import catalog, ui_helpers
 from trackerkeeper.design_tokens import TYPE_CAPTION, TYPE_TINY, type_qss
 from trackerkeeper.frosted_dialog import FrostedDialog
 
-_NEW = "#56c48d"
+# The accent is the single "live news" colour app-wide — the dashboard
+# retired a second near-identical green for exactly this reason.
 
 
 class DetailDialog(FrostedDialog):
@@ -46,7 +47,7 @@ class DetailDialog(FrostedDialog):
             head = (f'<span style="color:{ui_helpers.TEXT_DIM};">'
                     f'{_esc(item.installed or "—")}</span>'
                     f'  <span style="color:{ui_helpers.TEXT_DIM};">→</span>  '
-                    f'<b style="color:{_NEW};">{_esc(item.latest)}</b>')
+                    f'<b style="color:{ui_helpers.ACCENT};">{_esc(item.latest)}</b>')
         elif item.latest:
             head = (f'<span style="color:{ui_helpers.TEXT};">{_esc(item.latest)}</span>'
                     f'  <span style="color:{ui_helpers.TEXT_DIM};">· current</span>')

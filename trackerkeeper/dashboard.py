@@ -36,14 +36,69 @@ from trackerkeeper.design_tokens import (
 from trackerkeeper.top_bar import TopBar
 
 _ACCENT = ui_helpers.ACCENT
-_NEW = "#56c48d"
+# There used to be a separate "new" green (#56c48d) sitting a few points off the
+# accent — two near-identical colours doing different jobs, which read as a
+# printing error rather than a distinction. The accent is now the ONE colour that
+# means "this is live news"; everything past is neutral. Read ui_helpers.ACCENT at
+# render time (not import) so changing the accent in Settings lands on the next
+# repaint instead of at the next launch.
+
+# How long an update stays "fresh". After this it's still pending — you haven't
+# installed it — but it stops shouting: no accent, and the text eases back.
+FRESH_DAYS = 7
+
+# The past-item text. A pinch under full white, not the 0.7 the secondary labels
+# use — enough to feel settled beside a fresh row, not so much it reads disabled.
+_TEXT_PAST = "rgba(255,255,255,0.78)"
+_TEXT_PAST_DIM = "rgba(255,255,255,0.45)"   # its version line / changelog
+
+
+def _rgba(hex_colour: str, alpha: float) -> str:
+    """``#2fbe8a`` → ``rgba(47,190,138,0.08)``. Card tints follow whatever accent
+    is live rather than freezing one brand colour into the stylesheet."""
+    h = (hex_colour or "").lstrip("#")
+    if len(h) != 6:
+        return f"rgba(255,255,255,{alpha})"
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def is_fresh(item: catalog.Item, now=None) -> bool:
+    """True when an item has an update that landed inside :data:`FRESH_DAYS`.
+
+    An update with no known release date counts as fresh: we can't prove it's
+    old, and quietly greying out something actionable is the worse failure."""
+    if not item.has_update():
+        return False
+    stamp = item.latest_at or item.latest_date
+    if not stamp:
+        return True
+    then = _parse_iso(stamp)
+    if then is None:
+        return True
+    from datetime import datetime, timezone
+
+    now = now or datetime.now(timezone.utc)
+    return (now - then).days < FRESH_DAYS
+
+
 # `.QFrame` (leading dot) matches the card's EXACT type only — a bare `QFrame`
 # selector cascades into child QLabels (QLabel subclasses QFrame), boxing every
 # line of text. Ask me how I know.
 _CARD = (".QFrame{background:rgba(255,255,255,0.045);border:1px solid "
          "rgba(255,255,255,0.10);border-radius:12px;}")
-_CARD_NEW = (".QFrame{background:rgba(86,196,141,0.08);border:1px solid "
-             "rgba(86,196,141,0.40);border-radius:12px;}")
+
+
+def _card_qss(fresh: bool) -> str:
+    """The card's own frame. Only a FRESH item gets the accent wash — a pending
+    update that's a fortnight old shouldn't glow as loudly as one from an hour
+    ago, or the list has no foreground."""
+    if not fresh:
+        return _CARD
+    accent = ui_helpers.ACCENT
+    return (f".QFrame{{background:{_rgba(accent, 0.08)};border:1px solid "
+            f"{_rgba(accent, 0.40)};border-radius:12px;}}")
+
 
 # the release channel a kind maps to — the column + a sort axis
 _CHANNEL = {"github": "GitHub", "arch": "Arch", "appstore": "App Store",
@@ -337,7 +392,8 @@ class Dashboard(QWidget):
         self._title = QLabel("tracker keeper")
         self._title.setStyleSheet(type_qss(TYPE_DISPLAY) + f"color:{ui_helpers.TEXT};")
         self._count = QLabel("")
-        self._count.setStyleSheet(f"color:{_NEW};font-weight:600;" + type_qss(TYPE_TINY))
+        self._count.setStyleSheet(f"color:{ui_helpers.ACCENT};font-weight:600;"
+                                  + type_qss(TYPE_TINY))
         self._status = QLabel("")
         self._status.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_TINY))
         self._add_btn = self._chip_button("Add…", self._add_item)
@@ -565,7 +621,7 @@ class Dashboard(QWidget):
         n_up = sum(1 for i in items if i.has_update())
         collapsed = category in self._collapsed
         arrow = "▸" if collapsed else "▾"
-        tail = (f'  <span style="color:{_NEW};">{n_up} new</span>' if n_up
+        tail = (f'  <span style="color:{ui_helpers.ACCENT};">{n_up} new</span>' if n_up
                 else f'  <span style="color:#666;">{len(items)}</span>')
         html = (f'<span style="color:#888;">{arrow}</span>  '
                 f'<span style="letter-spacing:0.6px;">{_esc(category).upper()}</span>{tail}')
@@ -668,7 +724,14 @@ class Dashboard(QWidget):
 
     def _card(self, item: catalog.Item) -> QWidget:
         card = _Card(lambda i=item: self._show_detail(i))
-        card.setStyleSheet(_CARD_NEW if item.has_update() else _CARD)
+        fresh = is_fresh(item)
+        accent = ui_helpers.ACCENT
+        # Three states, not two: FRESH (news — full white name, accent
+        # everywhere), PENDING-BUT-OLD (still yours to install, but it stops
+        # shouting), and CURRENT (nothing to do). The old code only knew
+        # has_update, so a month-old update looked exactly like this morning's.
+        name_colour = ui_helpers.TEXT if fresh else _TEXT_PAST
+        card.setStyleSheet(_card_qss(fresh))
         narrow = self._tier == TIER_NARROW
         outer = QHBoxLayout(card)
         # Dense by design: this is a scan-the-fleet list, not a reading surface.
@@ -678,12 +741,21 @@ class Dashboard(QWidget):
         # left: name + platform + versions
         left = QVBoxLayout()
         left.setSpacing(1)
+        # The dot marks "you have something to install" either way — a pending
+        # update must never become invisible just because it got old — but it
+        # only carries the accent while the news is fresh.
+        dot = (f'<span style="color:{accent if fresh else _TEXT_PAST_DIM};">●</span> '
+               if item.has_update() else "")
         topline = QLabel(
-            (f'<span style="color:{_NEW};">●</span> ' if item.has_update() else "")
-            + f'<b style="color:{ui_helpers.TEXT};">{_esc(item.name)}</b>'
+            dot
+            + f'<b style="color:{name_colour};">{_esc(item.name)}</b>'
             # NEW marks what arrived since you last had the window open — an
             # update you've already seen keeps the dot but loses the shout.
-            + (f'  <span style="color:{_NEW};">NEW</span>' if item.is_new() else "")
+            # It follows FRESHNESS for colour: if you've been away a month, a
+            # three-week-old release is still news to you and still says NEW,
+            # but it has no business shouting in accent next to this morning's.
+            + (f'  <span style="color:{accent if fresh else _TEXT_PAST_DIM};">NEW</span>'
+               if item.is_new() else "")
             + (f'  <span style="color:{ui_helpers.TEXT_DIM};">'
                f'{_esc(item.platform)}</span>' if item.platform else ""))
         topline.setTextFormat(Qt.TextFormat.RichText)
@@ -727,8 +799,12 @@ class Dashboard(QWidget):
             # unescaped quote would close the href and let the rest of the string
             # become markup in a rich-text label.
             href = _esc(item.latest_url or item.changelog_url)
+            # Accent only where there's fresh news to go and read. On settled
+            # rows the link stays available but stops competing — nine accent
+            # links down a list is just a green column, and nothing leads.
+            link_colour = accent if fresh else _TEXT_PAST_DIM
             link = QLabel(f'<a href="{href}" '
-                          f'style="color:{_ACCENT};text-decoration:none;">{text}</a>')
+                          f'style="color:{link_colour};text-decoration:none;">{text}</a>')
             link.setToolTip("Open the changelog")
             link.setTextFormat(Qt.TextFormat.RichText)
             link.setOpenExternalLinks(True)
@@ -743,13 +819,17 @@ class Dashboard(QWidget):
     def _version_line(self, item: catalog.Item) -> QLabel:
         inst = item.installed or "—"
         if item.has_update():
+            # The BUILD you'd move to is the one number worth colouring — but
+            # only while it's news. Past that it's just a fact, in plain text.
+            new_colour = ui_helpers.ACCENT if is_fresh(item) else _TEXT_PAST
             body = (f'<span style="color:{ui_helpers.TEXT_DIM};">{_esc(inst)}</span>'
                     f'  <span style="color:{ui_helpers.TEXT_DIM};">→</span>  '
-                    f'<b style="color:{_NEW};">{_esc(item.latest)}</b>')
+                    f'<b style="color:{new_colour};">{_esc(item.latest)}</b>')
         elif item.latest:
-            body = f'<span style="color:{ui_helpers.TEXT_DIM};">{_esc(item.latest)} · current</span>'
+            body = (f'<span style="color:{_TEXT_PAST_DIM};">{_esc(item.latest)} '
+                    f'· current</span>')
         else:
-            body = f'<span style="color:{ui_helpers.TEXT_DIM};">{_esc(inst)}</span>'
+            body = f'<span style="color:{_TEXT_PAST_DIM};">{_esc(inst)}</span>'
         lab = QLabel(body)
         lab.setTextFormat(Qt.TextFormat.RichText)
         lab.setStyleSheet(type_qss(TYPE_CAPTION))

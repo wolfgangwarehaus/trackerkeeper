@@ -11,6 +11,21 @@ no matching section). See `docs/RELEASING.md`.
 
 ## [Unreleased]
 
+### Changed
+- **The fleet list has a foreground now.** A card had two states — pending or
+  not — so a month-old update looked exactly like one from an hour ago, and nine
+  rows all wore the same green. Now there are three:
+  **fresh** (an update inside a week) leads with a full-white name and the accent
+  on the dot, the new build and the changelog link; **pending but older** keeps
+  its dot and its *mark updated* button — it's still yours to install — but eases
+  back to neutral text; **current** sits quietest of all.
+- **One accent, not two near-identical greens.** The "new" colour (`#56c48d`)
+  sat a few points off the accent (`#2fbe8a`) while meaning something different,
+  which read as a printing error rather than a distinction. The accent is now the
+  single colour that means *live news*, and card tints are derived from whatever
+  accent is active rather than a frozen hex — so picking a different accent
+  recolours the list properly.
+
 ### Added
 - **A real logo, and a brand accent to match.** tracker keeper shipped its first
   two releases wearing dough's placeholder blob. The mark is now a refresh wheel

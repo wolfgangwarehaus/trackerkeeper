@@ -368,3 +368,53 @@ def test_detail_dialog_mark_updated_mutates_the_item(qapp):
     d._on_mark()
     assert item.installed == "1.1" and not item.has_update()
     assert d._marked is True    # so prompt() reports "marked" and the caller saves
+
+
+# ── fresh vs past: the visual hierarchy ──────────────────────────────────────
+
+
+def test_is_fresh_tracks_the_release_date_not_just_pending():
+    from datetime import datetime, timedelta, timezone
+
+    from trackerkeeper.dashboard import FRESH_DAYS, is_fresh
+
+    now = datetime(2026, 7, 26, tzinfo=timezone.utc)
+
+    def at(days):
+        return (now - timedelta(days=days)).strftime("%Y-%m-%d")
+
+    pending_new = catalog.Item(name="a", installed="1", latest="2", latest_date=at(1))
+    pending_old = catalog.Item(name="b", installed="1", latest="2",
+                               latest_date=at(FRESH_DAYS + 1))
+    current = catalog.Item(name="c", installed="2", latest="2", latest_date=at(0))
+
+    assert is_fresh(pending_new, now)
+    assert not is_fresh(pending_old, now)   # still yours to install, no longer news
+    assert not is_fresh(current, now)       # nothing to do at all
+
+
+def test_an_update_with_no_date_counts_as_fresh():
+    """Greying out something actionable on a guess is the worse failure."""
+    from trackerkeeper.dashboard import is_fresh
+
+    assert is_fresh(catalog.Item(name="a", installed="1", latest="2"))
+
+
+def test_only_fresh_cards_take_the_accent_wash(qapp):
+    from trackerkeeper.dashboard import _card_qss
+
+    plain, washed = _card_qss(False), _card_qss(True)
+    assert plain != washed
+    assert "255,255,255" in plain          # neutral
+    assert "255,255,255" not in washed     # accent-tinted
+
+
+def test_card_tint_follows_the_live_accent(qapp):
+    """Hardcoding the brand green would strand anyone who picks another accent."""
+    from trackerkeeper import ui_helpers
+    from trackerkeeper.dashboard import _card_qss, _rgba
+
+    assert _rgba("#2fbe8a", 0.08) == "rgba(47,190,138,0.08)"
+    assert _rgba("", 0.5).startswith("rgba(255,255,255")   # malformed → safe neutral
+    r, g, b = (int(ui_helpers.ACCENT.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+    assert f"rgba({r},{g},{b}," in _card_qss(True)
