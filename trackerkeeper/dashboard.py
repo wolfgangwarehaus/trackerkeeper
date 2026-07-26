@@ -201,6 +201,19 @@ class _Card(QFrame):
         super().mousePressEvent(e)
 
 
+# How a category section separates itself from the rows beneath it. A dim caps
+# label over a flat run of cards left the groups blending into one list.
+#
+# Three things do the work, and a fourth was tried and dropped: a FILLED BAND
+# behind the header is invisible here. The chrome is already near-black, so a
+# dark band has nothing to darken against, and a light one lands within a few
+# percent of the cards' own rgba(255,255,255,0.045). A light hairline reads on
+# a dark background where neither of those does.
+GROUP_RULE = "1px solid rgba(255,255,255,0.13)"   # under the header
+GROUP_GAP = 10        # px above each section after the first
+GROUP_INDENT = 12     # px the cards sit in from the section's left edge
+
+
 class _GroupHeader(QFrame):
     """A category's clickable header row: a disclosure arrow, the name, and its
     count (or "N new" when the group is hiding updates — a collapsed section
@@ -210,13 +223,15 @@ class _GroupHeader(QFrame):
         super().__init__()
         self._on_click = on_click
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setStyleSheet(".QFrame{background:transparent;border:none;}")
+        rule = (f"border-bottom:{GROUP_RULE};" if GROUP_RULE else "border:none;")
+        self.setStyleSheet(".QFrame{background:transparent;border:none;" + rule + "}")
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(2, 5, 0, 0)
+        lay.setContentsMargins(2, 4, 2, 4)
         lay.setSpacing(0)
         lab = QLabel(html)
         lab.setTextFormat(Qt.TextFormat.RichText)
-        lab.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_MICRO))
+        lab.setStyleSheet(f"color:{ui_helpers.TEXT};font-weight:700;"
+                          + type_qss(TYPE_MICRO))
         lay.addWidget(lab)
         lay.addStretch(1)
 
@@ -660,8 +675,8 @@ class Dashboard(QWidget):
         arrow = "▸" if collapsed else "▾"
         tail = (f'  <span style="color:{ui_helpers.ACCENT};">{n_up} new</span>' if n_up
                 else f'  <span style="color:#666;">{len(items)}</span>')
-        html = (f'<span style="color:#888;">{arrow}</span>  '
-                f'<span style="letter-spacing:0.6px;">{_esc(category).upper()}</span>{tail}')
+        html = (f'<span style="color:#999;">{arrow}</span>  '
+                f'<span style="letter-spacing:1.1px;">{_esc(category).upper()}</span>{tail}')
         return _GroupHeader(html, lambda c=category: self._toggle_collapsed(c))
 
     def _toggle_collapsed(self, category: str) -> None:
@@ -741,12 +756,14 @@ class Dashboard(QWidget):
         self._sync_sort_chips()
         self._sync_group_btn()
         if self._grouped and any(i.group for i in self._items):
-            for category, items in self._grouped_view():
+            for n, (category, items) in enumerate(self._grouped_view()):
+                if n and GROUP_GAP:
+                    self._list.addSpacing(GROUP_GAP)
                 self._list.addWidget(self._group_header(category, items))
                 if category in self._collapsed:
                     continue        # header stays (it still reports "N new")
                 for item in items:
-                    self._list.addWidget(self._card(item))
+                    self._list.addWidget(self._indent(self._card(item)))
         else:
             for item in self._sorted_items():
                 self._list.addWidget(self._card(item))
@@ -758,6 +775,20 @@ class Dashboard(QWidget):
             self._count.setText(
                 f"· {n} update{'s' if n != 1 else ''} available" if n else "· all current")
         self._sync_tray()
+
+    def _indent(self, card: QWidget) -> QWidget:
+        """Step a card in from the section's left edge, so the rows read as
+        belonging UNDER their category rather than merely following it. Returns
+        the card untouched when indenting is off, or at the narrow tier where
+        every pixel is already spoken for."""
+        if not GROUP_INDENT or self._tier == TIER_NARROW:
+            return card
+        holder = QWidget()
+        lay = QHBoxLayout(holder)
+        lay.setContentsMargins(GROUP_INDENT, 0, 0, 0)
+        lay.setSpacing(0)
+        lay.addWidget(card)
+        return holder
 
     def _card(self, item: catalog.Item) -> QWidget:
         card = _Card(lambda i=item: self._show_detail(i))

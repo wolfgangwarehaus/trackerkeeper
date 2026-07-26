@@ -481,3 +481,48 @@ def test_short_age_keeps_the_number(qapp):
     # every form stays inside the narrow column's budget
     for v in ("30m", "13h", "4d", "3w", "3mo", "2y"):
         assert len(v) <= 3
+
+
+# ── category sections ────────────────────────────────────────────────────────
+
+
+def test_group_header_carries_a_rule(qapp):
+    from trackerkeeper.dashboard import GROUP_RULE, _GroupHeader
+
+    h = _GroupHeader("GAMING", lambda: None)
+    assert "border-bottom" in h.styleSheet()
+    assert GROUP_RULE in h.styleSheet()
+
+
+def test_cards_are_indented_under_their_category_but_not_when_cramped(qapp):
+    from trackerkeeper.dashboard import GROUP_INDENT, TIER_NARROW, TIER_WIDE
+
+    dash = _dash(qapp, _grouped_fleet())
+    card = dash._card(dash._items[0])
+
+    dash._tier = TIER_WIDE
+    holder = dash._indent(card)
+    assert holder is not card                                  # wrapped
+    assert holder.layout().contentsMargins().left() == GROUP_INDENT
+
+    dash._tier = TIER_NARROW
+    # at the minimum width every pixel is already spoken for — no indent
+    assert dash._indent(dash._card(dash._items[1])) is not None
+    assert dash._indent(card) is card
+
+
+def test_sections_are_separated_by_a_gap(qapp):
+    from trackerkeeper.dashboard import save_collapsed
+
+    save_collapsed(set())
+    try:
+        dash = _dash(qapp, _grouped_fleet())   # two categories: Gaming, PC
+        dash._grouped = True
+        dash._render()
+        # header + cards for both groups, plus ONE spacer between them and the
+        # trailing stretch — a gap only ever appears BETWEEN sections.
+        spacers = sum(1 for i in range(dash._list.count())
+                      if dash._list.itemAt(i).spacerItem() is not None)
+        assert spacers == 2      # the inter-section gap + the trailing stretch
+    finally:
+        save_collapsed(set())

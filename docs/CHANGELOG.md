@@ -11,6 +11,13 @@ no matching section). See `docs/RELEASING.md`.
 
 ## [Unreleased]
 
+### Changed
+- **Category sections actually read as sections.** A dim caps label over a flat
+  run of cards left the groups blending into one list. The header is now
+  brighter and carries a hairline rule, the cards step in beneath it, and
+  sections are separated by a gap. (Cards don't indent at the narrow tier —
+  there, every pixel is already spoken for.)
+
 ### Fixed
 - **The app is legible at its minimum width now.** At 300px the fleet list was
   unusable: names chopped to `Stea` / `Game` / `Slay`, versions to `202607`, the
