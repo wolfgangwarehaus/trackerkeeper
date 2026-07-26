@@ -309,6 +309,14 @@ by = "agent"
 date = "2026-07-25"
 note = "PUBLISHED 2026-07-25 — v0.1.1 live on GitHub (7 artifacts) AND PyPI (wheel+sdist w/ Sigstore attestations, uploaded automatically now the publisher is registered). Verified: pip install trackerkeeper==0.1.1 in a clean venv gives 8 checkers + the heartbeat."
 
+[[delivery]]
+id = "74e280"
+text = "Cut + publish v0.1.2 — the looks pass"
+done = true
+by = "agent"
+date = "2026-07-26"
+note = "PUBLISHED 2026-07-26: GitHub (7 artifacts) + PyPI (wheel+sdist, uploaded automatically). Logo + brand accent, per-item detail, fresh/past hierarchy, category sections, legible at the 300px minimum. Verified pip install trackerkeeper==0.1.2 in a clean venv."
+
 [[improvements]]
 id = "bb5d4c"
 text = "Grow the checker library: store pages, more feeds, per-platform firmware"
