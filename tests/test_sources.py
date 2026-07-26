@@ -672,3 +672,87 @@ def test_a_source_with_no_notes_is_simply_empty():
         {"pkgname": "plasma-desktop", "pkgver": "6.7.3", "pkgrel": "1",
          "repo": "extra", "arch": "x86_64", "last_update": "2026-07-15T00:00:00Z"}]}})
     assert sources.check(item, http).notes == ""
+
+
+# ── the registry ─────────────────────────────────────────────────────────────
+
+
+def test_every_source_is_completely_declared():
+    """One record per checker, and nothing about it left blank.
+
+    This is the gate that replaced six hand-kept tables across four files. A
+    checker used to be declared in sources._PROVIDERS, catalog.KINDS,
+    dashboard._CHANNEL, and item_dialog's labels, hints and validation chain —
+    six chances to forget one, and the symptom was a KeyError in the Add dialog
+    or a ref that silently never validated."""
+    assert sources.SOURCES, "no sources declared"
+    for src in sources.SOURCES:
+        assert src.kind and src.kind.islower(), f"{src.kind}: bad kind"
+        assert src.channel, f"{src.kind}: no channel label for the dashboard column"
+        assert src.label, f"{src.kind}: no picker label for the Add dialog"
+        assert callable(src.check), f"{src.kind}: check is not callable"
+        # manual is the one kind with nothing to type and nothing to poll
+        if src.kind != "manual":
+            assert src.hint, f"{src.kind}: no ref hint"
+            assert src.problem is not None, f"{src.kind}: no ref validation"
+
+
+def test_kinds_are_unique_and_derived_everywhere():
+    from trackerkeeper import catalog
+
+    kinds = [s.kind for s in sources.SOURCES]
+    assert len(kinds) == len(set(kinds)), "duplicate kind in the registry"
+    assert sources.KINDS == tuple(kinds)
+    assert catalog.KINDS is sources.KINDS       # derived, never re-listed
+    assert set(sources.BY_KIND) == set(kinds)
+
+
+def test_the_dashboard_channel_column_covers_every_kind(qapp):
+    from trackerkeeper import catalog
+    from trackerkeeper.dashboard import channel_label
+
+    for src in sources.SOURCES:
+        label = channel_label(catalog.Item(name="x", kind=src.kind))
+        assert label == src.channel and label != src.kind
+
+
+def test_ref_validation_accepts_good_refs_and_explains_bad_ones():
+    good = {"github": "owner/repo", "arch": "plasma-desktop", "flatpak": "org.x.Y",
+            "appstore": "6449580241", "cachyos": "desktop", "appledev": "iOS 27",
+            "steam": "2868840", "rss": "https://x/feed.xml", "manual": ""}
+    bad = {"github": "notarepo", "arch": "", "flatpak": "nodots", "appstore": "",
+           "cachyos": "sideways", "appledev": "", "steam": "not-a-number",
+           "rss": "plasma-desktop"}
+    for src in sources.SOURCES:
+        assert src.ref_problem(good[src.kind]) == "", f"{src.kind} rejected a good ref"
+    for kind, ref in bad.items():
+        msg = sources.BY_KIND[kind].ref_problem(ref)
+        assert msg, f"{kind} accepted {ref!r}"
+        # the message has to say what to do, not just that something's wrong
+        assert len(msg) > 20 and msg.endswith("."), f"{kind}: unhelpful message {msg!r}"
+
+
+def test_the_registry_points_each_kind_at_its_own_provider():
+    """A registry entry wired to the WRONG function is the failure this table
+    makes possible and a per-kind if-chain didn't: every provider takes the same
+    arguments, so github pointing at _arch would run, return None, and read as
+    "couldn't check" forever."""
+    for src in sources.SOURCES:
+        assert src.check.__name__ == f"_{src.kind}", (
+            f"{src.kind} is wired to {src.check.__name__}")
+
+
+def test_check_dispatches_for_every_declared_kind():
+    """Every kind reaches its provider and comes back cleanly — no kind in the
+    registry that raises, and none that silently isn't dispatched."""
+    from trackerkeeper import catalog
+
+    for src in sources.SOURCES:
+        item = catalog.Item(name="x", kind=src.kind, ref="anything")
+        res, reason = sources.check_with_reason(
+            item, http=lambda u: None, http_text=lambda u: None)
+        assert res is None                       # nothing answers with fakes
+        if src.kind == "manual":
+            assert reason == ""                  # nothing to poll is not an error
+        else:
+            assert reason in (sources.UNREACHABLE, sources.NOT_FOUND)

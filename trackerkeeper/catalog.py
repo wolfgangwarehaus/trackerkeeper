@@ -17,10 +17,12 @@ import json
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
-# source KINDS the app knows how to check (sources.py owns the checkers). A
-# manual item has no checker — you set `installed` yourself and it never fetches.
-KINDS = ("github", "arch", "flatpak", "appstore", "cachyos", "appledev", "steam",
-         "rss", "manual")
+from trackerkeeper import sources
+
+# The source kinds the app can check — DERIVED from the one registry in
+# sources.py, never re-listed. A hand-kept copy here drifted the moment a
+# checker was added and left the Add dialog raising KeyError on the new kind.
+KINDS = sources.KINDS
 
 
 @dataclass

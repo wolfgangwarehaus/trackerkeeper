@@ -559,17 +559,78 @@ def _manual(item, http, http_text) -> CheckResult | None:
     return None
 
 
-_PROVIDERS = {
-    "github": _github,
-    "arch": _arch,
-    "appstore": _appstore,
-    "cachyos": _cachyos,
-    "appledev": _appledev,
-    "steam": _steam,
-    "rss": _rss,
-    "flatpak": _flatpak,
-    "manual": _manual,
-}
+# ── the registry ─────────────────────────────────────────────────────────────
+
+
+def _needs(message: str, ok):
+    """A ref validator: returns ``message`` unless ``ok(ref)``."""
+    return lambda ref: "" if ok(ref) else message
+
+
+@dataclass(frozen=True)
+class Source:
+    """Everything the app needs to know about ONE kind of source, in one place.
+
+    Adding a checker used to mean editing six sites across four files —
+    ``_PROVIDERS`` here, ``catalog.KINDS``, ``dashboard._CHANNEL``, and
+    ``item_dialog``'s label table, hint table and validation chain — with
+    nothing keeping them in step. Miss one and the Add dialog raises a KeyError
+    on that kind, or worse, accepts a ref it should have rejected. Declare a
+    Source and every one of those derives from it; the gate in
+    tests/test_sources.py proves nothing is left behind.
+    """
+
+    kind: str        # the stored id (``Item.kind``)
+    channel: str     # short name for the dashboard's channel column
+    label: str       # the Add/Edit picker's line
+    hint: str        # placeholder text for the ref field
+    check: object    # the provider: (item, http, http_text) -> CheckResult | None
+    problem: object = None   # (ref) -> an error message, or "" when it's fine
+
+    def ref_problem(self, ref: str) -> str:
+        """Why this ref won't work, or "" if it will."""
+        return self.problem(ref) if self.problem else ""
+
+
+SOURCES: tuple[Source, ...] = (
+    Source("github", "GitHub", "GitHub releases  (owner/repo)",
+           "owner/repo  ·  e.g. ghostty-org/ghostty", _github,
+           _needs("GitHub source wants owner/repo (e.g. ghostty-org/ghostty).",
+                  lambda r: "/" in r)),
+    Source("arch", "Arch", "Arch package  (package name)",
+           "package name  ·  e.g. plasma-desktop", _arch,
+           _needs("Arch source wants a package name (e.g. plasma-desktop).", bool)),
+    Source("flatpak", "Flatpak", "Flatpak  (Flathub app id — org.videolan.VLC)",
+           "Flathub app id  ·  e.g. org.videolan.VLC  (in the flathub.org URL)", _flatpak,
+           _needs("Flatpak source wants a Flathub app id (e.g. org.videolan.VLC).",
+                  lambda r: "." in r)),
+    Source("appstore", "App Store", "App Store  (iOS / Mac — app id or bundle id)",
+           "app id or bundle id  ·  e.g. 6449580241 or com.apple.FinalCutApp.companion",
+           _appstore,
+           _needs("App Store source wants an app id or bundle id.", bool)),
+    Source("cachyos", "CachyOS", "CachyOS ISO  (edition: desktop / kde / handheld / cli)",
+           "edition  ·  desktop (default) · kde · handheld · cli", _cachyos,
+           _needs("CachyOS edition must be one of: "
+                  + " · ".join(_CACHY_EDITIONS) + ".",
+                  lambda r: not r.strip() or r.strip().lower() in _CACHY_EDITIONS)),
+    Source("appledev", "Apple",
+           "Apple release  (OS filter — iOS 27, macOS 27, betas + finals)",
+           "OS filter  ·  e.g. iOS 27 · iPadOS 27 · macOS 27 · watchOS 27", _appledev,
+           _needs("Apple source wants an OS filter (e.g. iOS 27).", bool)),
+    Source("steam", "Steam", "Steam  (game/app id — latest patch notes)",
+           "Steam app id  ·  e.g. 2868840  (in the store URL: /app/2868840/)", _steam,
+           _needs("Steam source wants a numeric app id (e.g. 2868840).",
+                  lambda r: r.isdigit())),
+    Source("rss", "Feed", "RSS / Atom feed  (any changelog feed URL)",
+           "feed URL  ·  add a space + word to filter titles  ·  https://…/feed.xml plasma",
+           _rss,
+           _needs("Feed source wants the feed's URL (https://…).",
+                  lambda r: r.lower().startswith(("http://", "https://")))),
+    Source("manual", "Manual", "Manual  (you set the version)", "", _manual),
+)
+
+BY_KIND: dict[str, Source] = {s.kind: s for s in SOURCES}
+KINDS: tuple[str, ...] = tuple(s.kind for s in SOURCES)
 
 
 UNREACHABLE = "unreachable"
@@ -596,7 +657,8 @@ def check_with_reason(item, http=http_json, http_text=http_text):
     apart by watching the network seams — if no fetch ever happened the provider
     rejected the ref up front, and if a fetch returned None the source is down.
     """
-    provider = _PROVIDERS.get(item.kind)
+    source = BY_KIND.get(item.kind)
+    provider = source.check if source else None
     if provider is None:
         return None, ""
     fetched = {"any": False, "ok": True}

@@ -18,32 +18,9 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
-from trackerkeeper import catalog, ui_helpers
+from trackerkeeper import catalog, sources, ui_helpers
 from trackerkeeper.frosted_dialog import FrostedDialog
 from trackerkeeper.selector import Selector, selector_qss
-
-_KIND_LABELS = {
-    "github": "GitHub releases  (owner/repo)",
-    "arch": "Arch package  (package name)",
-    "flatpak": "Flatpak  (Flathub app id — org.videolan.VLC)",
-    "appstore": "App Store  (iOS / Mac — app id or bundle id)",
-    "cachyos": "CachyOS ISO  (edition: desktop / kde / handheld / cli)",
-    "appledev": "Apple release  (OS filter — iOS 27, macOS 27, betas + finals)",
-    "steam": "Steam  (game/app id — latest patch notes)",
-    "rss": "RSS / Atom feed  (any changelog feed URL)",
-    "manual": "Manual  (you set the version)",
-}
-_REF_HINT = {
-    "github": "owner/repo  ·  e.g. ghostty-org/ghostty",
-    "arch": "package name  ·  e.g. plasma-desktop",
-    "flatpak": "Flathub app id  ·  e.g. org.videolan.VLC  (in the flathub.org URL)",
-    "appstore": "app id or bundle id  ·  e.g. 6449580241 or com.apple.FinalCutApp.companion",
-    "cachyos": "edition  ·  desktop (default) · kde · handheld · cli",
-    "appledev": "OS filter  ·  e.g. iOS 27 · iPadOS 27 · macOS 27 · watchOS 27",
-    "steam": "Steam app id  ·  e.g. 2868840  (in the store URL: /app/2868840/)",
-    "rss": "feed URL  ·  add a space + word to filter titles  ·  https://…/feed.xml plasma",
-    "manual": "",
-}
 
 
 class ItemDialog(FrostedDialog):
@@ -71,8 +48,10 @@ class ItemDialog(FrostedDialog):
 
         self.content_layout.addWidget(self._label("Source"))
         self._kind = Selector()
-        for kind in catalog.KINDS:
-            self._kind.addItem(_KIND_LABELS[kind], kind)
+        # Straight from the registry — no parallel label table to fall out of
+        # step with it (a missing entry used to be a KeyError right here).
+        for src in sources.SOURCES:
+            self._kind.addItem(src.label, src.kind)
         self._kind.setFixedWidth(300)
         self._select(self._kind, item.kind if editing else "github")
         self._kind.currentIndexChanged.connect(self._sync_ref_hint)
@@ -137,7 +116,8 @@ class ItemDialog(FrostedDialog):
 
     def _sync_ref_hint(self, *_) -> None:
         kind = self._kind.currentData()
-        self._ref.setPlaceholderText(_REF_HINT.get(kind, ""))
+        src = sources.BY_KIND.get(kind)
+        self._ref.setPlaceholderText(src.hint if src else "")
         self._ref.setEnabled(kind != "manual")
 
     # ── actions ──
@@ -151,23 +131,12 @@ class ItemDialog(FrostedDialog):
             return
         kind = self._kind.currentData()
         ref = self._ref.text().strip()
-        if kind == "github" and "/" not in ref:
-            self._err.setText("GitHub source wants owner/repo (e.g. ghostty-org/ghostty).")
-            return
-        if kind == "arch" and not ref:
-            self._err.setText("Arch source wants a package name (e.g. plasma-desktop).")
-            return
-        if kind == "appstore" and not ref:
-            self._err.setText("App Store source wants an app id or bundle id.")
-            return
-        if kind == "steam" and not ref.isdigit():
-            self._err.setText("Steam source wants a numeric app id (e.g. 2868840).")
-            return
-        if kind == "flatpak" and "." not in ref:
-            self._err.setText("Flatpak source wants a Flathub app id (e.g. org.videolan.VLC).")
-            return
-        if kind == "rss" and not ref.lower().startswith(("http://", "https://")):
-            self._err.setText("Feed source wants the feed's URL (https://…).")
+        # One question to the registry instead of a per-kind if-chain that had
+        # to be extended (and was, twice, a release apart) for every new checker.
+        src = sources.BY_KIND.get(kind)
+        problem = src.ref_problem(ref) if src else ""
+        if problem:
+            self._err.setText(problem)
             return
         target = self._item or catalog.Item(name=name)
         target.name = name

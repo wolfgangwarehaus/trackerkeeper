@@ -101,11 +101,6 @@ def _card_qss(fresh: bool) -> str:
             f"{_rgba(accent, 0.40)};border-radius:12px;}}")
 
 
-# the release channel a kind maps to — the column + a sort axis
-_CHANNEL = {"github": "GitHub", "arch": "Arch", "appstore": "App Store",
-            "cachyos": "CachyOS", "appledev": "Apple", "steam": "Steam",
-            "rss": "Feed", "flatpak": "Flatpak", "manual": "Manual"}
-
 # tracker keeper is a UTILITY window first — it lives in the tray and gets
 # opened in a corner, so it has to stay readable narrow. These are the sizes
 # the layout is designed against, not arbitrary minimums.
@@ -255,7 +250,8 @@ def width_tier(width: int) -> str:
 
 def channel_label(item: catalog.Item) -> str:
     """The human name of the source an item updates through (its channel)."""
-    return _CHANNEL.get(item.kind, item.kind or "—")
+    source = sources.BY_KIND.get(item.kind)
+    return source.channel if source else (item.kind or "—")
 
 
 def error_text(error: str) -> str:
