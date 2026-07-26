@@ -31,6 +31,7 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from trackerkeeper import identity
 from trackerkeeper.platform_compat import IS_MACOS, IS_WINDOWS
 
 if TYPE_CHECKING:
@@ -276,16 +277,14 @@ _DARK_TOKENS = dict(
 )
 
 
-# Default accent: tracker keeper's brand green. The same hex as the "Green"
-# preset below AND as the logo's single accent, so a fresh profile's chrome
-# matches its own icon out of the box. (dough ships a subdued violet here; a
-# loaf is expected to move this to its brand.) Like violet-400 before it, the
-# preset value is ~10% darker than its Tailwind baseline so it reads as a
-# deliberate dark-mode accent rather than competing with text for the eye —
-# DEEP applies that same channel * 0.9 rule again for the pressed state.
-# Each accent_color setting overrides this at runtime via get_active_theme().
-_DEFAULT_ACCENT = "#2fbe8a"
-_DEFAULT_ACCENT_DEEP = "#2aab7c"
+# The default accent comes from the IDENTITY seam, not from a literal here — a
+# loaf brands itself in identity.py (which it already owns) and never edits this
+# file, so this one stays auto-syncable. trackerkeeper's own value is a subdued violet;
+# it was violet-400 (#a78bfa) until that read too bright on dark backgrounds,
+# where the accent shows up at full bleed. An accent_color setting still
+# overrides this at runtime via get_active_theme().
+_DEFAULT_ACCENT = identity.accent()
+_DEFAULT_ACCENT_DEEP = identity.accent_deep()
 
 
 FROSTED_DARK = Theme(

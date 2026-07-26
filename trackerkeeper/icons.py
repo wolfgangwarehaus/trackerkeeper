@@ -436,7 +436,9 @@ def _resolve_icon_accent() -> str:
 
         return get_active_theme().accent
     except Exception:
-        return "#2fbe8a"   # the brand accent — matches theme._DEFAULT_ACCENT
+        from trackerkeeper import identity
+
+        return identity.accent()
 
 
 ICON_ACCENT = _resolve_icon_accent()

@@ -63,7 +63,7 @@ class Settings:
 
     @property
     def accent_color(self) -> str:
-        return str(self._s.value("ui/accent_color", "#2fbe8a"))
+        return str(self._s.value("ui/accent_color", identity.accent()))
 
     @accent_color.setter
     def accent_color(self, v: str) -> None:

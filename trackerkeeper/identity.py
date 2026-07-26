@@ -37,6 +37,14 @@ _org = "wolfgangwarehaus"
 _app = "trackerkeeper"
 _display_name = "tracker keeper"
 _owner: str | None = None  # None ⇒ track `org` (see owner())
+# The BRAND accent — tracker keeper's green, the same hex as the logo's single
+# accent and as the "Green" preset. It lives HERE and not in theme.py /
+# color_tokens.py / settings.py / icons.py, because those are base files the
+# sync door owns: when the accent lived in them, one `sync_loaf --apply`
+# reverted the whole brand to dough's violet, and the suite stayed green
+# throughout — "the accent is the wrong colour" is not something tests notice.
+_accent = "#2fbe8a"
+_accent_deep: str | None = None  # derived from _accent (channel * 0.9)
 
 
 def configure(

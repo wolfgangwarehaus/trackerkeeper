@@ -36,6 +36,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
+from trackerkeeper import identity
+
 
 @dataclass(frozen=True)
 class ColorToken:
@@ -77,7 +79,7 @@ TOKENS: dict[str, ColorToken] = {
     # ── Accent ─────────────────────────────────────────────────────────
     "ACCENT": ColorToken(
         name="ACCENT",
-        default="#2fbe8a",
+        default=identity.accent(),
         kind="hex",
         category="accent",
         description="Primary accent. Active controls, fills, focus rings.",
@@ -85,7 +87,7 @@ TOKENS: dict[str, ColorToken] = {
     ),
     "ACCENT_DEEP": ColorToken(
         name="ACCENT_DEEP",
-        default="#2aab7c",
+        default=identity.accent_deep(),
         kind="hex",
         category="accent",
         description="Pressed / active accent (≈10% darker than ACCENT).",

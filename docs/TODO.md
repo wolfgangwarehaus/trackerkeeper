@@ -3,74 +3,54 @@
 **Read this first.** Current state in two lines, then exactly what to do next,
 then the standing backlog.
 
-## Where things stand (2026-07-25)
+## Where things stand (2026-07-26)
 
-**v0.1.0 is tagged and built.** The release workflow produced a complete draft —
-`.deb`, AppImage (+`.zsync`), Windows setup `.exe` + portable `.zip`, sdist,
-wheel, `SHA256SUMS`, Sigstore attestations. It is **unpublished**: reviewing and
-clicking Publish on GitHub is the one deliberate human gate, and publishing
-fires `pypi-publish.yml` (PyPI via OIDC).
+**Three releases are out.** v0.1.2 — the looks pass — is published on GitHub
+(7 artifacts) and PyPI, verified by a clean-venv `pip install trackerkeeper==0.1.2`.
+Publishing is now hands-off end to end: the Trusted Publisher is registered, so
+the PyPI leg rides every tag.
 
-Since the tag, `main` has moved on with the heartbeat, "new since you last
-looked", the Tracking settings section, and a generic RSS/Atom checker — all
-under `[Unreleased]` in the changelog, i.e. the substance of an 0.2.0.
+Since that tag, `main` carries a refactor (a checker is declared **once**, not in
+six places across four files), a changelog lint, and a dough sync
+(`85b7957..9acb395`) — all under `[Unreleased]`, i.e. an 0.1.3's worth of
+housekeeping rather than a feature release. Nothing is half-landed.
 
-The app is a tray-resident watchtower over a 9-item fleet, every item
-auto-checked, that now **keeps checking on a timer whether or not the window is
-open**. CI is green on all five legs.
+The app is a tray-resident watchtower over the maker's real fleet with **eight
+auto-checkers** plus the manual fallback, checking on a timer whether or not the
+window is open. Everything is green: `ruff`, 493 tests, `bake --check`, `rig
+boot` / `probe` / `baseline` (0.00% drift), and CI on all legs.
 
 ## Pick up here (in order)
 
-1. **Publish the v0.1.0 draft** — review it at
-   `gh release view v0.1.0 --web`, then Publish. Delivery item `267380`.
-   (The tag was force-moved once, onto `edcf503`, so the released commit is
-   green; the draft is idempotently rebuilt on any re-push of the tag.)
-2. **Ship Linux-first** (delivery `0a95b7`): AUR + deb/AppImage via
-   `trackerkeeper-deliver`. Note `aur.yml` stays dormant until an
-   `AUR_SSH_PRIVATE_KEY` secret exists **and** AUR reopens new-package
-   registration.
-3. **Then 0.2.0** when the `[Unreleased]` block feels complete — the two
-   cheapest wins on the board are conditional requests (`cb0d95`) and
-   distinguishing "no match" from "unreachable" (`4e3124`).
+1. **Grow the checker library** (improvements `bb5d4c`) — this is the moat, and
+   it's the only open item that isn't housekeeping or blocked. `rss` is the
+   widest-coverage way in for a new source; reach for a bespoke checker only when
+   a source has no feed.
+2. **Cut v0.1.3** when `[Unreleased]` feels worth shipping (it's currently a
+   refactor + two fixes). `docs/RELEASING.md`; the tag IS the version.
+3. **The two `later` baking cards**, when you want structural work rather than
+   product: extract the Qt-free logic out of `dashboard.py` (`086ae4`, 704 lines
+   of mixed pure/widget code) and give `Item` a stable id (`9a6b97` — refresh
+   results are keyed by *name* today, which `ItemDialog`'s uniqueness check makes
+   work by convention rather than by structure).
 
-## Resolved: the CI abort that cost a re-run on most pushes
-
-**Root cause found, and it was not in the single-instance code.** conftest's
-`_isolate_qt_windows` closed and `deleteLater()`'d every top-level widget after
-each test, then called `processEvents()` — but **`processEvents()` does not
-deliver `DeferredDelete`**. Qt only reaps those when an event loop unwinds to
-the nesting level that posted them, and that fixture never runs one:
-
-```python
-w = QWidget(); w.deleteLater()
-app.processEvents()                                   # -> still alive
-QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)  # -> destroyed
-```
-
-So every `deleteLater()`'d widget in the suite stayed alive until the first test
-that spun a **real nested `QEventLoop`** — `_spin()` in
-`test_single_instance_forwarding` — which then destroyed hundreds at once, in
-arbitrary order, each carrying native blur / event-filter state. That explains
-every symptom: always the same point, always right after
-`test_settings_migration` (its alphabetical predecessor), roaming across all
-three OSes, passing locally on a single file, and cleared by `rerun --failed`
-(which runs that file alone).
-
-Fixed in `tests/conftest.py` with an explicit `sendPostedEvents(DeferredDelete)`.
-Side effect: the suite got **~2× faster** (8–10 s → ~4 s) while running more
-tests, because every `processEvents()` had been walking an ever-growing object
-graph. If an abort ever returns, look for a *new* fixture that defers deletion
-without reaping it.
+**Not actionable:** AUR (delivery `0a95b7`) is externally blocked — it needs an
+`AUR_SSH_PRIVATE_KEY` secret *and* AUR to reopen new-package registration (frozen
+since the 2026 malware wave). deb + AppImage already ship on every release.
 
 ## What exists now (so you don't re-derive it)
 
-**Seven checkers**, all in `sources.py`, each a `(item, http, http_text)`
-function behind two injected network seams (so no test touches the network):
+**Eight checkers**, all in `sources.py`, each a `(item, http, http_text)`
+function behind two injected network seams (so no test touches the network).
+Each one is a single `Source` record — kind, label, help text, checker,
+validator — and the Add dialog, the validation and the labels all derive from
+it, so adding a checker means adding one entry:
 
 | kind | source | notes |
 | --- | --- | --- |
 | `github` | GitHub releases API | latest **stable** (pre-releases skipped by design) |
 | `arch` | archlinux.org JSON search | prefers stable repo over testing |
+| `flatpak` | Flathub appstream API | prefers the newest **stable** release (the feed carries dev builds) |
 | `appstore` | Apple iTunes Lookup | app id **or** bundle id; the whole iOS/Mac store |
 | `appledev` | Apple developer-releases RSS | `ref` is an OS filter — "iOS 27", "macOS 27" |
 | `steam` | Steam news API | filters to `patchnotes`; version parsed from the title |
@@ -124,17 +104,18 @@ close-to-tray, start-in-tray. The interval re-arms the live dashboard through
 
 ## Standing backlog
 
-- **More checkers**: Flatpak (baking `f7a5a3`, Arch half already shipped) —
-  Flathub's `/api/v2/appstream/<id>` is the obvious way in.
-- **Conditional requests** (`cb0d95`) — ETag/`If-None-Match` + optional GitHub
-  token. Matters more now that checks run every 2 h by default.
-- **"No match" vs "unreachable"** (`4e3124`) — a typo'd ref currently reads as a
-  network blip.
-- **Per-item detail view** (`ba86e2`) — GitHub hands you `body` and Steam
-  `contents` for free; both are currently discarded in favour of a link.
-- **Brand**: replace the placeholder logo SVG + pick an accent (ingredient
-  `ac9750`) — currently riding the system accent.
-- **rig baseline goldens** now that the UI has settled (`eb70cb`).
+Everything that was listed here through v0.1.2 has shipped — Flatpak, conditional
+requests, "no match" vs "unreachable", the per-item detail view, the brand, and
+the rig goldens. What's actually left:
+
+- **More checkers** (improvements `bb5d4c`) — store pages, more feeds,
+  per-platform firmware. The open-ended one; the moat.
+- **Extract the Qt-free logic out of `dashboard.py`** (baking `086ae4`) —
+  `humanize_age` / `_parse_iso` / `_bucket_days`, the sort keys and `width_tier`
+  are pure functions testable without a widget.
+- **A stable `Item` id** (baking `9a6b97`) — `_RefreshWorker` emits
+  `{item.name: result}`, safe by convention only.
+- **AUR** (delivery `0a95b7`) — externally blocked, see the top of this file.
 - **CachyOS `kde` edition** doesn't parse (different mirror layout); `desktop`,
   `handheld`, `cli` work.
 
@@ -150,6 +131,19 @@ close-to-tray, start-in-tray. The interval re-arms the live dashboard through
   probe's second launch and the X11 leg reports "(no window)" as a false FAIL.
 - **Re-render must un-parent before `deleteLater`**, or old rows ghost over the
   new layout.
-- `top_bar.py` is now `manual` in `dough-sync.toml` (it was unclassified, i.e.
-  AUTO — a sync would have silently overwritten the hamburger work); `tray.py`
-  is `authored`.
+- **`processEvents()` does not deliver `DeferredDelete`.** This was the CI abort
+  that cost a re-run on most pushes: conftest `deleteLater()`'d every widget but
+  never reaped them, so hundreds died at once inside the first *real* nested
+  `QEventLoop` (`_spin()` in `test_single_instance_forwarding`). Fixed with an
+  explicit `sendPostedEvents(None, QEvent.Type.DeferredDelete)` — which also made
+  the suite ~2× faster, since every `processEvents()` had been walking an
+  ever-growing object graph. If the abort ever returns, look for a *new* fixture
+  that defers deletion without reaping it.
+- **Classify a file in `dough-sync.toml` the MOMENT you customize it.** Twice now
+  an unclassified (therefore AUTO) file has been one `sync_loaf --apply` from
+  being silently reverted — most recently `settings.py` / `theme.py` /
+  `color_tokens.py` / `icons.py`, i.e. the entire brand accent, plus a deleted
+  `ElidedLabel`. The suite stays green through it, because "the accent is the
+  wrong colour" is not something tests notice; only reading the diff caught it.
+  All four are `manual` now, as are `top_bar.py`, `settings_dialog.py`, `bus.py`
+  and `rig.py`; `tray.py` and `detail_dialog.py` are `authored`.
