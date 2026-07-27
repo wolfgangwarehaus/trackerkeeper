@@ -28,19 +28,19 @@
   </developer>
 
   <categories>
-    <category>Development</category>
+    <category>Utility</category>
   </categories>
 
   <keywords>
-    <keyword>pyside6</keyword>
-    <keyword>qt</keyword>
-    <keyword>desktop</keyword>
-    <keyword>starter</keyword>
-    <keyword>template</keyword>
-    <keyword>frosted-glass</keyword>
-    <keyword>cross-platform</keyword>
-    <keyword>kde</keyword>
-    <keyword>windows</keyword>
+    <keyword>updates</keyword>
+    <keyword>update-tracker</keyword>
+    <keyword>changelog</keyword>
+    <keyword>release-notes</keyword>
+    <keyword>versions</keyword>
+    <keyword>software-updates</keyword>
+    <keyword>firmware</keyword>
+    <keyword>watchtower</keyword>
+    <keyword>release-monitor</keyword>
   </keywords>
 
   <content_rating type="oars-1.1"/>

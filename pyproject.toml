@@ -27,7 +27,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-2.0-or-later" }
 authors = [{ name = "august", email = "augustvontrips@gmail.com" }]
-keywords = ["pyside6", "qt", "desktop", "starter", "template", "frosted-glass", "cross-platform", "kde", "windows"]
+keywords = ["updates", "update-tracker", "changelog", "release-notes", "versions", "software-updates", "firmware", "watchtower", "release-monitor"]
 # PyPI Trove classifiers are a hand-maintained SECOND site, not yet rendered
 # from [tool.trackerkeeper.metadata]. The License line is guarded against license_spdx by
 # tests/test_metadata.py; the OS/Environment lines are a free-text platform fact
@@ -128,7 +128,7 @@ org_slug = "wolfgangwarehaus"
 github_owner = "wolfgangwarehaus"
 repo_name = "trackerkeeper"
 display_name = "tracker keeper"
-generic_name = "App Base"
+generic_name = "Update tracker"
 summary = "One dashboard for software & firmware updates across everything you own"
 license_spdx = "GPL-2.0-or-later"
 
@@ -150,9 +150,11 @@ maintainer_email = "augustvontrips@gmail.com"
 # warehaus drift; docs/BAKING.md §9).
 publisher_display_name = "wolfgang warehaus"
 # A single freedesktop MAIN category (more than one risks a double menu entry —
-# desktop-file-validate hint). trackerkeeper is developer tooling; a fork sets its own.
-categories = ["Development"]
-keywords = ["pyside6", "qt", "desktop", "starter", "template", "frosted-glass", "cross-platform", "kde", "windows"]
+# desktop-file-validate hint). tracker keeper watches your installed software,
+# so it belongs in Utility/System, not the Development bucket it inherited.
+categories = ["Utility"]
+keywords = ["updates", "update-tracker", "changelog", "release-notes", "versions",
+            "software-updates", "firmware", "watchtower", "release-monitor"]
 requires_python = ">=3.11"
 entry_point = "trackerkeeper.app:main"
 icon_svg_source = "trackerkeeper/assets/trackerkeeper.svg"

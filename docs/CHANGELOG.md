@@ -26,6 +26,12 @@ no matching section). See `docs/RELEASING.md`.
   `Source` record per checker and everything derives from it.
 
 ### Fixed
+- **Store metadata was still dough's.** The app shipped as `GenericName=App
+  Base` in the `Development` category with the base's template keywords
+  (`pyside6`, `qt`, `starter`, `template`…) — which is what the `.desktop` entry,
+  the AppStream metainfo, the `.deb`/AppImage/MSIX listings and the PyPI page all
+  read from. It's now an `Update tracker` in `Utility`, with keywords describing
+  what it does.
 - `rig probe` / `rig shot` no longer fail opaquely when the app is already
   running. Both launch their own copy to observe; single-instance hands the
   second launch back to the first, so they were measuring a process that had

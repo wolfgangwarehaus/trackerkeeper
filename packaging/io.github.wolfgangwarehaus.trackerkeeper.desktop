@@ -1,13 +1,13 @@
 [Desktop Entry]
 Type=Application
 Name=tracker keeper
-GenericName=App Base
+GenericName=Update tracker
 Comment=One dashboard for software & firmware updates across everything you own
 Exec=trackerkeeper
 Icon=io.github.wolfgangwarehaus.trackerkeeper
 Terminal=false
-Categories=Development;
-Keywords=pyside6;qt;desktop;starter;template;frosted-glass;cross-platform;kde;windows;
+Categories=Utility;
+Keywords=updates;update-tracker;changelog;release-notes;versions;software-updates;firmware;watchtower;release-monitor;
 StartupNotify=true
 # The bare slug, NOT io.github.wolfgangwarehaus.trackerkeeper — Qt/xcb derives WM_CLASS from
 # applicationName (the slug), and StartupWMClass must equal WM_CLASS to
