@@ -39,7 +39,7 @@ jobs:
       contents: read # gh release download
       id-token: write # mint the short-lived OIDC token Trusted Publishing needs
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       # Publish the SAME sdist + wheel bytes that release.yml built, attached to

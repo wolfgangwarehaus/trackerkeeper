@@ -22,7 +22,7 @@ jobs:
     env:
       HAVE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: env.HAVE_KEY == 'true'
       - name: Stamp PKGBUILD pkgver from the tag
         if: env.HAVE_KEY == 'true'

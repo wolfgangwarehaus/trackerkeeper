@@ -35,10 +35,10 @@ jobs:
       id-token: write # mint a Sigstore build-provenance attestation (free on public repos)
       attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # setuptools-scm derives the version from the tag
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: System libraries (PySide6 headless analysis)
@@ -91,7 +91,7 @@ jobs:
         run: |
           sudo apt-get install -y lintian
           lintian --no-tag-display-limit dist/*.deb
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: deb
           path: dist/*.deb
@@ -110,10 +110,10 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: System libraries to vendor (the Qt xcb closure) + an SVG rasterizer
@@ -155,7 +155,7 @@ jobs:
             docker run --rm -v "$PWD:/src:ro" "$img" bash /src/packaging/appimage/smoke_test_appimage.sh
             echo "::endgroup::"
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: appimage
           path: |
@@ -178,10 +178,10 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install (render + freeze deps)
@@ -249,7 +249,7 @@ jobs:
         run: |
           Compress-Archive -Path dist\trackerkeeper\* `
             -DestinationPath "dist\trackerkeeper-${{ steps.ver.outputs.version }}-windows-x64-portable.zip"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: |
@@ -270,16 +270,16 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: |
           python -m pip install --upgrade pip build
           python -m build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: python-dist
           path: dist/*
@@ -296,8 +296,8 @@ jobs:
     permissions:
       contents: write # only this job mints the release
     steps:
-      - uses: actions/checkout@v4 # for the curated notes + display name
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7 # for the curated notes + display name
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true

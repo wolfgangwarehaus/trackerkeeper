@@ -355,3 +355,11 @@ done = true
 by = "agent"
 date = "2026-07-25"
 note = "Synced 36b09a3 -> f51c08b: breadboard/terminal/ui_helpers/noborder/scaffold applied clean, goldens still PASS. First had to RECLASSIFY settings_dialog/bus/rig as manual — they carried local changes while unlisted, so --apply would have silently reverted the Tracking section (-79), tracking_prefs_changed (-5) and the rig golden fix (-11). Also declared detail_dialog.py authored."
+
+[[improvements]]
+id = "5b4ba3"
+text = "Bump GitHub Actions off the deprecated Node 20 runtime"
+done = true
+by = "agent"
+date = "2026-08-06"
+note = "checkout v4->v7, setup-python v5->v7, upload-artifact v4->v7, download-artifact v4->v8 across all 6 workflows that use them. attest-build-provenance stays v4 (composite action — no node runtime, and v4 is current). Verified each major's breaking changes are inapplicable BEFORE bumping: checkout v7 blocks fork checkout on pull_request_target/workflow_run (we use neither), setup-python v7 removed the pip-install input (unused), upload-artifact v7's direct-upload is opt-in via archive:false, download-artifact v8 only skips unzip by Content-Type and now defaults digest-mismatch:error — our fan-in is the download-all + merge-multiple form, and merge-multiple still exists in v8 with identical semantics. All runners GitHub-hosted so the >=2.327.1 requirement is met. CAVEAT: only ci.yml is exercised by a push; release/macos/pypi/aur/winget legs stay unverified until the next tag."

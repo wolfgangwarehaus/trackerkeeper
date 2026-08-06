@@ -9,12 +9,12 @@ jobs:
   lint-and-smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The editable install runs setuptools-scm, which derives the version
           # from the tag — it needs the full history + tags, not a shallow clone.
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       # PySide6's offscreen platform plugin still needs the EGL/GL/xkb libs.
@@ -42,12 +42,12 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The editable install runs setuptools-scm, which derives the version
           # from the tag — it needs the full history + tags, not a shallow clone.
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       # PySide6's offscreen platform plugin still needs the EGL/GL/xkb libs.
@@ -71,11 +71,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # setuptools-scm derives the version from the tag — needs full history.
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Build + check sdist & wheel

@@ -55,12 +55,12 @@ jobs:
           echo "APPLE_TEAM_ID is not set → the macOS channel is DORMANT (no-op)."
           echo "Activate with an Apple Developer account + the secrets. See docs/RELEASING.md."
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: env.HAVE_APPLE == 'true'
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: env.HAVE_APPLE == 'true'
         with:
           # setup-python's macOS builds are universal2 framework builds — needed
