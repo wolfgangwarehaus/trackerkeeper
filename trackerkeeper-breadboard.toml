@@ -268,7 +268,7 @@ done = false
 priority = "later"
 by = "agent"
 date = "2026-07-25"
-note = "humanize_age/_parse_iso/_bucket_days, the sort keys and width_tier are pure functions testable without a widget"
+note = "humanize_age/_parse_iso/_bucket_days, the sort keys and width_tier are pure functions testable without a widget. Now 1080 lines, not the 704 this card was written at — it has grown, not shrunk."
 
 [[baking]]
 id = "9a6b97"
@@ -334,6 +334,14 @@ done = true
 by = "agent"
 date = "2026-07-26"
 note = "PUBLISHED 2026-07-26: GitHub (7 artifacts) + PyPI (wheel+sdist, uploaded automatically). Logo + brand accent, per-item detail, fresh/past hierarchy, category sections, legible at the 300px minimum. Verified pip install trackerkeeper==0.1.2 in a clean venv."
+
+[[delivery]]
+id = "87e701"
+text = "Cut v0.1.3 — also the only thing that exercises the bumped Actions on the release legs"
+done = false
+by = "agent"
+date = "2026-08-06"
+note = "[Unreleased] holds the checker refactor, changelog lint, dough sync, store-metadata fix, the platform-column fix and the wide-tier golden. Second reason to cut it: the Node 24 Actions bump (checkout v7 / setup-python v7 / upload-artifact v7 / download-artifact v8) is only exercised by ci.yml on a push — release/macos/pypi-publish/aur/winget don't run until a tag. Watch draft-release's download-artifact fan-in; it rests on merge-multiple, verified to survive v8 on paper only."
 
 [[improvements]]
 id = "bb5d4c"

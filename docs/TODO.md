@@ -3,7 +3,7 @@
 **Read this first.** Current state in two lines, then exactly what to do next,
 then the standing backlog.
 
-## Where things stand (2026-07-26)
+## Where things stand (2026-08-06)
 
 **Three releases are out.** v0.1.2 — the looks pass — is published on GitHub
 (7 artifacts) and PyPI, verified by a clean-venv `pip install trackerkeeper==0.1.2`.
@@ -11,14 +11,18 @@ Publishing is now hands-off end to end: the Trusted Publisher is registered, so
 the PyPI leg rides every tag.
 
 Since that tag, `main` carries a refactor (a checker is declared **once**, not in
-six places across four files), a changelog lint, and a dough sync
-(`85b7957..9acb395`) — all under `[Unreleased]`, i.e. an 0.1.3's worth of
-housekeeping rather than a feature release. Nothing is half-landed.
+six places across four files), a changelog lint, a dough sync
+(`85b7957..9acb395`), a store-metadata fix, and this session's three: the card's
+platform tag became a **column**, the visual gate gained a **wide-tier golden**,
+and the GitHub Actions came off the deprecated **Node 20** runtime. All under
+`[Unreleased]` — an 0.1.3's worth of housekeeping, not a feature release.
+Nothing is half-landed.
 
 The app is a tray-resident watchtower over the maker's real fleet with **eight
 auto-checkers** plus the manual fallback, checking on a timer whether or not the
 window is open. Everything is green: `ruff`, 493 tests, `bake --check`, `rig
-boot` / `probe` / `baseline` (0.00% drift), and CI on all legs.
+boot` / `probe` / `baseline` (0.00% drift on all three goldens), a live KDE
+`rig shot` eyeball, and CI on all five jobs with zero deprecation annotations.
 
 ## Pick up here (in order)
 
@@ -26,8 +30,13 @@ boot` / `probe` / `baseline` (0.00% drift), and CI on all legs.
    it's the only open item that isn't housekeeping or blocked. `rss` is the
    widest-coverage way in for a new source; reach for a bespoke checker only when
    a source has no feed.
-2. **Cut v0.1.3** when `[Unreleased]` feels worth shipping (it's currently a
-   refactor + two fixes). `docs/RELEASING.md`; the tag IS the version.
+2. **Cut v0.1.3** when `[Unreleased]` feels worth shipping. There's now a second
+   reason to: the Actions bump (checkout v7 / setup-python v7 / upload-artifact
+   v7 / download-artifact v8) is only exercised by `ci.yml` on a push. The
+   `release`, `macos`, `pypi-publish`, `aur` and `winget` legs don't run until a
+   tag, so **they're bumped but unproven** — watch `draft-release`'s
+   download-artifact fan-in (it rests on `merge-multiple`, which was verified to
+   survive v8, but only on paper). `docs/RELEASING.md`; the tag IS the version.
 3. **The two `later` baking cards**, when you want structural work rather than
    product: extract the Qt-free logic out of `dashboard.py` (`086ae4`, 704 lines
    of mixed pure/widget code) and give `Item` a stable id (`9a6b97` — refresh
@@ -127,8 +136,28 @@ the rig goldens. What's actually left:
   user — that cost a debugging round early on.
 - **Stop the app before hand-editing that JSON**, or the running instance
   overwrites your edit on its next save.
-- **`rig probe` needs no other instance running** — single-instance refuses the
-  probe's second launch and the X11 leg reports "(no window)" as a false FAIL.
+- **`rig probe` / `rig shot` need no other instance running** — single-instance
+  refuses the second launch and the X11 leg reports "(no window)" as a false
+  FAIL. `shot` says so plainly when it detects one; it has also been seen to
+  fail once with a bare "capture failed" and then pass on an immediate retry, so
+  treat a lone `shot` failure as a flake and re-run before chasing it.
+- **An editable install's version stamp goes stale, and the app nags about it.**
+  `trackerkeeper/_version.py` is written by setuptools-scm at *install* time and
+  is gitignored, so it freezes at whatever the install saw. The checkout here was
+  stamped `0.0.1.dev105+gd66291d9b` — from before v0.1.0 was ever tagged — so the
+  in-app update check compared it against GitHub's latest and the top bar sat
+  there saying "Update 0.1.2" on a build that was seven commits *ahead* of it.
+  Nothing was wrong with the code. `pip install -e .` regenerates the stamp. If
+  the desktop icon's app ever claims to be behind, check `__version__` first.
+- **A visual golden only guards the tier it was grabbed at.** `width_tier()`
+  makes the tight and wide layouts genuinely different UIs — the platform tag,
+  the channel column and the full button labels only exist above 620px. The gate
+  grabbed one size for months *and it wasn't even the size the rig asked for*:
+  `_grab_shots` resized before `set_content`, and the Dashboard resizes the
+  window to `DEFAULT_SIZE` when there's no restored geometry (under the scratch
+  identity, always), so the resize was silently overwritten. Now `window` +
+  `window_wide` + `settings`. If you add another responsive breakpoint, it needs
+  its own golden or it is unguarded.
 - **Re-render must un-parent before `deleteLater`**, or old rows ghost over the
   new layout.
 - **`processEvents()` does not deliver `DeferredDelete`.** This was the CI abort

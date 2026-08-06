@@ -25,7 +25,24 @@ no matching section). See `docs/RELEASING.md`.
   arm silently accepted a handle that would never resolve. There's now one
   `Source` record per checker and everything derives from it.
 
+- **CI runs on Node 24.** `actions/checkout`, `setup-python`, `upload-artifact`
+  and `download-artifact` were all on majors targeting the deprecated Node 20
+  runtime, which GitHub was force-upgrading with a warning on every job.
+
 ### Fixed
+- **A card's platform tag sat on the wrong line.** It rode at the end of the
+  *name* row while the channel, age and action columns all centre across the
+  card's two lines — so "ARM" and "GitHub" belonged to the same item but read as
+  two different rows, and at wide widths the tag floated in a dead gap behind the
+  name. It's a column like the rest now, and the platform values line up down the
+  list instead of tracking each name's elided width.
+- **The visual gate was guarding one layout tier — and not the one it asked
+  for.** The rig resized the window before building the content, but the
+  dashboard sizes the window itself when there's no saved geometry, so every
+  golden ever baked was the *default* size: the tight tier, where the platform
+  tag, the channel column and the full button labels don't exist. That's how the
+  misaligned tag above walked past a green gate. There's now a second golden
+  above the responsive cut, verified to catch that regression.
 - **Store metadata was still dough's.** The app shipped as `GenericName=App
   Base` in the `Development` category with the base's template keywords
   (`pyside6`, `qt`, `starter`, `template`…) — which is what the `.desktop` entry,
