@@ -279,6 +279,15 @@ by = "agent"
 date = "2026-07-25"
 note = "_RefreshWorker emits {item.name: result}; ItemDialog enforces unique names so it works, but it's conventionally safe rather than structurally safe"
 
+[[baking]]
+id = "9065d5"
+text = "Card layout: platform tag rode the name line while every other column centred across both lines"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-08-06"
+note = "Platform is now a column (fixed 70px, right-aligned, VCenter, TYPE_TINY) beside channel instead of the tail of the name row — 'ARM' and 'GitHub' shared a card but sat 9px apart vertically, and at the wide tier the tag floated in a dead gap because the name label holds stretch 1. Drops at the same tier as the channel column. Also NOT a code bug but the same session: the Update chip nagged 'Update 0.1.2' from the desktop icon because the editable install's gitignored _version.py was stamped 0.0.1.dev105+gd66291d9b (installed before v0.1.0 was ever tagged); pip install -e . regenerated it to 0.1.3.dev7."
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"

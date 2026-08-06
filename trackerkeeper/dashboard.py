@@ -864,12 +864,6 @@ class Dashboard(QWidget):
             badge.setStyleSheet(f"color:{accent if fresh else _TEXT_PAST_DIM};"
                                 + type_qss(TYPE_CAPTION))
             top_row.addWidget(badge, 0)
-        # The platform tag is a hint, and the name it was crowding is not — so
-        # it only appears at the widest tier, alongside the channel column.
-        if item.platform and self._tier == TIER_WIDE:
-            plat = QLabel(item.platform)
-            plat.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_CAPTION))
-            top_row.addWidget(plat, 0)
         left.addWidget(topline)
         left.addWidget(self._version_row(item, fresh, narrow))
         if item.error:
@@ -878,10 +872,18 @@ class Dashboard(QWidget):
             left.addWidget(err)
         outer.addLayout(left, 1)
 
-        # columns: channel + how-long-ago (fixed widths so they align down the
-        # list). The channel column is the first thing to go as we narrow — the
-        # platform tag beside the name already hints at it.
+        # columns: platform + channel + how-long-ago (fixed widths so they align
+        # down the list). Platform used to ride at the end of the NAME row, which
+        # put it on the upper of the left column's two lines while every other
+        # column centred across both — "ARM" and "GitHub" read as two different
+        # rows of the same card. It's a column like the rest, so it sits on the
+        # card's one line with them. Both drop first as we narrow.
         if self._tier == TIER_WIDE:
+            plat = QLabel(item.platform)
+            plat.setFixedWidth(70)
+            plat.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            plat.setStyleSheet(f"color:{ui_helpers.TEXT_DIM};" + type_qss(TYPE_TINY))
+            outer.addWidget(plat)
             chan = QLabel(channel_label(item))
             chan.setFixedWidth(70)
             chan.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
