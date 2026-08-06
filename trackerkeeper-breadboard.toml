@@ -288,6 +288,15 @@ by = "agent"
 date = "2026-08-06"
 note = "Platform is now a column (fixed 70px, right-aligned, VCenter, TYPE_TINY) beside channel instead of the tail of the name row — 'ARM' and 'GitHub' shared a card but sat 9px apart vertically, and at the wide tier the tag floated in a dead gap because the name label holds stretch 1. Drops at the same tier as the channel column. Also NOT a code bug but the same session: the Update chip nagged 'Update 0.1.2' from the desktop icon because the editable install's gitignored _version.py was stamped 0.0.1.dev105+gd66291d9b (installed before v0.1.0 was ever tagged); pip install -e . regenerated it to 0.1.3.dev7."
 
+[[baking]]
+id = "c0efa7"
+text = "Rig baseline: add a wide-tier golden — the gate only ever grabbed the tight tier"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-08-06"
+note = "Root cause: _grab_shots did w.resize(1100,760) BEFORE set_content, but content_factory() builds the Dashboard, which resizes the window to DEFAULT_SIZE whenever there's no restored geometry — and under the scratch identity there never is. So the rig asked for 1100x760 and every golden it ever baked was 480x620, the tight tier, where the platform tag, the channel column and the full button labels are all dropped. Now grabs window (default) + window_wide (1000x760, above width_tier's 620 cut) + settings. Proved the new golden earns its keep: reverting the platform-column fix drifts window_wide 0.91% (budget 0.5%) while window stays 0.00%."
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"

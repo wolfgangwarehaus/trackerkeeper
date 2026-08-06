@@ -16,9 +16,11 @@ read back ground truth instead of eyeballing.
 ``shot`` need a real KDE Plasma session and decline cleanly elsewhere (exit
 2) — other desktops can grow their own probes behind the same verbs.
 
-``baseline`` grabs the window + the settings dialog OFFSCREEN at a fixed size
-under a scratch identity (so the maker's saved theme/accent can't skew them)
-and compares against the goldens in ``tests/baselines/``. The diff is
+``baseline`` grabs the window at BOTH layout tiers (the default size, then
+widened past the responsive cut — they're different UIs, and a golden at one
+guards nothing at the other) plus the settings dialog, OFFSCREEN, under a
+scratch identity (so the maker's saved theme/accent can't skew them), and
+compares against the goldens in ``tests/baselines/``. The diff is
 AA-tolerant (exact-equal fast path, else a downscaled per-pixel compare).
 It's a LOCAL gate — goldens are machine-truthful (fonts differ across
 machines), so run it where they were baked; the wind-down ritual is the
@@ -244,8 +246,16 @@ def cmd_shot(out: str | None) -> int:
 
 # ── the visual-bump gate ────────────────────────────────────────────────────
 
-_BASELINE_SHOTS = ("window", "settings")
+_BASELINE_SHOTS = ("window", "window_wide", "settings")
 _DRIFT_BUDGET = 0.005  # >0.5% of (downscaled) pixels changed = a visual bump
+
+# The window is grabbed at TWO widths, because the layout is responsive and the
+# tiers are genuinely different UIs: the default size lands in the tight tier,
+# where the platform tag, the channel column and the full button labels are all
+# dropped. A single golden there guards none of them — a wide-tier regression
+# (a column landing on the wrong line, say) sails straight through it. This
+# width sits above width_tier()'s 620px cut with room to spare.
+_WIDE_SIZE = (1000, 760)
 
 
 def _repo_root() -> Path:
@@ -278,13 +288,25 @@ def _grab_shots(out_dir: Path) -> int:
         "app = QApplication(sys.argv)\n"
         f"import {_PKG}.app as A\n"
         f"from {_PKG}.window import AppWindow\n"
-        f"w = AppWindow(title={_PKG!r}); w.resize(1100, 760)\n"
+        f"w = AppWindow(title={_PKG!r})\n"
         # The app's REAL first screen, via the same factory main() uses — NOT
         # _placeholder(). Grabbing the placeholder meant a loaf's golden guarded
         # dough's "your app starts here" screen, which its users never see, and
         # would have passed through any regression in the actual UI.
+        #
+        # No resize before this: content_factory() builds the Dashboard, which
+        # sizes the window to DEFAULT_SIZE whenever there's no restored geometry
+        # (and under a scratch identity there never is). A resize here was
+        # silently overwritten — the rig ASKED for 1100x760 and every golden it
+        # ever baked was the default instead. The tight tier is worth guarding,
+        # so that's kept as the `window` shot; it's just honest about it now.
         "w.set_content(A.content_factory()(w)); w.show(); app.processEvents()\n"
         f"w.grab().save({str(out_dir)!r} + '/window.png')\n"
+        # …then the same window widened past the tier cut. Resizing AFTER
+        # set_content is what makes it stick, and the Dashboard rebuilds its
+        # cards on the tier change, so pump the queue before grabbing.
+        f"w.resize(*{_WIDE_SIZE!r}); app.processEvents(); app.processEvents()\n"
+        f"w.grab().save({str(out_dir)!r} + '/window_wide.png')\n"
         f"from {_PKG}.settings_dialog import SettingsDialog\n"
         "d = SettingsDialog(w); d.show(); app.processEvents()\n"
         f"d.grab().save({str(out_dir)!r} + '/settings.png')\n"
