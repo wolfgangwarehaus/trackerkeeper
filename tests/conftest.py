@@ -43,6 +43,13 @@ from PySide6.QtWidgets import QApplication
 QStandardPaths.setTestModeEnabled(True)
 QSettings.setDefaultFormat(QSettings.Format.IniFormat)
 
+# Pin the DESKTOP front end for every test that boots the app (the bridge and
+# single-instance subprocesses inherit this). Run from a phone shell — august's
+# dev session is a Plasma Mobile one — run_app would otherwise hand off to the
+# phone interface and those tests would be driving the wrong UI. The phone
+# interface has its own tests (tests/test_quick.py), which clear this.
+os.environ["TRACKERKEEPER_UI"] = "widgets"
+
 # …and pin WHERE the INI lives, because test mode doesn't reach it off Linux.
 # QSettings resolves its own base dir and only consults QStandardPaths on Linux
 # (via XDG_CONFIG_HOME, which test mode sets); macOS uses a hardcoded ~/.config

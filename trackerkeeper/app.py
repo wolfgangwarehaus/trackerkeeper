@@ -315,7 +315,24 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     app.setWindowIcon(QIcon(make_app_icon(64)))
     apply_app_palette()
 
+    # The phone interface: on an undocked phone shell (Plasma Mobile, Phosh) —
+    # or TRACKERKEEPER_UI=quick — the same fleet runs as a Qt Quick front end
+    # instead of the Widgets window. It shares everything above (identity,
+    # logging, settings, translations, single instance, theme) plus the
+    # notification route; a QML load failure falls through to the window.
+    from trackerkeeper import quick as _quick
     from trackerkeeper.settings import get_settings
+
+    if _quick.wanted():
+        _wire_notifications(AppBus.get())
+        app.aboutToQuit.connect(lambda: get_settings().flush())
+        rc = _quick.run(app, si)
+        if rc is not None:
+            return rc
+        _quick_failed = True
+    else:
+        _quick_failed = False
+
     from trackerkeeper.window import AppWindow
 
     win = AppWindow(title=ident.display_name())
@@ -355,7 +372,8 @@ def run_app(content_factory, *, identity=None, single_instance=True) -> int:
     # survives a moved executable; AppBus.notify(title, body) reaches the OS
     # notification backend. Both opt-in and best-effort.
     _reconcile_autostart()
-    _wire_notifications(AppBus.get())
+    if not _quick_failed:   # already wired before the phone interface tried
+        _wire_notifications(AppBus.get())
 
     # macOS: the global menu bar (App/File/Edit/View/Window/Help) + native
     # window chrome (transparent titlebar / full-size content view) — native

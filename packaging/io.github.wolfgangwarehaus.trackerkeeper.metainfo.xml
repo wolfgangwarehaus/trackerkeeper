@@ -53,4 +53,15 @@
     <control>keyboard</control>
     <control>pointing</control>
   </recommends>
+
+  <!-- The phone interface (trackerkeeper/quick) runs on Plasma Mobile / Phosh:
+       touch is a first-class input, and 360 px is the narrowest phone it's
+       laid out for. -->
+  <supports>
+    <control>touch</control>
+  </supports>
+
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
 </component>

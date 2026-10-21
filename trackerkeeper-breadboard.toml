@@ -268,7 +268,7 @@ done = false
 priority = "later"
 by = "agent"
 date = "2026-07-25"
-note = "humanize_age/_parse_iso/_bucket_days, the sort keys and width_tier are pure functions testable without a widget. Now 1080 lines, not the 704 this card was written at — it has grown, not shrunk."
+note = "Started 2026-10-21: the pure half moved to trackerkeeper/fleet.py (ages, freshness, channel/error text, RefreshWorker, apply_results, news_text) — the phone interface needed it. dashboard.py re-exports the names. Still left: refresh_interval_minutes + the sort/group ordering (quick/fleet_model.order duplicates _grouped_view's default)."
 
 [[baking]]
 id = "9a6b97"
@@ -305,6 +305,40 @@ priority = "now"
 by = "agent"
 date = "2026-08-08"
 note = "force_foreground() returned early on anything but Windows, so the show/raise/activate happened NOWHERE: double-clicking the desktop icon while the app sat in the tray pinged the primary, the raise fired, and nothing came up. Only the tray toggle worked (it pre-called showNormal()), and the test bridge's 'raise' op masked it by doing show/raise/activate itself before calling force_foreground. Now the seam does the whole restore — clearing the Minimized bit rather than showNormal() so a maximized window comes back maximized — and the tray + bridge both go through it unchanged. Verified live on KDE Wayland: hidden -> real second launch -> window up."
+
+[[baking]]
+id = "d369ee"
+text = "Phone interface: a Qt Quick front end for Plasma Mobile / Phosh (like jellytoast's)"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-10-21"
+note = "trackerkeeper/quick: Fleet bridge (QAbstractListModel + verbs) over the shared fleet.py, Main/ItemRow/DetailSheet/EditPage QML on the Basic style with our own components. Default on an UNDOCKED phone shell (PLASMA_PLATFORM=phone*, QT_QUICK_CONTROLS_MOBILE, XDG_CURRENT_DESKTOP=Phosh); TRACKERKEEPER_UI=quick|widgets forces; a QML load failure falls back to the window. Two-line 64px rows, filter chips (All / Updates / each category), pull to check, swipe right = mark updated, detail bottom sheet, full-screen add/edit with the desktop dialog's validation, live light/dark. Also: will_have_tray() is False on a phone shell (Plasma Mobile registers a tray host but draws no items), and conftest pins TRACKERKEEPER_UI=widgets because august's dev session IS a Plasma Mobile one. Verified: full run_app boot offscreen (live launch check answered 9/10), 522 tests in the app venv."
+
+[[baking]]
+id = "77cf31"
+text = "Bundle QtQuick in the Linux PyInstaller build so deb/AppImage get the phone interface (port jellytoast's spec pruning)"
+done = false
+priority = "next"
+by = "agent"
+date = "2026-10-21"
+note = "The spec excludes PySide6.QtQuick/QtQml, so the frozen bundles fall back to the desktop window on a phone. jellytoast keeps only QtQml/QtQuick/Controls Basic+impl/Templates/Layouts/Window (~290 MB if unpruned). pip / AUR / editable installs already have it."
+
+[[baking]]
+id = "cf38ae"
+text = "Phone interface: Settings (check interval, theme, accent) + a switch back to the desktop UI"
+done = false
+priority = "next"
+by = "agent"
+date = "2026-10-21"
+
+[[baking]]
+id = "9395a5"
+text = "Phone interface: a live rig (test bridge for QML) so an agent can drive it like jellytoast's qctl"
+done = false
+priority = "later"
+by = "agent"
+date = "2026-10-21"
 
 [[delivery]]
 id = "267380"

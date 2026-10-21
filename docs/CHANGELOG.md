@@ -11,6 +11,18 @@ no matching section). See `docs/RELEASING.md`.
 
 ## [Unreleased]
 
+### Added
+- **A phone interface.** On Plasma Mobile and Phosh, tracker keeper now opens a
+  touch-first Qt Quick front end instead of the desktop window, which on a phone
+  was a frosted, unreadable utility window with 26 px buttons and window
+  controls. Rows are two lines and finger-sized, categories are filter chips,
+  you pull down to check, swipe right to mark something updated, and tap a row
+  for a bottom sheet with the changelog, the release notes and the actions. Add
+  and edit are a full-screen form with the same checks as the desktop dialog. It
+  follows the system light/dark switch. A docked phone gets the desktop window
+  again; `TRACKERKEEPER_UI=quick` or `widgets` forces either. Same catalog,
+  checkers, settings and notifications as the desktop app.
+
 ### Changed
 - **The brand accent moved to the identity seam.** It had been edited into
   `theme.py`, `color_tokens.py`, `settings.py` and `icons.py` — base files the
@@ -30,6 +42,13 @@ no matching section). See `docs/RELEASING.md`.
   runtime, which GitHub was force-upgrading with a warning on every job.
 
 ### Fixed
+- **"Start in the tray" on a phone launched nothing you could see.** Plasma
+  Mobile registers a tray host but its status bar draws no tray icons, so the
+  app believed it had a tray, hid its window, and left an icon no one could
+  reach. A phone shell now counts as having no tray (a docked one still does).
+- **A second launch didn't bring back a window hidden in the tray** on anything
+  but Windows — the raise only ever ran there. And the detail view's "checked"
+  time was UTC shown as if it were local.
 - **A card's platform tag sat on the wrong line.** It rode at the end of the
   *name* row while the channel, age and action columns all centre across the
   card's two lines — so "ARM" and "GitHub" belonged to the same item but read as

@@ -77,7 +77,16 @@ def will_have_tray() -> bool:
     """Whether a tray icon will actually exist this session — the desktop
     supports one AND the user hasn't turned it off. The single predicate for
     gating tray-dependent behaviour, so "start in the tray" can never strand the
-    app with no icon and no window."""
+    app with no icon and no window.
+
+    A phone shell is no tray, whatever Qt says: Plasma Mobile registers a
+    StatusNotifier host, so ``isSystemTrayAvailable()`` is True, but its status
+    bar draws no tray items — the icon would exist and never be seen. Docked,
+    it's a desktop again."""
+    from trackerkeeper.quick import is_docked, is_phone_shell
+
+    if is_phone_shell() and not is_docked():
+        return False
     return show_tray_icon() and QSystemTrayIcon.isSystemTrayAvailable()
 
 

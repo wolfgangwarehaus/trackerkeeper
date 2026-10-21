@@ -15,6 +15,9 @@ authored = [
     "item_dialog.py",  # the add/edit-item form — net-new
     "detail_dialog.py",# the per-item release-notes view — net-new
     "tray.py",         # the system-tray presence (watchtower resting state) — net-new
+    "fleet.py",        # the widget-free fleet logic both front ends share — net-new
+    # quick/ (the phone interface: bridge + QML) is net-new too; dough has no
+    # such directory, so sync never walks it and it needs no entries here.
 ]
 
 # Files derived from dough but hand-customized. Sync shows dough's upstream diff
