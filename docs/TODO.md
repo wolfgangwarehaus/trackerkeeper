@@ -3,49 +3,72 @@
 **Read this first.** Current state in two lines, then exactly what to do next,
 then the standing backlog.
 
-## Where things stand (2026-08-06)
+## Where things stand (2026-10-21)
 
-**Three releases are out.** v0.1.2 — the looks pass — is published on GitHub
-(7 artifacts) and PyPI, verified by a clean-venv `pip install trackerkeeper==0.1.2`.
-Publishing is now hands-off end to end: the Trusted Publisher is registered, so
-the PyPI leg rides every tag.
+**tracker keeper has a phone interface.** On an undocked Plasma Mobile / Phosh
+session it opens a Qt Quick front end (`trackerkeeper/quick/`, built the
+jellytoast way) instead of the desktop window: two-line rows, filter chips, pull
+to check, swipe to mark updated, a bottom sheet per item, full-screen add/edit.
+It's committed and tested (offscreen screenshots plus a real `run_app` boot), but
+**august hasn't tried it on the phone yet** — that's the first thing to do.
+v0.1.2 is still the latest release; `[Unreleased]` now holds the phone interface
+plus the earlier 0.1.3 housekeeping.
 
-Since that tag, `main` carries a refactor (a checker is declared **once**, not in
-six places across four files), a changelog lint, a dough sync
-(`85b7957..9acb395`), a store-metadata fix, and this session's three: the card's
-platform tag became a **column**, the visual gate gained a **wide-tier golden**,
-and the GitHub Actions came off the deprecated **Node 20** runtime. All under
-`[Unreleased]` — an 0.1.3's worth of housekeeping, not a feature release.
-Nothing is half-landed.
-
-The app is a tray-resident watchtower over the maker's real fleet with **eight
-auto-checkers** plus the manual fallback, checking on a timer whether or not the
-window is open. Everything is green: `ruff`, 493 tests, `bake --check`, `rig
-boot` / `probe` / `baseline` (0.00% drift on all three goldens), a live KDE
-`rig shot` eyeball, and CI on all five jobs with zero deprecation annotations.
+**Your dev session IS a Plasma Mobile session** (`PLASMA_PLATFORM=phone:handset`),
+streamed to the phone. So on this machine the app picks the phone UI, and
+`tests/conftest.py` pins `TRACKERKEEPER_UI=widgets` so app-booting tests still
+drive the desktop window. Run the rig with `TRACKERKEEPER_UI=widgets` too.
 
 ## Pick up here (in order)
 
-1. **Grow the checker library** (improvements `bb5d4c`) — this is the moat, and
-   it's the only open item that isn't housekeeping or blocked. `rss` is the
-   widest-coverage way in for a new source; reach for a bespoke checker only when
-   a source has no feed.
-2. **Cut v0.1.3** when `[Unreleased]` feels worth shipping. There's now a second
-   reason to: the Actions bump (checkout v7 / setup-python v7 / upload-artifact
-   v7 / download-artifact v8) is only exercised by `ci.yml` on a push. The
-   `release`, `macos`, `pypi-publish`, `aur` and `winget` legs don't run until a
-   tag, so **they're bumped but unproven** — watch `draft-release`'s
-   download-artifact fan-in (it rests on `merge-multiple`, which was verified to
-   survive v8, but only on paper). `docs/RELEASING.md`; the tag IS the version.
-3. **The two `later` baking cards**, when you want structural work rather than
-   product: extract the Qt-free logic out of `dashboard.py` (`086ae4`, 704 lines
-   of mixed pure/widget code) and give `Item` a stable id (`9a6b97` — refresh
-   results are keyed by *name* today, which `ItemDialog`'s uniqueness check makes
-   work by convention rather than by structure).
+1. **Try the phone interface on the phone and collect notes.** Launch it with
+   the **tracker keeper (dev)** entry (`dev/run.sh` in a Ghostty terminal; it
+   replaces any running copy and streams the log). Long-press it for Phone /
+   Desktop interface. Re-run `dev/create_desktop_entry.sh` if the checkout moves.
+   Check: scrolling feel, swipe-to-mark, pull-to-check, the detail sheet, add/edit
+   with the on-screen keyboard, light/dark switch.
+2. **Phone Settings** (baking `cf38ae`): check interval, theme/accent, and a
+   switch back to the desktop UI. Today the phone has no way to reach Settings.
+3. **Ship it in the bundles** (baking `77cf31`): the PyInstaller spec excludes
+   QtQuick/QtQml, so deb/AppImage fall back to the desktop window on a phone.
+   Port jellytoast's spec pruning (keep QtQml, QtQuick, Controls Basic + impl,
+   Templates, Layouts, Window). pip / AUR / editable installs already work.
+   Then **cut v0.1.3** — it also proves the bumped Actions on the release legs
+   (`release`, `macos`, `pypi-publish`, `aur`, `winget` only run on a tag; watch
+   `draft-release`'s download-artifact fan-in).
+
+Later: a live rig for the QML (baking `9395a5`, like jellytoast's `qctl`), more
+checkers (improvements `bb5d4c`), the rest of `086ae4`, and a stable `Item` id
+(`9a6b97`).
 
 **Not actionable:** AUR (delivery `0a95b7`) is externally blocked — it needs an
 `AUR_SSH_PRIVATE_KEY` secret *and* AUR to reopen new-package registration (frozen
 since the 2026 malware wave). deb + AppImage already ship on every release.
+
+## The phone interface (so you don't re-derive it)
+
+- **Choice:** `quick.wanted()` — `TRACKERKEEPER_UI=quick|widgets` forces; else an
+  undocked phone shell (`PLASMA_PLATFORM=phone*`, `QT_QUICK_CONTROLS_MOBILE`, or
+  `XDG_CURRENT_DESKTOP` containing Phosh). Docked = `plasmamobilerc`
+  `convergenceModeEnabled=true` → desktop window. Hooked into `run_app` after the
+  shared boot (identity, logging, migrations, i18n, single instance, theme,
+  notifications); a QML load failure falls through to the window.
+- **Bridge:** `quick/fleet_model.py` `Fleet` (list model + verbs: refresh,
+  markUpdated, remove, save with the Add dialog's validation, markSeen on app
+  backgrounding) over **`fleet.py`**, the widget-free logic both UIs share.
+  `quick/theme.py` is opaque and follows the OS light/dark switch live.
+  `quick/icons.py` holds the extra glyphs — not in `icons.py`, which dough syncs.
+- **QML:** `Main.qml` (list, chips, pull-to-check, + button), `ItemRow.qml`,
+  `DetailSheet.qml`, `EditPage.qml`, plus small components on the **Basic** style
+  (never the platform style: Plasma exports `org.kde.breeze`, which pip's PySide6
+  can't load).
+- **No tray on a phone:** Plasma Mobile registers a tray host but draws no items,
+  so `tray.will_have_tray()` is False on an undocked phone shell.
+- **Testing:** `tests/test_quick.py` loads the real QML offscreen. List delegates
+  are *visual* children — walk `childItems()`, not `findChildren()`. Offscreen
+  ignores `setColorScheme`; force dark via `settings.theme_mode = "frosted_dark"`.
+  The app venv (`.venv`, PySide6 6.11) differs from system python (6.12) — run
+  both when touching QML.
 
 ## What exists now (so you don't re-derive it)
 
@@ -119,9 +142,10 @@ the rig goldens. What's actually left:
 
 - **More checkers** (improvements `bb5d4c`) — store pages, more feeds,
   per-platform firmware. The open-ended one; the moat.
-- **Extract the Qt-free logic out of `dashboard.py`** (baking `086ae4`) —
-  `humanize_age` / `_parse_iso` / `_bucket_days`, the sort keys and `width_tier`
-  are pure functions testable without a widget.
+- **Finish extracting the Qt-free logic out of `dashboard.py`** (baking
+  `086ae4`) — the pure helpers moved to `fleet.py` on 2026-10-21; left are
+  `refresh_interval_minutes` and the sort/group ordering, which
+  `quick/fleet_model.order` currently duplicates.
 - **A stable `Item` id** (baking `9a6b97`) — `_RefreshWorker` emits
   `{item.name: result}`, safe by convention only.
 - **AUR** (delivery `0a95b7`) — externally blocked, see the top of this file.

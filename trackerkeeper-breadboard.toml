@@ -340,6 +340,15 @@ priority = "later"
 by = "agent"
 date = "2026-10-21"
 
+[[baking]]
+id = "f9c4ba"
+text = "Try the phone interface on the phone (tracker keeper (dev) launcher) and note what feels off"
+done = false
+priority = "now"
+by = "agent"
+date = "2026-10-21"
+note = "Built + tested offscreen 2026-10-21, never touched by a finger. Scrolling, swipe-to-mark, pull-to-check, detail sheet, add/edit with the on-screen keyboard, light/dark."
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"
