@@ -166,7 +166,8 @@ class AppTray(QObject):
         else:
             from trackerkeeper.single_instance import force_foreground
 
-            w.showNormal()
+            # force_foreground does the show + un-minimize itself (and keeps a
+            # maximized window maximized, which showNormal() would undo).
             force_foreground(w)
 
     def _hide_window(self) -> None:

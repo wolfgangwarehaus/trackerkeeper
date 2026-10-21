@@ -297,6 +297,15 @@ by = "agent"
 date = "2026-08-06"
 note = "Root cause: _grab_shots did w.resize(1100,760) BEFORE set_content, but content_factory() builds the Dashboard, which resizes the window to DEFAULT_SIZE whenever there's no restored geometry — and under the scratch identity there never is. So the rig asked for 1100x760 and every golden it ever baked was 480x620, the tight tier, where the platform tag, the channel column and the full button labels are all dropped. Now grabs window (default) + window_wide (1000x760, above width_tier's 620 cut) + settings. Proved the new golden earns its keep: reverting the platform-column fix drifts window_wide 0.91% (budget 0.5%) while window stays 0.00%."
 
+[[baking]]
+id = "96c8af"
+text = "Second launch never raised a tray-hidden window — force_foreground was Windows-only"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-08-08"
+note = "force_foreground() returned early on anything but Windows, so the show/raise/activate happened NOWHERE: double-clicking the desktop icon while the app sat in the tray pinged the primary, the raise fired, and nothing came up. Only the tray toggle worked (it pre-called showNormal()), and the test bridge's 'raise' op masked it by doing show/raise/activate itself before calling force_foreground. Now the seam does the whole restore — clearing the Minimized bit rather than showNormal() so a maximized window comes back maximized — and the tray + bridge both go through it unchanged. Verified live on KDE Wayland: hidden -> real second launch -> window up."
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"

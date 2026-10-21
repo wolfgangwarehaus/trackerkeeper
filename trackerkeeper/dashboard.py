@@ -278,6 +278,20 @@ def _parse_iso(iso: str):
     return None
 
 
+def local_time(iso: str) -> str:
+    """A stored timestamp → the same moment on the viewer's own clock,
+    ``YYYY-MM-DD HH:MM``. "" / unparseable → "".
+
+    Timestamps are *persisted* in UTC so a catalog stays portable; only the
+    display is localized. Skipping this step made the provenance line lie by a
+    whole timezone — "checked 17:29" shown at 13:29 EDT, four hours in the
+    future, which reads as a clock bug rather than an offset."""
+    then = _parse_iso(iso or "")
+    if then is None:
+        return ""
+    return then.astimezone().strftime("%Y-%m-%d %H:%M")
+
+
 def _bucket_days(days: int) -> str:
     if days < 7:
         return f"{days} days ago"
@@ -997,7 +1011,9 @@ class Dashboard(QWidget):
         from datetime import datetime, timezone
 
         self._last_refresh = time.monotonic()   # what _refresh_if_stale measures
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+        stamped = datetime.now(timezone.utc)
+        now = stamped.strftime("%Y-%m-%d %H:%M")            # stored: UTC
+        clock = stamped.astimezone().strftime("%H:%M")      # shown: local
         newly = []
         auto = [i for i in self._items if i.kind != "manual"]
         # Default to "unreachable" when the reason is unknown (a direct
@@ -1019,7 +1035,7 @@ class Dashboard(QWidget):
         self._render()
         self._refresh_btn.setEnabled(True)
         checked = sum(1 for i in auto if not i.error)
-        self._status.setText(f"checked {checked}/{len(auto)} · {now.split(' ')[1]}")
+        self._status.setText(f"checked {checked}/{len(auto)} · {clock}")
         if newly:
             names = ", ".join(i.name for i in newly[:4])
             more = f" +{len(newly) - 4} more" if len(newly) > 4 else ""

@@ -63,17 +63,44 @@ def _normalize_args(args) -> list:
 
 
 def force_foreground(window) -> None:
-    """Bring ``window`` to the actual foreground.
+    """Bring ``window`` to the actual foreground — the whole restore, not
+    just the activation.
 
-    On Windows, ``raise_()`` / ``activateWindow()`` only *flash* the
-    taskbar button for a background process — the OS blocks
+    The window may be *hidden* (closed/minimized to tray, the common case
+    for a second launch: the user double-clicks the icon while the app
+    sits in the tray) or merely minimized. ``raise_()`` /
+    ``activateWindow()`` do nothing at all on an unmapped window, so the
+    show + un-minimize has to happen here — this is the one seam every
+    "come forward" path goes through (single-instance ping, the tray
+    toggle, ``AppBus.open_main_window``), and each of them previously
+    relied on the caller having done it.
+
+    Un-minimizing clears the Minimized bit rather than calling
+    ``showNormal()``, so a window that was maximized before it went to
+    the tray comes back maximized.
+
+    On Windows the activation additionally needs a workaround:
+    ``raise_()`` / ``activateWindow()`` only *flash* the taskbar button
+    for a background process, because the OS blocks
     ``SetForegroundWindow`` from a non-foreground process. The standard
-    workaround is to temporarily attach our GUI thread's input queue to
-    the current foreground window's thread, which makes the call honored.
-    No-op on other platforms, where Qt's ``activateWindow()`` already
-    foregrounds. Best-effort — never raises.
+    fix is to temporarily attach our GUI thread's input queue to the
+    current foreground window's thread, which makes the call honored.
+    Best-effort throughout — never raises.
     """
+    from PySide6.QtCore import Qt
+
     from trackerkeeper.platform_compat import IS_WINDOWS
+
+    try:
+        if window.isMinimized():
+            window.setWindowState(
+                window.windowState() & ~Qt.WindowState.WindowMinimized
+            )
+        window.show()
+        window.raise_()
+        window.activateWindow()
+    except Exception as e:
+        logger.debug("force_foreground show/raise failed: %s", e)
 
     if not IS_WINDOWS:
         return

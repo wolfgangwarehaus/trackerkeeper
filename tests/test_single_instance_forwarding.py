@@ -139,6 +139,33 @@ def test_second_launch_without_args_only_raises(qapp, primary):
     assert received == []  # no payload → no files_received, raise only
 
 
+def test_second_launch_unhides_a_tray_hidden_window(qapp, primary):
+    """End-to-end, the reported bug: app sits hidden in the tray, the user
+    double-clicks the desktop icon, a real second process pings — the window
+    must come back. Wired exactly as ``run_app`` wires it (app.py), because the
+    break was that ``force_foreground`` did nothing off Windows and no caller
+    on this path had shown the window itself."""
+    from PySide6.QtWidgets import QWidget
+
+    from trackerkeeper.single_instance import force_foreground
+
+    win = QWidget()
+    win.show()
+    win.hide()                                   # what the tray's hide does
+    primary.raise_requested.connect(lambda: force_foreground(win))
+    try:
+        assert not win.isVisible()
+
+        proc = _second_launch(primary._key, [])
+        _spin(qapp, win.isVisible, timeout_ms=15000)
+        assert proc.wait(timeout=15) == 0
+
+        assert win.isVisible()
+    finally:
+        win.close()
+        win.deleteLater()
+
+
 def test_legacy_bare_raise_ping_still_raises(qapp, primary):
     # A pre-forwarding build (or line noise) writes a non-JSON message; the
     # raise must never depend on the payload parsing.

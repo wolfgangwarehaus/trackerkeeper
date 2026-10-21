@@ -40,7 +40,7 @@ class DetailDialog(FrostedDialog):
         self._item = item
         self._marked = False
 
-        from trackerkeeper.dashboard import channel_label, error_text, humanize_age
+        from trackerkeeper.dashboard import channel_label, error_text, humanize_age, local_time
 
         # ── the headline: what you have vs what's out there ──
         if item.has_update():
@@ -66,7 +66,7 @@ class DetailDialog(FrostedDialog):
         if age:
             bits.append(age)
         if item.checked_at:
-            bits.append(f"checked {item.checked_at}")
+            bits.append(f"checked {local_time(item.checked_at) or item.checked_at}")
         self.content_layout.addWidget(
             self._dim("  ·  ".join(bits)))
 

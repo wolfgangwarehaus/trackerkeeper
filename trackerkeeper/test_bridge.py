@@ -304,11 +304,9 @@ def _cmd_raise(bridge, args) -> bool:
     path, including the Windows SetForegroundWindow workaround)."""
     from trackerkeeper.single_instance import force_foreground
 
-    win = bridge.win
-    win.show()
-    win.raise_()
-    win.activateWindow()
-    force_foreground(win)
+    # Exactly what the single-instance ping does — nothing extra, or this
+    # command would pass while the real path is broken.
+    force_foreground(bridge.win)
     return True
 
 
