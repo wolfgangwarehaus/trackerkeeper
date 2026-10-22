@@ -26,6 +26,21 @@ no matching section). See `docs/RELEASING.md`.
   `TRACKERKEEPER_UI=quick` or `widgets` forces either.
 
 ### Changed
+- **"Changelog" opens the release notes, not a package page.** A source's link
+  used to beat the one you set, even when the source only knows a store or
+  package listing — so KDE Plasma opened Arch's package page rather than KDE's
+  announcement. Now a source says whether its link IS the notes (GitHub, Steam,
+  Apple, feeds) and your link wins over the ones that aren't (Arch, Flathub).
+  A changelog link can also say `{version}` —
+  `kde.org/announcements/plasma/6/{version}/`, `fex-emu.com/{version}/` — and
+  it's filled with each new release and wins outright (Arch's `-1` packaging
+  suffix is dropped).
+- **Apple releases link to Apple's release notes** for that version (checked
+  to exist first) instead of the news blurb, and the feed's two link labels no
+  longer pose as notes.
+- **CachyOS links to the release post** for the ISO (its notes included)
+  instead of the mirror folder of files.
+- **Armada moved** to `armada-os/armada`; the starting list follows it.
 - **The brand accent moved to the identity seam.** It had been edited into
   `theme.py`, `color_tokens.py`, `settings.py` and `icons.py` — base files the
   dough sync owns — and a routine `sync_loaf --apply` reverted the whole brand

@@ -239,3 +239,34 @@ def news_text(newly: list) -> tuple[str, str]:
     more = f" +{len(newly) - 4} more" if len(newly) > 4 else ""
     return (f"{len(newly)} new update{'s' if len(newly) != 1 else ''}",
             f"{names}{more}")
+
+
+def upstream_version(item: catalog.Item) -> str:
+    """The version as the project names it: Arch's ``6.8.1-1`` carries a
+    packaging release (``-1``) that no upstream URL knows about."""
+    if item.kind == "arch" and "-" in item.latest:
+        return item.latest.rsplit("-", 1)[0]
+    return item.latest
+
+
+def changelog_link(item: catalog.Item) -> str:
+    """Where "changelog" goes for an item, best first:
+
+    1. a link YOU set containing ``{version}`` — filled with the latest
+       version (``kde.org/announcements/plasma/6/{version}/``,
+       ``fex-emu.com/{version}/``): you've said exactly where each
+       release's notes live, so it beats anything a source guesses;
+    2. the source's own link, when that link IS release notes (a GitHub
+       release, a Steam patch post, Apple's notes page);
+    3. the link you set;
+    4. whatever the source returned (a package or store page beats nothing).
+    """
+    own = (item.changelog_url or "").strip()
+    if "{version}" in own:
+        if item.latest:
+            return own.replace("{version}", upstream_version(item))
+        own = ""          # no version yet — a template isn't a link
+    source = sources.BY_KIND.get(item.kind)
+    if item.latest_url and (source is None or source.notes_link):
+        return item.latest_url
+    return own or item.latest_url

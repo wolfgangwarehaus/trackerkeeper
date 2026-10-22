@@ -432,3 +432,18 @@ done = true
 by = "agent"
 date = "2026-08-06"
 note = "checkout v4->v7, setup-python v5->v7, upload-artifact v4->v7, download-artifact v4->v8 across all 6 workflows that use them. attest-build-provenance stays v4 (composite action — no node runtime, and v4 is current). Verified each major's breaking changes are inapplicable BEFORE bumping: checkout v7 blocks fork checkout on pull_request_target/workflow_run (we use neither), setup-python v7 removed the pip-install input (unused), upload-artifact v7's direct-upload is opt-in via archive:false, download-artifact v8 only skips unzip by Content-Type and now defaults digest-mismatch:error — our fan-in is the download-all + merge-multiple form, and merge-multiple still exists in v8 with identical semantics. All runners GitHub-hosted so the >=2.327.1 requirement is met. CAVEAT: only ci.yml is exercised by a push; release/macos/pypi/aur/winget legs stay unverified until the next tag."
+
+[[improvements]]
+id = "049db1"
+text = "Audit the update checks + changelog links (2026-10-22)"
+done = true
+by = "agent"
+date = "2026-10-22"
+note = "All 9 live sources answer and every version matches its source. Fixed: changelog_link() rule (notes-link sources > your link > package pages; {version} templates win), Apple per-version release-notes pages (validated via the docs JSON, 404 on miss), CachyOS ISO -> its blog release post, Armada repo moved to armada-os/armada, KDE + FEX links to per-version notes in the seed. Flagged: Slay the Spire 2 tracks the BETA branch (every patch post is 'Beta Patch Notes'); Purple Turnip's version is a filename (turnip_mrpurple_T30-toasted.adpkg) — a per-item version pattern would fix it. The live catalog still needs the KDE/FEX/Armada edits (app was running)."
+
+[[improvements]]
+id = "628374"
+text = "Per-item version pattern (Purple Turnip reads 'turnip_mrpurple_T30-toasted.adpkg'; should read T30)"
+done = false
+by = "agent"
+date = "2026-10-22"

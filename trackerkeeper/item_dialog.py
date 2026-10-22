@@ -63,7 +63,7 @@ class ItemDialog(FrostedDialog):
             placeholder="what you have now (optional for auto sources)")
         self._changelog = self._field(
             "Changelog URL", item.changelog_url if editing else "",
-            placeholder="https://…  (optional)")
+            placeholder="https://…  (optional — {version} fills in the latest)")
 
         self._err = QLabel("")
         self._err.setStyleSheet("color:#d0524a;font-size:12px;")

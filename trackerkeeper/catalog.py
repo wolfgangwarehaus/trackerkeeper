@@ -161,7 +161,8 @@ def default_fleet() -> list[Item]:
     hold what you enter until a checker for their world exists."""
     return [
         Item(name="KDE Plasma", platform="Linux", group="PC", kind="arch", ref="plasma-desktop",
-             changelog_url="https://kde.org/announcements/"),
+             # Arch gives the version you can install; KDE gives the notes.
+             changelog_url="https://kde.org/announcements/plasma/6/{version}/"),
         Item(name="Ghostty", platform="Terminal", group="PC", kind="github",
              ref="ghostty-org/ghostty",
              changelog_url="https://github.com/ghostty-org/ghostty/releases"),
@@ -170,8 +171,8 @@ def default_fleet() -> list[Item]:
         Item(name="Slay the Spire 2", platform="Steam", group="Gaming", kind="steam", ref="2868840",
              changelog_url="https://store.steampowered.com/news/app/2868840"),
         Item(name="SteamOS (Armada)", platform="Handheld", group="Gaming", kind="github",
-             ref="virtudude/armada",
-             changelog_url="https://github.com/virtudude/armada"),
+             ref="armada-os/armada",   # moved from virtudude/armada (Oct 2026)
+             changelog_url="https://github.com/armada-os/armada/releases"),
         Item(name="iOS Developer Beta", platform="iOS", group="iPhone", kind="appledev",
              ref="iOS 27",
              changelog_url="https://developer.apple.com/news/releases/"),
@@ -179,7 +180,8 @@ def default_fleet() -> list[Item]:
              ref="6449580241", installed="3.4",
              changelog_url="https://www.blackmagicdesign.com/support/family/blackmagic-camera"),
         Item(name="FEX", platform="ARM", group="Gaming", kind="github", ref="FEX-Emu/FEX",
-             changelog_url="https://github.com/FEX-Emu/FEX/releases"),
+             # each GitHub release just says "read the blog post" — go there
+             changelog_url="https://fex-emu.com/{version}/"),
         Item(name="Purple Turnip", platform="Adreno", group="Gaming", kind="github",
              ref="MrPurple666/purple-turnip",
              changelog_url="https://github.com/MrPurple666/purple-turnip/releases"),

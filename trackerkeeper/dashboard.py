@@ -738,7 +738,7 @@ class Dashboard(QWidget):
 
         # right: changelog + actions ("changelog →" collapses to the arrow when
         # every pixel counts — the tooltip keeps it discoverable)
-        if item.changelog_url or item.latest_url:
+        if fleet.changelog_link(item):
             # Full labels only at the WIDE tier. At 430px "changelog →" plus
             # "mark updated" cost ~175px of the row, which is why the NAME was
             # eliding to "SteamOS…" — the labels were being paid for out of the
@@ -747,7 +747,7 @@ class Dashboard(QWidget):
             # Escape the URL: it's user-entered (the Add/Edit dialog), and an
             # unescaped quote would close the href and let the rest of the string
             # become markup in a rich-text label.
-            href = _esc(item.latest_url or item.changelog_url)
+            href = _esc(fleet.changelog_link(item))
             # Accent only where there's fresh news to go and read. On settled
             # rows the link stays available but stops competing — nine accent
             # links down a list is just a green column, and nothing leads.

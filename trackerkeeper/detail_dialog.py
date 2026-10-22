@@ -89,7 +89,9 @@ class DetailDialog(FrostedDialog):
 
         # ── actions ──
         row = QHBoxLayout()
-        url = item.latest_url or item.changelog_url
+        from trackerkeeper.fleet import changelog_link
+
+        url = changelog_link(item)
         if url:
             link = QLabel(f'<a href="{_esc(url)}" style="color:{ui_helpers.ACCENT};'
                           f'text-decoration:none;">changelog →</a>')

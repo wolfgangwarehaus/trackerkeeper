@@ -105,12 +105,40 @@ def test_cachyos_provider_picks_the_latest_iso_snapshot():
 
 
 def test_cachyos_provider_defaults_to_desktop_edition():
-    seen = {}
+    seen = []
     def http_text(url):
-        seen["url"] = url
+        seen.append(url)
         return _CACHY_INDEX
     sources.check(catalog.Item(name="CachyOS", kind="cachyos", ref=""), http_text=http_text)
-    assert seen["url"] == "https://mirror.cachyos.org/ISO/desktop/"
+    assert seen[0] == "https://mirror.cachyos.org/ISO/desktop/"
+
+
+_CACHY_BLOG = """<rss><channel>
+<item><title>CachyOS August 2026 Release</title>
+  <link>https://cachyos.org/blog/2608-august-release/</link>
+  <description>New installer, kernel 6.18.</description></item>
+<item><title>CachyOS June 2026 Release</title>
+  <link>https://cachyos.org/blog/2606-june-release/</link></item>
+</channel></rss>"""
+
+
+def _cachy_text(url):
+    return _CACHY_BLOG if "rss.xml" in url else _CACHY_INDEX
+
+
+def test_cachyos_links_the_release_post_for_that_iso():
+    """The 260628 ISO ↔ the 2606 release post — release notes, not a folder."""
+    res = sources.check(catalog.Item(name="CachyOS", kind="cachyos", ref="desktop"),
+                        http_text=_cachy_text)
+    assert res.latest == "2026-06-28"
+    assert res.url == "https://cachyos.org/blog/2606-june-release/"
+
+
+def test_cachyos_falls_back_to_the_mirror_without_a_post():
+    blog = _CACHY_BLOG.replace("2606-june", "2605-may")
+    res = sources.check(catalog.Item(name="CachyOS", kind="cachyos", ref="desktop"),
+                        http_text=lambda u: blog if "rss.xml" in u else _CACHY_INDEX)
+    assert res.url == "https://mirror.cachyos.org/ISO/desktop/260628/"
 
 
 def test_cachyos_provider_rejects_an_unknown_edition():
@@ -137,20 +165,44 @@ _APPLE_RSS = """<rss><channel>
 
 def test_appledev_returns_newest_entry_matching_the_os_filter():
     item = catalog.Item(name="iOS Beta", kind="appledev", ref="iOS 27")
-    res = sources.check(item, http_text=lambda url: _APPLE_RSS)
+    res = sources.check(item, http=_fake({}), http_text=lambda url: _APPLE_RSS)
     assert res.latest == "iOS 27.0 beta 4 (24A5390f)"  # newest iOS 27, not the older beta 1
     assert res.date == "2026-07-20"
     assert res.url == "https://d/ios27b4"
 
 
+def test_appledev_links_the_release_notes_page_when_it_exists():
+    item = catalog.Item(name="iOS Beta", kind="appledev", ref="iOS 26")
+    http = _fake({"ios-ipados-release-notes/ios-ipados-26_6-release-notes.json": {"ok": 1}})
+    res = sources.check(item, http=http, http_text=lambda url: _APPLE_RSS)
+    assert res.latest == "iOS 26.6 RC (23G71)"
+    assert res.url == ("https://developer.apple.com/documentation/"
+                       "ios-ipados-release-notes/ios-ipados-26_6-release-notes")
+
+
+def test_appledev_drops_link_labels_posing_as_notes():
+    feed = _APPLE_RSS.replace("<link>https://d/ios27b4</link>",
+                              "<link>https://d/ios27b4</link>"
+                              "<description>View downloadsView release notes</description>")
+    item = catalog.Item(name="iOS Beta", kind="appledev", ref="iOS 27")
+    assert sources.check(item, http=_fake({}), http_text=lambda url: feed).notes == ""
+
+
+def test_apple_notes_candidates():
+    c = sources.apple_notes_candidates
+    assert c("iOS 27.0 beta 4 (24A5390f)") == ["ios-ipados-release-notes/ios-ipados-27-release-notes"]
+    assert c("macOS 27.2.1 (27C61)")[0] == "macos-release-notes/macos-27_2_1-release-notes"
+    assert c("TestFlight Update") == []
+
+
 def test_appledev_filter_does_not_match_a_different_os():
     item = catalog.Item(name="x", kind="appledev", ref="macOS 27")
-    assert sources.check(item, http_text=lambda url: _APPLE_RSS) is None
+    assert sources.check(item, http=_fake({}), http_text=lambda url: _APPLE_RSS) is None
 
 
 def test_appledev_needs_a_filter():
     item = catalog.Item(name="x", kind="appledev", ref="")
-    assert sources.check(item, http_text=lambda url: _APPLE_RSS) is None
+    assert sources.check(item, http=_fake({}), http_text=lambda url: _APPLE_RSS) is None
 
 
 def test_appledev_none_when_feed_unreachable():
@@ -756,3 +808,29 @@ def test_check_dispatches_for_every_declared_kind():
             assert reason == ""                  # nothing to poll is not an error
         else:
             assert reason in (sources.UNREACHABLE, sources.NOT_FOUND)
+
+
+# ── which link "changelog" opens (fleet.changelog_link) ──
+
+def test_changelog_link_priority():
+    from trackerkeeper.fleet import changelog_link
+
+    item = catalog.Item
+    # a release-notes source beats a plain link you set
+    gh = item("g", kind="github", latest="1.1", latest_url="https://gh/rel/1.1",
+              changelog_url="https://gh/releases")
+    assert changelog_link(gh) == "https://gh/rel/1.1"
+    # a package page loses to the link you set…
+    arch = item("k", kind="arch", latest="6.8.1-1", latest_url="https://archlinux.org/pkg",
+                changelog_url="https://kde.org/announcements/")
+    assert changelog_link(arch) == "https://kde.org/announcements/"
+    # …but is better than nothing
+    arch.changelog_url = ""
+    assert changelog_link(arch) == "https://archlinux.org/pkg"
+    # {version} beats everything, Arch's -pkgrel stripped
+    arch.changelog_url = "https://kde.org/announcements/plasma/6/{version}/"
+    assert changelog_link(arch) == "https://kde.org/announcements/plasma/6/6.8.1/"
+    gh.changelog_url = "https://fex-emu.com/{version}/"
+    assert changelog_link(gh) == "https://fex-emu.com/1.1/"
+    # a template with no version yet isn't a link
+    assert changelog_link(item("x", kind="manual", changelog_url="https://a/{version}/")) == ""

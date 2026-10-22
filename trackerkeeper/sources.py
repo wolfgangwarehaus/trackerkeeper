@@ -289,11 +289,31 @@ def _cachyos(item, http, http_text) -> CheckResult | None:
         return None
     latest = max(snapshots)  # fixed-width YYMMDD sorts chronologically
     iso_date = f"20{latest[0:2]}-{latest[2:4]}-{latest[4:6]}"
+    url, notes = _cachyos_release_post(latest[:4], http_text)
     return CheckResult(
         latest=iso_date,  # the snapshot date is the "version" for a rolling distro
-        url=f"https://mirror.cachyos.org/ISO/{edition}/{latest}/",
+        url=url or f"https://mirror.cachyos.org/ISO/{edition}/{latest}/",
         date=iso_date,
+        notes=notes,
     )
+
+
+_CACHY_BLOG_RSS = "https://cachyos.org/rss.xml"
+
+
+def _cachyos_release_post(yymm: str, http_text) -> tuple[str, str]:
+    """``(link, notes)`` of the blog post announcing the ``YYMM`` ISO, or
+    ``("", "")``. Every ISO ships with one, slugged by the same year+month
+    (the 260809 ISO ↔ ``/blog/2608-august-release/``) — so the link is the
+    release notes rather than a mirror folder of files."""
+    xml = http_text(_CACHY_BLOG_RSS)
+    if not xml:
+        return "", ""
+    for entry in re.findall(r"<item>(.*?)</item>", xml, re.DOTALL):
+        link = _rss_field(entry, "link")
+        if f"/blog/{yymm}-" in link:
+            return link, plain_notes(_entry_body(entry))
+    return "", ""
 
 
 # Apple's developer releases feed — every OS build (betas + finals) Apple ships,
@@ -343,13 +363,62 @@ def _appledev(item, http, http_text) -> CheckResult | None:
     for entry in re.findall(r"<item>(.*?)</item>", xml, re.DOTALL):  # newest first
         title = _rss_field(entry, "title")
         if title and needle in title.lower():
+            # The feed's body is only its two link LABELS ("View downloads",
+            # "View release notes") with the links stripped — not notes. Keep
+            # a body only when it says something more.
+            body = plain_notes(_entry_body(entry))
+            if re.sub(r"[•\s]|View (downloads|release notes)", "", body) == "":
+                body = ""
             return CheckResult(
                 latest=title,
-                url=_rss_field(entry, "link") or "https://developer.apple.com/news/releases/",
+                url=(_apple_notes_url(title, http)
+                     or _rss_field(entry, "link") or "https://developer.apple.com/news/releases/"),
                 date=_rss_date(_rss_field(entry, "pubDate")),
-                notes=plain_notes(_entry_body(entry)),
+                notes=body,
             )
     return None
+
+
+# Apple's release-notes docs, by the product name a feed title starts with.
+_APPLE_NOTES = {
+    "ios": ("ios-ipados-release-notes", "ios-ipados"),
+    "ipados": ("ios-ipados-release-notes", "ios-ipados"),
+    "macos": ("macos-release-notes", "macos"),
+    "watchos": ("watchos-release-notes", "watchos"),
+    "tvos": ("tvos-release-notes", "tvos"),
+    "visionos": ("visionos-release-notes", "visionos"),
+    "xcode": ("xcode-release-notes", "xcode"),
+}
+
+
+def apple_notes_candidates(title: str) -> list[str]:
+    """The release-notes doc paths a feed title could have, most specific
+    first: "iOS 27.2.1 beta 2 (…)" → ios-ipados-27_2_1, then 27_2, then 27.
+    Apple names a .0 release by its major alone (``ios-ipados-27-release-
+    notes``), and a beta or RC shares its release's page."""
+    m = re.match(r"\s*(\w+)\s+(\d+(?:\.\d+)*)", title or "")
+    if not m or m.group(1).lower() not in _APPLE_NOTES:
+        return []
+    family, slug = _APPLE_NOTES[m.group(1).lower()]
+    parts = [p for p in m.group(2).split(".")]
+    while len(parts) > 1 and parts[-1] == "0":
+        parts.pop()
+    out = []
+    while parts:
+        out.append(f"{family}/{slug}-{'_'.join(parts)}-release-notes")
+        parts.pop()
+    return out
+
+
+def _apple_notes_url(title: str, http) -> str:
+    """The first release-notes page that exists for ``title``, or "". Asks the
+    docs site's JSON (a real 404 for a page that doesn't exist — the HTML
+    route can't tell)."""
+    for path in apple_notes_candidates(title):
+        if isinstance(http(f"https://developer.apple.com/tutorials/data/documentation/{path}.json"),
+                      dict):
+            return f"https://developer.apple.com/documentation/{path}"
+    return ""
 
 
 def _flatpak(item, http, http_text) -> CheckResult | None:
@@ -586,6 +655,12 @@ class Source:
     hint: str        # placeholder text for the ref field
     check: object    # the provider: (item, http, http_text) -> CheckResult | None
     problem: object = None   # (ref) -> an error message, or "" when it's fine
+    # Whether the link a check returns IS the release notes (a GitHub release,
+    # a patch-notes post, Apple's notes page) rather than a package or store
+    # listing. When it isn't, a changelog link the user set beats it — see
+    # fleet.changelog_link. (It used to be latest_url-always-wins, which is why
+    # KDE Plasma opened Arch's package page instead of KDE's announcement.)
+    notes_link: bool = True
 
     def ref_problem(self, ref: str) -> str:
         """Why this ref won't work, or "" if it will."""
@@ -599,11 +674,13 @@ SOURCES: tuple[Source, ...] = (
                   lambda r: "/" in r)),
     Source("arch", "Arch", "Arch package  (package name)",
            "package name  ·  e.g. plasma-desktop", _arch,
-           _needs("Arch source wants a package name (e.g. plasma-desktop).", bool)),
+           _needs("Arch source wants a package name (e.g. plasma-desktop).", bool),
+           notes_link=False),
     Source("flatpak", "Flatpak", "Flatpak  (Flathub app id — org.videolan.VLC)",
            "Flathub app id  ·  e.g. org.videolan.VLC  (in the flathub.org URL)", _flatpak,
            _needs("Flatpak source wants a Flathub app id (e.g. org.videolan.VLC).",
-                  lambda r: "." in r)),
+                  lambda r: "." in r),
+           notes_link=False),
     Source("appstore", "App Store", "App Store  (iOS / Mac — app id or bundle id)",
            "app id or bundle id  ·  e.g. 6449580241 or com.apple.FinalCutApp.companion",
            _appstore,

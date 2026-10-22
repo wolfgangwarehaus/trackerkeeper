@@ -327,7 +327,7 @@ class Fleet(QObject):
         return {
             "name": i.name, "platform": i.platform, "group": i.group, "kind": i.kind,
             "ref": i.ref, "installed": i.installed, "latest": i.latest,
-            "changelogUrl": i.latest_url or i.changelog_url,
+            "changelogUrl": fleet.changelog_link(i),
             "ownChangelogUrl": i.changelog_url,
             "channel": fleet.channel_label(i), "age": fleet.humanize_age(stamp),
             "checked": fleet.local_time(i.checked_at) if i.checked_at else "",

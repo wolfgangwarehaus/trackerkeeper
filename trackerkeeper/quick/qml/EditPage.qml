@@ -207,7 +207,7 @@ Page {
             Field {
                 id: changelogField
                 label: qsTr("Changelog link")
-                placeholder: qsTr("optional — https://…")
+                placeholder: qsTr("optional — {version} fills in the latest")
                 text: page.item.ownChangelogUrl || ""
                 input.inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
             }
