@@ -3,16 +3,15 @@
 **Read this first.** Current state in two lines, then exactly what to do next,
 then the standing backlog.
 
-## Where things stand (2026-10-21)
+## Where things stand (2026-10-22)
 
-**tracker keeper has a phone interface.** On an undocked Plasma Mobile / Phosh
-session it opens a Qt Quick front end (`trackerkeeper/quick/`, built the
-jellytoast way) instead of the desktop window: two-line rows, filter chips, pull
-to check, swipe to mark updated, a bottom sheet per item, full-screen add/edit.
-It's committed and tested (offscreen screenshots plus a real `run_app` boot), but
-**august hasn't tried it on the phone yet** — that's the first thing to do.
-v0.1.2 is still the latest release; `[Unreleased]` now holds the phone interface
-plus the earlier 0.1.3 housekeeping.
+**v0.1.3 is tagged** — the phone interface release. It's the first release with
+a Flatpak, a Windows Arm64 build, and the phone interface inside the `.deb` /
+AppImage (the bundles used to strip Qt Quick). The tag builds a DRAFT; publish
+it on GitHub to fire PyPI. August has the phone interface running from the
+checkout on the phone (the redesign: ⋮ filter, green only for news), and the
+update checks were audited: all 9 sources right, every changelog link now opens
+real release notes.
 
 **Your dev session IS a Plasma Mobile session** (`PLASMA_PLATFORM=phone:handset`),
 streamed to the phone. So on this machine the app picks the phone UI, and
@@ -21,29 +20,23 @@ drive the desktop window. Run the rig with `TRACKERKEEPER_UI=widgets` too.
 
 ## Pick up here (in order)
 
-1. **Try the phone interface on the phone and collect notes.** Launch it with
-   the **tracker keeper (dev)** entry (`dev/run.sh` in a Ghostty terminal; it
-   replaces any running copy and streams the log). Long-press it for Phone /
-   Desktop interface. Re-run `dev/create_desktop_entry.sh` if the checkout moves.
-   Check: scrolling feel, swipe-to-mark, pull-to-check, the detail sheet, add/edit
-   with the on-screen keyboard, light/dark switch.
-2. **Phone Settings** (baking `cf38ae`): check interval, theme/accent, and a
-   switch back to the desktop UI. Today the phone has no way to reach Settings.
-3. **Ship it in the bundles** (baking `77cf31`): the PyInstaller spec excludes
-   QtQuick/QtQml, so deb/AppImage fall back to the desktop window on a phone.
-   Port jellytoast's spec pruning (keep QtQml, QtQuick, Controls Basic + impl,
-   Templates, Layouts, Window). pip / AUR / editable installs already work.
-   Then **cut v0.1.3** — it also proves the bumped Actions on the release legs
-   (`release`, `macos`, `pypi-publish`, `aur`, `winget` only run on a tag; watch
-   `draft-release`'s download-artifact fan-in).
+1. **The Add tool — august's "most major work for this app"** (improvements
+   `67f73e`). Today Add is a raw form: pick a checker, type its handle. Make it
+   work across lots of scenarios and sources: paste anything (a GitHub / Steam /
+   App Store / Flathub / AUR / feed URL → kind + ref detected), search a source
+   by name, preview the latest version before saving, suggest a changelog link
+   (`{version}` templates). Same logic for both front ends — put it beside
+   `sources.py`, not in a dialog. Pairs with more checkers (`bb5d4c`) and the
+   per-item version pattern (Purple Turnip reads as a filename).
+2. **Switch on the dormant channels** — each needs august, not code
+   (`docs/RELEASING.md` has the table): copy jellytoast's 7 Apple secrets for
+   macOS; `WINGET_TOKEN`; AUR key + package registration; reserve the name in
+   Partner Center for the Microsoft Store. Mac App Store isn't ported yet.
+3. **Phone Settings** (baking `cf38ae`) — the phone has no way to reach
+   Settings (interval, theme, accent, back to the desktop UI).
 
-Later: a live rig for the QML (baking `9395a5`, like jellytoast's `qctl`), more
-checkers (improvements `bb5d4c`), the rest of `086ae4`, and a stable `Item` id
-(`9a6b97`).
-
-**Not actionable:** AUR (delivery `0a95b7`) is externally blocked — it needs an
-`AUR_SSH_PRIVATE_KEY` secret *and* AUR to reopen new-package registration (frozen
-since the 2026 malware wave). deb + AppImage already ship on every release.
+Later: a live QML rig (`9395a5`), the rest of `086ae4`, a stable `Item` id
+(`9a6b97`), a dual-arch Windows installer (Arm64 ships a portable zip today).
 
 ## The phone interface (so you don't re-derive it)
 

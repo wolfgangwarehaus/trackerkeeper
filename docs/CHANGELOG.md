@@ -11,6 +11,8 @@ no matching section). See `docs/RELEASING.md`.
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-10-22
+
 ### Added
 - **A phone interface.** On Plasma Mobile and Phosh, tracker keeper now opens a
   touch-first Qt Quick front end instead of the desktop window, which on a phone
@@ -24,6 +26,12 @@ no matching section). See `docs/RELEASING.md`.
   It uses the app's own type (Inter, then Noto Sans) and follows the system
   light/dark switch. A docked phone gets the desktop window again;
   `TRACKERKEEPER_UI=quick` or `widgets` forces either.
+
+- **New downloads: a Flatpak, and Windows on Arm.** Each release now ships a
+  `.flatpak` (install with `flatpak install ./trackerkeeper-X.Y.Z.flatpak`) —
+  the easiest way onto a Plasma Mobile or Phosh phone — and a native Arm64
+  portable build for Windows. The `.deb` and AppImage include the phone
+  interface too.
 
 ### Changed
 - **"Changelog" opens the release notes, not a package page.** A source's link
