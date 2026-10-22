@@ -54,9 +54,9 @@ Page {
             focusPolicy: Qt.NoFocus
             text: qsTr("Save")
             onClicked: page.save()
-            contentItem: Label {
+            contentItem: Label {   // high-contrast neutral: green means news
                 text: parent.text
-                color: theme.onAccent
+                color: theme.background
                 font.pixelSize: 15
                 font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
@@ -66,7 +66,7 @@ Page {
                 implicitWidth: 80
                 implicitHeight: 40
                 radius: 20
-                color: theme.accent
+                color: theme.text
                 opacity: parent.pressed ? 0.75 : 1
             }
         }

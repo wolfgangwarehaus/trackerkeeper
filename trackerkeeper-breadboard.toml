@@ -349,6 +349,15 @@ by = "agent"
 date = "2026-10-21"
 note = "Built + tested offscreen 2026-10-21, never touched by a finger. Scrolling, swipe-to-mark, pull-to-check, detail sheet, add/edit with the on-screen keyboard, light/dark."
 
+[[baking]]
+id = "081bd4"
+text = "Phone interface design passes: overflow-menu filter, green only for news, quieter rows, app font"
+done = true
+priority = "now"
+by = "agent"
+date = "2026-10-22"
+note = "From august's on-phone screenshot (2026-10-22). Research: Material puts >3 phone actions in overflow; ~72px two-line rows, 16px margins; ObtainX floats apps with updates. Pass 1: chips -> ⋮ sheet (Show: All / Updates waiting / each category with counts + Track something new), FAB gone, header = title + one line ('2 new updates' green only when unseen news, else quiet 'checked 4:20'), rows 72px, green dot/version only for isNew, seen-pending grey dot + 'from → to', no '· current', no NEW badge, short amber 'couldn't check', updates lead each category, app font (Inter -> Noto Sans; QML had inherited the system JetBrains Mono). Pass 2: view named only when filtered, pending version line mid-grey, no hairline under a section's last row, detail sheet arrow + tonal (not green) primary button, Save neutral."
+
 [[delivery]]
 id = "267380"
 text = "Cut v0.1.0 once the MVP (GitHub-releases dashboard + manual items) works"

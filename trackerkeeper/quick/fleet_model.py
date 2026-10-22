@@ -39,26 +39,46 @@ _ROLES = {
     "isNew": lambda i: i.is_new(),
     "fresh": fleet.is_fresh,
     "age": lambda i: fleet.humanize_age_short(i.latest_at or i.latest_date),
-    "error": lambda i: fleet.error_text(i.error) if i.error else "",
-    # The second line of a row: where you'd go, or what you're on.
-    "versionLine": lambda i: (i.latest if i.has_update()
-                              else (f"{i.latest} · current" if i.latest
-                                    else (i.installed or "not checked yet"))),
+    # A row's short form; the detail sheet carries fleet.error_text's full one.
+    "error": lambda i: ("" if not i.error else
+                        "no match" if i.error == sources.NOT_FOUND else "couldn't check"),
+    # The second line of a row: the move you'd make, or what you're on.
+    "versionLine": lambda i: version_line(i),
 }
 _ROLE_IDS = {Qt.ItemDataRole.UserRole + 1 + n: k for n, k in enumerate(_ROLES)}
 
 
+def version_line(i) -> str:
+    """``1.2.9 → 1.3.0`` when there's somewhere to go (``1.3.0 available`` if
+    we don't know what you have); otherwise just the version you're on. No
+    "· current" — a row with no dot and no arrow already says that."""
+    if i.has_update():
+        return f"{i.installed} → {i.latest}" if i.installed else f"{i.latest} available"
+    return i.latest or i.installed or "not checked yet"
+
+
 def order(items: list) -> list:
-    """Grouped A→Z with "Other" last; newest release first within a group,
-    undated items at the bottom — the dashboard's default view."""
+    """Grouped A→Z with "Other" last. Within a group, what needs you floats
+    up — unseen updates, then ones you've seen but not installed — and each
+    of those tiers runs newest release first, undated last.
+
+    The desktop dashboard sorts a group by date alone; a phone is glanced at,
+    so the rows worth acting on lead (ObtainX does the same)."""
     def recency(i):
         return i.latest_at or i.latest_date
 
+    def tier(i):
+        return 0 if i.is_new() else (1 if i.has_update() else 2)
+
     def within(group):
-        dated = sorted((i for i in group if recency(i)),
-                       key=lambda i: (recency(i), i.name.lower()), reverse=True)
-        return dated + sorted((i for i in group if not recency(i)),
-                              key=lambda i: i.name.lower())
+        out = []
+        for t in (0, 1, 2):
+            rows = [i for i in group if tier(i) == t]
+            dated = sorted((i for i in rows if recency(i)),
+                           key=lambda i: (recency(i), i.name.lower()), reverse=True)
+            out += dated + sorted((i for i in rows if not recency(i)),
+                                  key=lambda i: i.name.lower())
+        return out
 
     buckets: dict[str, list] = {}
     for it in items:
@@ -153,6 +173,46 @@ class Fleet(QObject):
     checking = Property(bool, lambda self: self._checking, notify=checkingChanged)
     status = Property(str, lambda self: self._status, notify=statusChanged)
 
+    def _filter_label(self) -> str:
+        if self._filter == "new":
+            return "Updates waiting"
+        return "All" if self._filter in ("", "all") else self._filter
+
+    def _last_checked(self) -> str:
+        """The newest check on record, local HH:MM — so a fresh launch can say
+        when it last looked before its own check lands."""
+        stamps = [i.checked_at for i in self._items if i.checked_at]
+        if not stamps:
+            return ""
+        local = fleet.local_time(max(stamps))
+        return local[-5:].lstrip("0") if local else ""   # "4:20", not "04:20"
+
+    def _subtitle(self) -> str:
+        """The quiet line under the title: the view (only when it's filtered —
+        "All" is noise) and when we last looked."""
+        view = "" if self._filter in ("", "all") else self._filter_label()
+        when = self._last_checked()
+        state = "checking…" if self._checking else (f"checked {when}" if when else "")
+        return " · ".join(p for p in (view, state) if p)
+
+    filterLabel = Property(str, _filter_label, notify=changed)
+    subtitle = Property(str, _subtitle, notify=statusChanged)
+    # The ONE green thing in the header, and only when there's news.
+    newsLine = Property(str, lambda self: (
+        f"{self.newCount} new update{'s' if self.newCount != 1 else ''}"
+        if self.newCount else ""), notify=changed)
+
+    def _filter_options(self) -> list:
+        opts = [{"key": "all", "label": "All", "count": len(self._items)},
+                {"key": "new", "label": "Updates waiting",
+                 "count": sum(i.has_update() for i in self._items)}]
+        for g in self.groups:
+            opts.append({"key": g, "label": g,
+                         "count": sum(1 for i in self._items if (i.group or OTHER) == g)})
+        return opts
+
+    filterOptions = Property("QVariantList", _filter_options, notify=changed)
+
     @Slot(str, result=int)
     def sectionNews(self, section: str) -> int:  # noqa: N802 (QML API)
         """How many items in a section have an update (its header's count)."""
@@ -168,6 +228,7 @@ class Fleet(QObject):
     def _sync(self) -> None:
         self._model.set_rows(order(self._visible()))
         self.changed.emit()
+        self.statusChanged.emit()
 
     def _find(self, name: str):
         return next((i for i in self._items if i.name == name), None)
@@ -270,7 +331,7 @@ class Fleet(QObject):
             "ownChangelogUrl": i.changelog_url,
             "channel": fleet.channel_label(i), "age": fleet.humanize_age(stamp),
             "checked": fleet.local_time(i.checked_at) if i.checked_at else "",
-            "notes": i.latest_notes, "hasUpdate": i.has_update(), "fresh": fleet.is_fresh(i),
+            "notes": i.latest_notes, "hasUpdate": i.has_update(), "isNew": i.is_new(),
             "error": fleet.error_text(i.error) if i.error else "",
         }
 

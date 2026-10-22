@@ -81,6 +81,21 @@ def wanted() -> bool:
     return is_phone_shell() and not is_docked() and available()
 
 
+def _apply_font(app) -> None:
+    """The app's own type, not the desktop's: Settings → Font if chosen, else
+    the stack the desktop stylesheet names (Inter → Noto Sans). QML inherits
+    the application font, so without this the phone UI drew in whatever the
+    system font is — a monospace one on august's phone."""
+    from PySide6.QtGui import QFont
+
+    from trackerkeeper.settings import get_settings
+
+    fam = (get_settings().font_family or "").strip()
+    f = QFont(app.font())
+    f.setFamilies([fam] if fam else ["Inter", "Segoe UI", "Noto Sans", "sans-serif"])
+    app.setFont(f)
+
+
 def build_engine(app, *, start: bool = True):
     """The bridge objects + a loaded ``QQmlApplicationEngine``. ``start=False``
     skips the launch check and the periodic timer (tests)."""
@@ -96,6 +111,7 @@ def build_engine(app, *, start: bool = True):
     # can't load (jellytoast learned this one first).
     if QQuickStyle.name() != "Basic":
         QQuickStyle.setStyle("Basic")
+    _apply_font(app)
     engine = QQmlApplicationEngine()
     bridge = {"fleet": Fleet(engine, start=start), "theme": Theme(engine)}
     engine.addImageProvider("icon", IconProvider())

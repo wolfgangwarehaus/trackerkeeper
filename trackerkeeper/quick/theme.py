@@ -73,6 +73,10 @@ class Theme(QObject):
                        notify=changed)
     textFaint = Property(QColor, lambda self: _mix(_opaque(_u.BG), _opaque(_u.TEXT), 0.40),
                          notify=changed)
+    # A raised, neutral fill — the primary button. Not the accent: green
+    # means news, so an always-there action can't wear it.
+    tonal = Property(QColor, lambda self: _mix(_opaque(_u.BG), _opaque(_u.TEXT), 0.20),
+                     notify=changed)
     divider = Property(QColor, lambda self: _mix(_opaque(_u.BG), _opaque(_u.TEXT), 0.12),
                        notify=changed)
     accent = Property(QColor, lambda self: _opaque(_u.ACCENT), notify=changed)

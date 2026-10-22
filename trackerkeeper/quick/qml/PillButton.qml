@@ -1,4 +1,5 @@
-// A big rounded text + icon button (the detail sheet's actions).
+// A big rounded text + icon button (the detail sheet's actions). `filled`
+// is the tonal primary — a raised neutral, never the accent.
 import QtQuick
 import QtQuick.Controls
 
@@ -6,7 +7,7 @@ AbstractButton {
     id: root
     property string iconName
     property bool filled: false
-    property color tint: filled ? theme.onAccent : theme.text
+    property color tint: theme.text
     focusPolicy: Qt.NoFocus
     hoverEnabled: false
     implicitWidth: Math.max(96, content.implicitWidth + 40)
@@ -14,7 +15,7 @@ AbstractButton {
 
     background: Rectangle {
         radius: height / 2
-        color: root.filled ? theme.accent : "transparent"
+        color: root.filled ? theme.tonal : "transparent"
         border.width: root.filled ? 0 : 1
         border.color: theme.textFaint
         opacity: root.enabled ? (root.pressed ? 0.75 : 1) : 0.4
@@ -36,7 +37,7 @@ AbstractButton {
                 text: root.text
                 color: root.tint
                 font.pixelSize: 15
-                font.weight: Font.DemiBold
+                font.weight: Font.Medium
             }
         }
     }

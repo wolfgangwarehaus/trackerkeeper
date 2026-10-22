@@ -15,13 +15,15 @@ no matching section). See `docs/RELEASING.md`.
 - **A phone interface.** On Plasma Mobile and Phosh, tracker keeper now opens a
   touch-first Qt Quick front end instead of the desktop window, which on a phone
   was a frosted, unreadable utility window with 26 px buttons and window
-  controls. Rows are two lines and finger-sized, categories are filter chips,
-  you pull down to check, swipe right to mark something updated, and tap a row
-  for a bottom sheet with the changelog, the release notes and the actions. Add
-  and edit are a full-screen form with the same checks as the desktop dialog. It
-  follows the system light/dark switch. A docked phone gets the desktop window
-  again; `TRACKERKEEPER_UI=quick` or `widgets` forces either. Same catalog,
-  checkers, settings and notifications as the desktop app.
+  controls. Rows are two lines and finger-sized, and the items waiting for you
+  lead each category. Green means news and nothing else: "2 new updates" under
+  the title, and the dot and version on an update you haven't seen; one you've
+  seen stays grey. The ⋮ menu filters the list (all / updates waiting / a
+  category) and adds new items. Pull down to check, swipe a row right to mark
+  it updated, tap it for a sheet with the changelog, release notes and actions.
+  It uses the app's own type (Inter, then Noto Sans) and follows the system
+  light/dark switch. A docked phone gets the desktop window again;
+  `TRACKERKEEPER_UI=quick` or `widgets` forces either.
 
 ### Changed
 - **The brand accent moved to the identity seam.** It had been edited into

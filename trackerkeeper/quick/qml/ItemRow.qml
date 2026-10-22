@@ -1,10 +1,10 @@
 // One tracked thing, two lines tall:
-//   ● Name                        2h
-//     27.0 beta 5 · iOS
-// The dot means "there's something to install"; it carries the accent only
-// while the news is fresh, the same three states as the desktop card (fresh /
-// pending-but-old / current). Tap → the detail sheet. Swipe right → mark
-// updated (only when there IS an update).
+//   ● Name                          2h
+//     1.2.9 → 1.3.0 · Android
+// Colour is reserved for NEWS: the dot and the version go green only for an
+// update you haven't seen yet. One you've seen but not installed keeps a grey
+// dot and plain text; an item that's current has no dot and reads quieter.
+// Tap → the detail sheet. Swipe right → mark updated (when there's an update).
 import QtQuick
 import QtQuick.Controls
 
@@ -18,22 +18,19 @@ SwipeDelegate {
     required property string error
     required property bool hasUpdate
     required property bool isNew
-    required property bool fresh
 
     signal opened()
     signal markUpdated()
 
     objectName: "row_" + name
     width: ListView.view ? ListView.view.width : 360
-    height: 64
+    height: 72
     padding: 0
     focusPolicy: Qt.NoFocus
     hoverEnabled: false
     swipe.enabled: hasUpdate
     onClicked: if (swipe.position === 0) row.opened()
     swipe.onCompleted: row.markUpdated()
-
-    readonly property color nameColour: fresh ? theme.text : (hasUpdate ? theme.text : theme.textDim)
 
     background: Rectangle {
         color: row.pressed && row.swipe.position === 0 ? theme.surface : theme.background
@@ -43,82 +40,75 @@ SwipeDelegate {
     swipe.left: Rectangle {
         width: row.width
         height: row.height
-        color: theme.accent
+        color: theme.surface
         Row {
             anchors.verticalCenter: parent.verticalCenter
             x: 20
             spacing: 10
-            Icon { anchors.verticalCenter: parent.verticalCenter; name: "check"; tint: theme.onAccent; size: 22 }
+            Icon { anchors.verticalCenter: parent.verticalCenter; name: "check"; tint: theme.text; size: 22 }
             Label {
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Mark updated")
-                color: theme.onAccent
+                color: theme.text
                 font.pixelSize: 15
-                font.weight: Font.DemiBold
+                font.weight: Font.Medium
             }
         }
     }
 
     contentItem: Item {
-        // the dot column — kept even when empty so names line up
-        Rectangle {
-            id: dot
-            x: 18
-            y: 18
-            width: 9
-            height: 9
-            radius: 4.5
+        Rectangle {  // the status dot — its column is kept so names line up
+            x: 16
+            y: 21
+            width: 8
+            height: 8
+            radius: 4
             visible: row.hasUpdate
-            color: row.fresh ? theme.accent : theme.textFaint
+            color: row.isNew ? theme.accent : theme.textFaint
         }
         Label {
             id: nameLabel
-            x: 38
-            y: 10
-            width: parent.width - x - ageLabel.width - 28 - (newBadge.visible ? newBadge.width + 8 : 0)
+            x: 36
+            y: 14
+            width: parent.width - x - ageLabel.implicitWidth - 28
             text: row.name
-            color: row.nameColour
+            color: row.hasUpdate ? theme.text : theme.textDim
             font.pixelSize: 16
-            font.weight: row.hasUpdate ? Font.DemiBold : Font.Normal
+            font.weight: row.hasUpdate ? Font.Medium : Font.Normal
             elide: Text.ElideRight
-        }
-        Label {
-            id: newBadge
-            visible: row.isNew
-            anchors.left: nameLabel.right
-            anchors.leftMargin: 8
-            anchors.baseline: nameLabel.baseline
-            text: qsTr("NEW")
-            color: row.fresh ? theme.accent : theme.textFaint
-            font.pixelSize: 11
-            font.weight: Font.Bold
-            font.letterSpacing: 0.8
         }
         Label {
             id: ageLabel
             anchors.right: parent.right
-            anchors.rightMargin: 18
+            anchors.rightMargin: 16
             anchors.baseline: nameLabel.baseline
             text: row.age
-            color: theme.textDim
+            color: theme.textFaint
             font.pixelSize: 13
         }
-        Label {
-            x: 38
-            y: 35
-            width: parent.width - x - 18
-            text: row.error !== ""
-                  ? row.error
-                  : row.versionLine + (row.platform ? "  ·  " + row.platform : "")
-            color: row.error !== "" ? theme.warning
-                   : (row.hasUpdate && row.fresh ? theme.accent : theme.textDim)
-            font.pixelSize: 14
+        Label {  // version line — the platform rides at the end, quieter
+            x: 36
+            y: 40
+            width: parent.width - x - 16
             elide: Text.ElideRight
+            textFormat: Text.StyledText
+            font.pixelSize: 14
+            function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;") }
+            // news green · pending (seen) mid-grey · current faint — the name
+            // line carries the weight, this line only says where it's going.
+            readonly property color versionColour: row.isNew ? theme.accent
+                                                 : row.hasUpdate ? theme.textDim : theme.textFaint
+            text: "<font color='" + versionColour + "'>" + esc(row.versionLine) + "</font>"
+                  + (row.error !== "" ? "<font color='" + theme.warning + "'>  ·  "
+                                        + esc(row.error) + "</font>"
+                     : row.platform ? "<font color='" + theme.textFaint + "'>  ·  "
+                                      + esc(row.platform) + "</font>" : "")
         }
-        Rectangle {  // hairline between rows
-            x: 38
+        Rectangle {  // hairline between rows — not under a section's last one
+            visible: row.ListView.nextSection === row.ListView.section
+            x: 36
             anchors.bottom: parent.bottom
-            width: parent.width - x
+            width: parent.width - x - 16
             height: 1
             color: theme.divider
         }

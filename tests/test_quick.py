@@ -99,6 +99,29 @@ def test_order_groups_a_to_z_other_last_newest_first():
     assert names == ["Slay the Spire 2", "Ghostty", "KDE Plasma", "Loose thing"]
 
 
+def test_order_floats_news_then_pending_within_a_group():
+    from trackerkeeper.quick.fleet_model import order
+
+    item = catalog.Item
+    current = item("Current", group="G", kind="github", installed="2", latest="2",
+                   latest_date="2026-09-01")
+    seen = item("Seen", group="G", kind="github", installed="1", latest="2",
+                latest_date="2026-01-01", seen_version="2")
+    news = item("News", group="G", kind="github", installed="1", latest="2",
+                latest_date="2025-01-01")
+    assert [i.name for i in order([current, seen, news])] == ["News", "Seen", "Current"]
+
+
+def test_version_line_says_where_it_goes():
+    from trackerkeeper.quick.fleet_model import version_line
+
+    item = catalog.Item
+    assert version_line(item("a", installed="1.0", latest="1.1")) == "1.0 → 1.1"
+    assert version_line(item("b", latest="1.1")) == "1.1 available"
+    assert version_line(item("c", installed="1.1", latest="1.1")) == "1.1"
+    assert version_line(item("d", kind="manual")) == "not checked yet"
+
+
 # ── the model QML binds to ──
 
 @pytest.fixture
@@ -164,6 +187,18 @@ def test_results_land_and_notify(fleet_obj):
     assert got and got[-1][1] == "KDE Plasma"
 
 
+def test_header_lines(fleet_obj):
+    # green only for news; the view named only when filtered
+    assert fleet_obj.property("newsLine") == "2 new updates"
+    assert fleet_obj.property("subtitle") == ""          # nothing checked yet, unfiltered
+    fleet_obj.setProperty("filter", "PC")
+    assert fleet_obj.property("subtitle") == "PC"
+    fleet_obj.markSeen()
+    assert fleet_obj.property("newsLine") == ""
+    keys = [o["key"] for o in fleet_obj.property("filterOptions")]
+    assert keys == ["all", "new", "Gaming", "PC", "Other"]
+
+
 def test_seen_banks_the_news(fleet_obj):
     assert fleet_obj.property("newCount") == 2
     fleet_obj.markSeen()
@@ -213,7 +248,7 @@ def test_qml_loads_with_a_row_per_item(ui):
     _engine, win = ui
     for item in _fleet_items():
         assert _find(win.contentItem(), "row_" + item.name) is not None, item.name
-    assert _find(win.contentItem(), "chip_Gaming") is not None
+    assert _find(win.contentItem(), "menuButton") is not None
 
 
 def test_detail_and_edit_open(ui):
@@ -227,6 +262,12 @@ def test_detail_and_edit_open(ui):
     QMetaObject.invokeMethod(win, "back")
     _pump(400)
     assert not sheet.property("opened")
+    QMetaObject.invokeMethod(win, "openMenu")
+    _pump(400)
+    menu = next(o for o in win.findChildren(object) if o.objectName() == "menuSheet")
+    assert menu.property("opened")
+    QMetaObject.invokeMethod(win, "back")
+    _pump(400)
     QMetaObject.invokeMethod(win, "openEdit", Q_ARG("QVariant", "Ghostty"))
     _pump(500)
     stack = _find(win.contentItem(), "stack")

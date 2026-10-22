@@ -1,4 +1,5 @@
-// A filter chip. `selected` fills it with the accent; `count` trails the label.
+// A choice chip (the edit page's category picks). `selected` fills it with
+// the text colour — green is kept for news.
 import QtQuick
 import QtQuick.Controls
 
@@ -12,7 +13,7 @@ AbstractButton {
     implicitWidth: row.implicitWidth + 28
     background: Rectangle {
         radius: height / 2
-        color: chip.selected ? theme.accent : "transparent"
+        color: chip.selected ? theme.text : "transparent"
         border.width: chip.selected ? 0 : 1
         border.color: theme.textFaint
         opacity: chip.pressed ? 0.75 : 1
@@ -25,7 +26,7 @@ AbstractButton {
             Label {
                 anchors.verticalCenter: parent.verticalCenter
                 text: chip.text
-                color: chip.selected ? theme.onAccent : theme.text
+                color: chip.selected ? theme.background : theme.text
                 font.pixelSize: 14
                 font.weight: chip.selected ? Font.DemiBold : Font.Normal
             }
@@ -33,7 +34,7 @@ AbstractButton {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: chip.count > 0
                 text: chip.count
-                color: chip.selected ? theme.onAccent : theme.accent
+                color: chip.selected ? theme.background : theme.textDim
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
             }

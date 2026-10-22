@@ -44,16 +44,15 @@ Sheet {
             color: theme.textDim
             font.pixelSize: 18
         }
-        Icon {
+        Label {
             visible: !!sheet.item.hasUpdate
-            name: "forward"
-            tint: theme.textDim
-            size: 20
-            y: 2
+            text: "→"
+            color: theme.textDim
+            font.pixelSize: 18
         }
         Label {
             text: sheet.item.latest || sheet.item.installed || qsTr("not checked yet")
-            color: sheet.item.hasUpdate && sheet.item.fresh ? theme.accent : theme.text
+            color: sheet.item.isNew ? theme.accent : theme.text
             font.pixelSize: 18
             font.weight: Font.DemiBold
         }
@@ -78,7 +77,7 @@ Sheet {
         objectName: "openChangelog"
         visible: !!sheet.item.changelogUrl
         width: parent.width
-        filled: !!sheet.item.hasUpdate
+        filled: true
         iconName: "external"
         text: qsTr("Open changelog")
         onClicked: Qt.openUrlExternally(sheet.item.changelogUrl)
