@@ -412,6 +412,14 @@ by = "agent"
 date = "2026-10-22"
 note = "2026-10-22: + Flatpak bundle job (baked manifest, KDE 6.11 + io.qt.PySide.BaseApp, PySide6 never from pip; built + run locally in both UIs), + Windows Arm64 native portable zip (matrix; x64 keeps the installer), + phone-UI smoke on the frozen bundle, macos.yml reads jellytoast's Apple secret names. Dormant until secrets/accounts: macOS, winget, AUR, MS Store (manual first submission), Mac App Store (not ported)."
 
+[[delivery]]
+id = "3154f5"
+text = "AppImage .zsync never reaches the release (missing on v0.1.2 and v0.1.3)"
+done = false
+by = "agent"
+date = "2026-10-22"
+note = "appimagetool logs 'generating zsync file' and upload-artifact names dist/*.AppImage.zsync, yet neither release has it — likely written outside dist/. Without it, AppImageUpdate delta updates can't work."
+
 [[improvements]]
 id = "bb5d4c"
 text = "Grow the checker library: store pages, more feeds, per-platform firmware"
