@@ -318,11 +318,11 @@ note = "trackerkeeper/quick: Fleet bridge (QAbstractListModel + verbs) over the 
 [[baking]]
 id = "77cf31"
 text = "Bundle QtQuick in the Linux PyInstaller build so deb/AppImage get the phone interface (port jellytoast's spec pruning)"
-done = false
+done = true
 priority = "next"
 by = "agent"
-date = "2026-10-21"
-note = "The spec excludes PySide6.QtQuick/QtQml, so the frozen bundles fall back to the desktop window on a phone. jellytoast keeps only QtQml/QtQuick/Controls Basic+impl/Templates/Layouts/Window (~290 MB if unpruned). pip / AUR / editable installs already have it."
+date = "2026-10-22"
+note = "Done 2026-10-22: spec keeps Qt Quick on Linux, pruned to QtQml / QtQuick / Controls Basic+impl / Templates / Window / Layouts / Effects (2507 files dropped; bundle 271 MB), and collects quick/qml/*.qml. Verified locally: froze the bundle, booted it offscreen in both UIs. release.yml's .deb job now boots TRACKERKEEPER_UI=quick from the frozen bundle and fails on a fallback."
 
 [[baking]]
 id = "cf38ae"
@@ -404,6 +404,14 @@ by = "agent"
 date = "2026-08-06"
 note = "[Unreleased] holds the checker refactor, changelog lint, dough sync, store-metadata fix, the platform-column fix and the wide-tier golden. Second reason to cut it: the Node 24 Actions bump (checkout v7 / setup-python v7 / upload-artifact v7 / download-artifact v8) is only exercised by ci.yml on a push — release/macos/pypi-publish/aur/winget don't run until a tag. Watch draft-release's download-artifact fan-in; it rests on merge-multiple, verified to survive v8 on paper only."
 
+[[delivery]]
+id = "27dd40"
+text = "Port the release pipeline to jellytoast's channels"
+done = true
+by = "agent"
+date = "2026-10-22"
+note = "2026-10-22: + Flatpak bundle job (baked manifest, KDE 6.11 + io.qt.PySide.BaseApp, PySide6 never from pip; built + run locally in both UIs), + Windows Arm64 native portable zip (matrix; x64 keeps the installer), + phone-UI smoke on the frozen bundle, macos.yml reads jellytoast's Apple secret names. Dormant until secrets/accounts: macOS, winget, AUR, MS Store (manual first submission), Mac App Store (not ported)."
+
 [[improvements]]
 id = "bb5d4c"
 text = "Grow the checker library: store pages, more feeds, per-platform firmware"
@@ -447,3 +455,11 @@ text = "Per-item version pattern (Purple Turnip reads 'turnip_mrpurple_T30-toast
 done = false
 by = "agent"
 date = "2026-10-22"
+
+[[improvements]]
+id = "67f73e"
+text = "THE major work: the Add tool — make adding something work across lots of scenarios and update sources"
+done = false
+by = "agent"
+date = "2026-10-22"
+note = "august, 2026-10-22: 'the most major work for this app is working on the add tool. We need to help it work with lots of different scenarios and update sources.' Today Add is a raw form: pick a checker, type its handle. Directions to explore: paste-anything (a GitHub/Steam/App Store/Flathub/AUR URL -> kind + ref detected), search a source by name, preview the latest version before saving, suggest a changelog link ({version} templates), and the long tail via rss. Pairs with bb5d4c (more checkers) and the version-pattern card."

@@ -8,10 +8,12 @@ name: macos
 # deps, so a single fat build reaches both chips (see the freeze step for the
 # per-arch-matrix fallback).
 #
-# Activate (one-time): a $99/yr Apple Developer membership, then add the secrets
-# MACOS_CERTIFICATE (base64 of a Developer ID Application .p12), MACOS_CERTIFICATE_PWD,
-# MACOS_KEYCHAIN_PWD, APPLE_TEAM_ID, and HOMEBREW_TAP_TOKEN (a PAT for the separate
-# homebrew-<tap> repo). For NOTARIZATION add EITHER the App Store Connect API key
+# Activate (one-time): add the SAME secrets jellytoast uses (one Apple Developer
+# account serves both apps) — APPLE_CERTIFICATE (base64 of the Developer ID
+# Application .p12), APPLE_CERTIFICATE_PWD, APPLE_KEYCHAIN_PWD,
+# APPLE_SIGNING_IDENTITY, plus the API key below. The older MACOS_CERTIFICATE /
+# MACOS_CERTIFICATE_PWD / MACOS_KEYCHAIN_PWD / APPLE_TEAM_ID names still work.
+# HOMEBREW_TAP_TOKEN (a PAT for a homebrew-<tap> repo) is optional. For NOTARIZATION add EITHER the App Store Connect API key
 # (PREFERRED — scoped + revocable, no 2FA coupling): APPLE_API_KEY_ID,
 # APPLE_API_ISSUER, APPLE_API_KEY_B64 (base64 of the AuthKey_XXXX.p8); OR the
 # Apple-ID fallback: APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD. See docs/RELEASING.md.
@@ -39,7 +41,7 @@ jobs:
     # thin binaries (jellytoast ships exactly that matrix for its libmpv build).
     runs-on: macos-14
     env:
-      HAVE_APPLE: ${{ secrets.APPLE_TEAM_ID != '' }}
+      HAVE_APPLE: ${{ secrets.APPLE_SIGNING_IDENTITY != '' || secrets.APPLE_TEAM_ID != '' }}
       # secrets.* is NOT a valid context inside `if:` — referencing it there makes
       # GitHub reject the whole workflow file at parse time (a 0s "workflow file
       # issue" failure on every push). Gate via env, same as HAVE_APPLE.
@@ -52,7 +54,7 @@ jobs:
       - name: Dormant — Apple secrets not set
         if: env.HAVE_APPLE != 'true'
         run: |
-          echo "APPLE_TEAM_ID is not set → the macOS channel is DORMANT (no-op)."
+          echo "No APPLE_SIGNING_IDENTITY / APPLE_TEAM_ID → the macOS channel is DORMANT (no-op)."
           echo "Activate with an Apple Developer account + the secrets. See docs/RELEASING.md."
 
       - uses: actions/checkout@v7
@@ -139,9 +141,10 @@ jobs:
       - name: Import the signing certificate
         if: env.HAVE_APPLE == 'true'
         env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-          MACOS_KEYCHAIN_PWD: ${{ secrets.MACOS_KEYCHAIN_PWD }}
+          # jellytoast's names first, the original MACOS_* names as fallback.
+          MACOS_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE || secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.APPLE_CERTIFICATE_PWD || secrets.MACOS_CERTIFICATE_PWD }}
+          MACOS_KEYCHAIN_PWD: ${{ secrets.APPLE_KEYCHAIN_PWD || secrets.MACOS_KEYCHAIN_PWD }}
         run: |
           echo "$MACOS_CERTIFICATE" | base64 --decode > cert.p12
           security create-keychain -p "$MACOS_KEYCHAIN_PWD" build.keychain
@@ -163,9 +166,12 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          IDENTITY="Developer ID Application"
+          # The exact identity when given (several certs in one keychain make
+          # the bare "Developer ID Application" prefix ambiguous).
+          IDENTITY="${APPLE_SIGNING_IDENTITY:-Developer ID Application}"
           APP="dist/trackerkeeper.app"
           ENTITLEMENTS="packaging/macos/entitlements.plist"
           # Sign EVERY nested Mach-O bottom-up — dylibs, .so, AND the Qt/Python

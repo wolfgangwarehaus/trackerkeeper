@@ -20,15 +20,28 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 # + the KWin drag_repaint effect payload (metadata.json + main.js) —
 # drag_repaint/_kwin.py resolves it relative to __file__, which holds in a
 # frozen bundle only if the files are collected at the same relative path.
-datas = collect_data_files("{{ app_slug }}", includes=["assets/*.svg", "drag_repaint/effect/*"])
+datas = collect_data_files("{{ app_slug }}", includes=["assets/*.svg", "drag_repaint/effect/*",
+                                                     # the phone interface's screens —
+                                                     # loaded from disk by QML, so they
+                                                     # must sit beside the package
+                                                     "quick/qml/*.qml"])
 datas += [(os.path.join(ROOT, "LICENSE"), ".")]
+
+# Linux bundles (deb / AppImage) carry Qt Quick for the phone interface
+# ({{ app_slug }}/quick — the default on an undocked Plasma Mobile / Phosh
+# session). Windows / macOS keep pruning it: no phone shell there. Without it
+# a frozen build on a phone silently falls back to the desktop window.
+QUICK_UI = sys.platform.startswith("linux")
+hiddenimports = []
+if QUICK_UI:
+    hiddenimports += ["PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuickControls2"]
 
 a = Analysis(
     [os.path.join(HERE, "launch.py")],
     pathex=[ROOT],
     binaries=[],
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=hiddenimports,
     hookspath=[],
     runtime_hooks=[],
     excludes=[
@@ -37,8 +50,7 @@ a = Analysis(
         "tkinter",
         "PySide6.QtWebEngineCore",
         "PySide6.QtWebEngineWidgets",
-        "PySide6.QtQuick",
-        "PySide6.QtQml",
+        *([] if QUICK_UI else ["PySide6.QtQuick", "PySide6.QtQml"]),
         "PySide6.Qt3DCore",
         "PySide6.QtCharts",
         "PySide6.QtDataVisualization",
@@ -46,6 +58,63 @@ a = Analysis(
     ],
     noarchive=False,
 )
+# --- Linux: keep only the QML the phone interface imports ------------------
+# PySide6's QtQml hook collects the whole qml/ tree — Quick3D, WebEngine,
+# Charts, Location, every Controls style — and the Qt libraries those plugins
+# link (~290 MB measured on jellytoast). {{ app_slug }}/quick/qml imports
+# QtQuick, QtQuick.Controls (Basic style) and QtQuick.Window; keep those (+
+# what they load: Templates, Controls/impl, QtQml, and Layouts / Effects as
+# cheap headroom) and drop the rest. Ported from jellytoast's spec.
+if QUICK_UI:
+    def _qml_rel(dest):
+        dest = dest.replace(os.sep, "/")
+        marker = "PySide6/Qt/qml/"
+        i = dest.find(marker)
+        return dest[i + len(marker):].split("/") if i >= 0 else None
+
+    def _qml_keep(parts):
+        if parts[0] == "QtQml":
+            return len(parts) < 3 or parts[1] != "StateMachine"
+        if parts[0] != "QtQuick":
+            return False
+        if len(parts) == 2:  # QtQuick's own qmldir / plugin
+            return True
+        if parts[1] in ("Layouts", "Effects", "Templates", "Window"):
+            return True
+        if parts[1] == "Controls":
+            return len(parts) == 3 or parts[2] in ("Basic", "impl")
+        return False
+
+    def _qml_prunable(dest):
+        parts = _qml_rel(dest)
+        return parts is not None and not _qml_keep(parts)
+
+    # Qt libraries only the pruned QML modules use.
+    _QML_ONLY_LIB_STEMS = tuple(
+        f"libQt6{m}"
+        for m in (
+            "Quick3D", "Charts", "Graphs", "DataVisualization", "Location",
+            "WebEngine", "WebView", "WebChannel", "WebSockets", "Positioning",
+            "Sensors", "Scxml", "StateMachine", "RemoteObjects", "TextToSpeech",
+            "3D", "QuickTest", "SpatialAudio", "Core5Compat", "QuickParticles",
+            "QuickTimeline", "QuickVectorImage", "QuickDialogs2", "QmlLocalStorage",
+            "QmlXmlListModel", "MultimediaQuick", "QuickControls2Material",
+            "QuickControls2Universal", "QuickControls2Imagine", "QuickControls2Fusion",
+            "QuickControls2FluentWinUI3", "LabsAnimation", "LabsFolderListModel",
+            "LabsQmlModels", "LabsSettings", "LabsSharedImage", "LabsWavefrontMesh",
+            "ShaderTools", "QmlDesignSupport", "QmlCompiler", "VirtualKeyboard",
+        )
+    )
+
+    def _lib_prunable(dest):
+        return os.path.basename(dest).startswith(_QML_ONLY_LIB_STEMS)
+
+    _n_before = len(a.binaries) + len(a.datas)
+    a.binaries = [b for b in a.binaries if not (_qml_prunable(b[0]) or _lib_prunable(b[0]))]
+    a.datas = [d for d in a.datas if not _qml_prunable(d[0])]
+    print(f"{{ app_slug }}.spec: pruned {_n_before - len(a.binaries) - len(a.datas)} "
+          "QML files / libraries the phone interface doesn't use")
+
 pyz = PYZ(a.pure)
 
 # Windows: stamp the generated icon + VSVersionInfo when release.yml produced them.

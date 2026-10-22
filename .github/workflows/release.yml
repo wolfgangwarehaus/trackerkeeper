@@ -2,6 +2,8 @@
 # GitHub release holding them:
 #   • trackerkeeper_<ver>_amd64.deb         (Ubuntu 22.04+/Debian 12+, self-contained)
 #   • trackerkeeper-<ver>-x86_64.AppImage   (universal Linux; + .zsync for delta updates)
+#   • trackerkeeper-<ver>.flatpak           (KDE runtime; the phone-shell channel)
+#   • Windows: x64 installer + x64/arm64 portable zips
 #   • sdist + wheel                 (PyPI-shaped, also attached)
 #   • SHA256SUMS
 #
@@ -10,8 +12,8 @@
 # tag IS the version (setuptools-scm), so cutting a release is `git tag vX.Y.Z`.
 #
 # workflow_dispatch builds everything and uploads workflow artifacts but creates no
-# release (a dry run). Windows / winget / AUR / macOS channels are deferred — see
-# docs/TODO.md.
+# release (a dry run). macOS / winget / AUR / Microsoft Store run from their own
+# workflows and stay dormant until their secrets exist — see docs/RELEASING.md.
 
 name: release
 
@@ -75,6 +77,15 @@ jobs:
         run: |
           test -x dist/trackerkeeper/trackerkeeper
           QT_QPA_PLATFORM=offscreen timeout 10 dist/trackerkeeper/trackerkeeper || [ $? -eq 124 ]
+          # The phone interface (Qt Quick) must load from the bundle too. It
+          # falls back to the desktop window on failure rather than dying, so
+          # the exit code can't tell — check the log (ported from jellytoast).
+          TRACKERKEEPER_UI=quick QT_QPA_PLATFORM=offscreen timeout 10 \
+            dist/trackerkeeper/trackerkeeper > quick-boot.log 2>&1 || [ $? -eq 124 ]
+          cat quick-boot.log
+          if grep -E "phone interface failed|failed to load component|is not installed" quick-boot.log; then
+            echo "::error::the phone interface did not load from the frozen bundle"; exit 1
+          fi
       - name: Build .deb
         run: bash packaging/deb/build_deb.sh "${{ steps.ver.outputs.version }}"
       - name: Smoke-test the .deb in clean containers (self-containment)
@@ -168,7 +179,19 @@ jobs:
           subject-path: dist/*.AppImage
 
   build-windows:
-    runs-on: windows-latest
+    # Two NATIVE frozen trees: x64 (windows-latest) builds the installer + a
+    # portable zip; Arm64 (windows-11-arm) a native portable zip. The x64
+    # installer also runs on Arm64 Windows under emulation. (jellytoast wraps
+    # both trees in one dual-arch installer — the follow-up if Arm users ask.)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: x64
+          - runner: windows-11-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     # Azure Trusted Signing activates only once the secrets exist; until then
     # SIGN='false' and both signing steps skip, so releases keep building unsigned.
     env:
@@ -228,9 +251,10 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
       - name: Build the Inno Setup installer
+        if: matrix.arch == 'x64'
         run: iscc /DAppVersion=${{ steps.ver.outputs.version }} packaging\windows\trackerkeeper.iss
       - name: Code-sign the installer (Azure Trusted Signing)
-        if: env.SIGN == 'true'
+        if: env.SIGN == 'true' && matrix.arch == 'x64'
         uses: azure/trusted-signing-action@v0
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -248,10 +272,10 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive -Path dist\trackerkeeper\* `
-            -DestinationPath "dist\trackerkeeper-${{ steps.ver.outputs.version }}-windows-x64-portable.zip"
+            -DestinationPath "dist\trackerkeeper-${{ steps.ver.outputs.version }}-windows-${{ matrix.arch }}-portable.zip"
       - uses: actions/upload-artifact@v7
         with:
-          name: windows
+          name: windows-${{ matrix.arch }}
           path: |
             dist/*-setup.exe
             dist/*-portable.zip
@@ -262,6 +286,52 @@ jobs:
           subject-path: |
             dist/*-setup.exe
             dist/*-portable.zip
+
+  build-linux-flatpak:
+    # A self-distributed .flatpak bundle (not Flathub): the KDE runtime brings
+    # Qt Quick, so it's the cleanest channel for Plasma Mobile / Phosh. The
+    # manifest is baked from the metadata (packaging/flatpak/); PySide6 comes
+    # from io.qt.PySide.BaseApp, never the wheel (see the manifest header).
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08   # what jellytoast's working job uses; the action installs the KDE runtime
+      options: --privileged
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve version + hand it to the build
+        id: ver
+        # No .git inside the flatpak build, so setuptools-scm can't read the
+        # tag; pin it in the manifest's SETUPTOOLS_SCM_PRETEND_VERSION. A
+        # dispatch dry run builds as 0.0.0.devN.
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then V="${GITHUB_REF_NAME#v}"; else V="0.0.0.dev${GITHUB_RUN_NUMBER}"; fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          sed -i "s/SETUPTOOLS_SCM_PRETEND_VERSION: '.*'/SETUPTOOLS_SCM_PRETEND_VERSION: '$V'/" \
+            packaging/flatpak/*.yml
+          grep -n SETUPTOOLS_SCM_PRETEND_VERSION packaging/flatpak/*.yml
+      # flatpak/ org, SHA-pinned (v6.8) — the flathub/ mirror vanished in
+      # 2026-07 (jellytoast hit "Unable to resolve action").
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+        with:
+          manifest-path: packaging/flatpak/io.github.wolfgangwarehaus.trackerkeeper.yml
+          bundle: trackerkeeper-${{ steps.ver.outputs.version }}.flatpak
+          cache-key: flatpak-builder-${{ hashFiles('packaging/flatpak/*.yml') }}
+          arch: x86_64
+          upload-artifact: false
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flatpak
+          path: trackerkeeper-*.flatpak
+      - name: Attest flatpak provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: trackerkeeper-*.flatpak
 
   build-python:
     runs-on: ubuntu-latest
@@ -291,7 +361,7 @@ jobs:
 
   draft-release:
     if: github.event_name == 'push'
-    needs: [build-linux-deb, build-linux-appimage, build-windows, build-python]
+    needs: [build-linux-deb, build-linux-appimage, build-linux-flatpak, build-windows, build-python]
     runs-on: ubuntu-latest
     permissions:
       contents: write # only this job mints the release

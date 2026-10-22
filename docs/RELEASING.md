@@ -30,10 +30,35 @@ A `git tag vX.Y.Z` re-push or a workflow re-run is idempotent (create-or-update 
 `--clobber`). `workflow_dispatch` on `release.yml` is a dry run: it builds and
 uploads workflow artifacts but creates no release.
 
+## Channels at a glance (2026-10-22)
+
+| Channel | Ships from | State |
+| --- | --- | --- |
+| GitHub: `.deb`, AppImage (+ `.zsync`), sdist + wheel | `release.yml` | **live** |
+| GitHub: Flatpak bundle (`trackerkeeper-X.Y.Z.flatpak`) | `release.yml` `build-linux-flatpak` | **live** — the phone-shell channel (KDE runtime brings Qt Quick) |
+| GitHub: Windows x64 installer + x64 / Arm64 portable zips | `release.yml` `build-windows` (matrix) | **live**, unsigned until Azure signing |
+| PyPI | `pypi-publish.yml` on publish | **live** (Trusted Publisher registered) |
+| macOS `.dmg` (signed, notarized) + Homebrew cask | `macos.yml` on release | dormant — needs the Apple secrets (below) |
+| winget | `winget.yml` on release | dormant — needs `WINGET_TOKEN` |
+| AUR | `aur.yml` on release | dormant — needs `AUR_SSH_PRIVATE_KEY` + registering the package |
+| Microsoft Store (MSIX) | manual first submission | dormant — reserve the name in Partner Center |
+| Mac App Store | — | not started (jellytoast has the jobs to port once an App Store Connect record exists) |
+
+**The phone interface ships in the Linux bundles.** The PyInstaller spec keeps
+Qt Quick on Linux (pruned to the QML modules `trackerkeeper/quick` imports) and
+the `.deb` job boots the frozen bundle with `TRACKERKEEPER_UI=quick`, failing
+the release if the phone interface falls back. Windows / macOS still prune Qt
+Quick: no phone shell there.
+
+**One Apple account, two apps.** `wolfgangwarehaus` is a personal account, so
+secrets can't be shared at org level — add the same values jellytoast has to
+this repo: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PWD`, `APPLE_KEYCHAIN_PWD`,
+`APPLE_SIGNING_IDENTITY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`,
+`APPLE_API_KEY_B64`. `macos.yml` reads jellytoast's names first.
+
 ## One-time setup
 
-- **PyPI Trusted Publishing** *(not yet configured — this is what failed on the
-  v0.1.0 publish)* — add a pending publisher at
+- **PyPI Trusted Publishing** *(configured 2026-07-25)* — add a pending publisher at
   <https://pypi.org/manage/account/publishing/>. The project name must match
   `[project] name` in `pyproject.toml`, which for this loaf is **`trackerkeeper`**
   — NOT the dough base's own PyPI project. Register exactly these, which are the
@@ -65,11 +90,9 @@ uploads workflow artifacts but creates no release.
   `release: released`; needs a CLASSIC PAT (`public_repo`) as `WINGET_TOKEN` and a
   fork of microsoft/winget-pkgs under `wolfgangwarehaus`.
 - **macOS** *(dormant)* — `macos.yml` builds, signs, notarizes the `.dmg` and bumps
-  the Homebrew cask on `release: released`; the whole job skips until you add a
-  $99/yr Apple Developer membership + the secrets `MACOS_CERTIFICATE` (base64
-  `.p12`), `MACOS_CERTIFICATE_PWD`, `MACOS_KEYCHAIN_PWD`, `APPLE_ID`,
-  `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`, and `HOMEBREW_TAP_TOKEN` (a PAT
-  for a separate `homebrew-tap` repo). Keys off `APPLE_TEAM_ID`.
+  the Homebrew cask on `release: released`; the whole job skips until
+  `APPLE_SIGNING_IDENTITY` (or the older `APPLE_TEAM_ID`) exists. Use the same
+  secrets as jellytoast (listed above); `HOMEBREW_TAP_TOKEN` is optional.
 - **MSIX / Microsoft Store** *(manual-first)* — the toolkit ships
   (`packaging/msix/`: `AppxManifest.xml`, `make-assets.sh`) but the first
   submission is **manual** via Partner Center — follow
